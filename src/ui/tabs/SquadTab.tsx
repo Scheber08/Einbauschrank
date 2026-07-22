@@ -1,0 +1,151 @@
+import { useMemo, useState } from 'react';
+import { computeOverall } from '../../engine/attributes';
+import { ageOn } from '../../engine/date';
+import { userClub } from '../../engine/game';
+import { selectLineup } from '../../engine/lineup';
+import { squadOf } from '../../engine/worldGen';
+import { DIFFICULTY_SETTINGS } from '../../engine/types';
+import { useAppState } from '../../state/store';
+import { Empty, Meter, Panel, Pill, money, shortName } from '../components';
+
+type SortKey = 'position' | 'ability' | 'age' | 'form' | 'value';
+
+export default function SquadTab() {
+  const game = useAppState().game!;
+  const club = userClub(game);
+  const [sort, setSort] = useState<SortKey>('position');
+
+  const squad = useMemo(
+    () => (club ? squadOf(game.players, club.id) : []),
+    [club, game.players, game.version],
+  );
+
+  const lineup = useMemo(() => {
+    if (!club || squad.length === 0) return null;
+    return selectLineup(club, squad, {
+      coachRelation: game.coachRelation,
+      userBonus: DIFFICULTY_SETTINGS[game.difficulty].playtimeBonus,
+    });
+  }, [club, squad, game.coachRelation, game.difficulty, game.version]);
+
+  const starterIds = new Set(lineup?.starters.map((s) => s.playerId) ?? []);
+  const benchIds = new Set(lineup?.bench ?? []);
+
+  const sorted = useMemo(() => {
+    const order = ['TW', 'IV', 'LV', 'RV', 'DM', 'ZM', 'OM', 'LA', 'RA', 'ST'];
+    return squad.slice().sort((a, b) => {
+      switch (sort) {
+        case 'ability':
+          return computeOverall(b.attrs, b.position) - computeOverall(a.attrs, a.position);
+        case 'age':
+          return ageOn(a.birthDate, game.date) - ageOn(b.birthDate, game.date);
+        case 'form': return b.form - a.form;
+        case 'value': return b.marketValue - a.marketValue;
+        default:
+          return order.indexOf(a.position) - order.indexOf(b.position)
+            || computeOverall(b.attrs, b.position) - computeOverall(a.attrs, a.position);
+      }
+    });
+  }, [squad, sort, game.date]);
+
+  if (!club) return <Panel><Empty text="Kein Verein." /></Panel>;
+
+  return (
+    <>
+      <Panel title={club.name} action={
+        <div className="row">
+          <Pill>{club.formation}</Pill>
+          <Pill>Reputation {club.reputation}</Pill>
+        </div>
+      }>
+        <div className="grid four">
+          <div className="stat"><div className="value">{squad.length}</div><div className="label">Kadergroesse</div></div>
+          <div className="stat">
+            <div className="value">{lineup ? Math.round(lineup.attack) : '-'}</div>
+            <div className="label">Angriff</div>
+          </div>
+          <div className="stat">
+            <div className="value">{lineup ? Math.round(lineup.midfield) : '-'}</div>
+            <div className="label">Mittelfeld</div>
+          </div>
+          <div className="stat">
+            <div className="value">{lineup ? Math.round(lineup.defence) : '-'}</div>
+            <div className="label">Abwehr</div>
+          </div>
+        </div>
+        <div className="grid two" style={{ marginTop: '0.9rem' }}>
+          <div>
+            <Meter label="Trainingsanlagen" value={club.training} />
+            <Meter label="Nachwuchsarbeit" value={club.youth} />
+          </div>
+          <div className="small muted">
+            <div className="row between"><span>Trainer</span><span>{club.managerName}</span></div>
+            <div className="row between"><span>Stadion</span><span>{club.stadiumName}</span></div>
+            <div className="row between"><span>Kapazitaet</span>
+              <span>{club.stadiumCapacity.toLocaleString('de-DE')}</span></div>
+            <div className="row between"><span>Spielstil</span><span>{club.tacticStyle}</span></div>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Kader" action={
+        <div className="chip-row">
+          {([['position', 'Position'], ['ability', 'Staerke'], ['age', 'Alter'],
+            ['form', 'Form'], ['value', 'Wert']] as [SortKey, string][]).map(([key, label]) => (
+            <span key={key} className={`chip ${sort === key ? 'active' : ''}`}
+              onClick={() => setSort(key)}>{label}</span>
+          ))}
+        </div>
+      }>
+        <div className="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 30 }}>#</th>
+                <th>Name</th>
+                <th>Pos</th>
+                <th className="num">Alter</th>
+                <th className="num">Staerke</th>
+                <th className="num">Form</th>
+                <th className="num">Fit</th>
+                <th className="num">Wert</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((p) => {
+                const ability = computeOverall(p.attrs, p.position);
+                return (
+                  <tr key={p.id} className={p.isUser ? 'user' : ''}>
+                    <td className="dim mono tiny">{p.shirtNumber}</td>
+                    <td>
+                      {p.isUser ? <strong>{p.firstName} {p.lastName}</strong>
+                        : shortName(p.firstName, p.lastName)}
+                    </td>
+                    <td className="tiny muted">{p.position}</td>
+                    <td className="num mono">{ageOn(p.birthDate, game.date)}</td>
+                    <td className="num mono"><strong>{ability}</strong></td>
+                    <td className="num mono">{Math.round(p.form)}</td>
+                    <td className="num mono">{Math.round(p.fitness)}</td>
+                    <td className="num tiny dim">{money(p.marketValue)}</td>
+                    <td className="tiny">
+                      {p.injury ? <span className="pill bad">{p.injury.name}</span>
+                        : p.suspension > 0 ? <span className="pill warn">Gesperrt</span>
+                        : starterIds.has(p.id) ? <span className="pill good">Startelf</span>
+                        : benchIds.has(p.id) ? <span className="pill">Bank</span>
+                        : <span className="dim">Tribuene</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="tiny dim" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
+          Startelf und Bank sind die aktuelle Einschaetzung des Trainers. Sie kann sich
+          durch Form, Fitness und deine Trainerbeziehung von Spiel zu Spiel aendern.
+        </p>
+      </Panel>
+    </>
+  );
+}

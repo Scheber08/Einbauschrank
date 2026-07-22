@@ -1,0 +1,249 @@
+/** Weltgenerator: Laender, Ligen, Vereine und Kader (Konzept Abschnitt 4-6). */
+import { computeOverall, type PositionCode } from './attributes';
+import { COUNTRIES, COUNTRY_BY_ID, type CountryDef } from './countries';
+import { ageOn, type GameDate } from './date';
+import { NAME_POOLS, STADIUM_WORDS } from './names';
+import { SQUAD_TEMPLATE, createPlayer, makeContract } from './playerGen';
+import { Rng, clamp } from './rng';
+import type {
+  Club, Competition, Country, FormationKey, Id, Player, SquadRole,
+} from './types';
+
+const CLUB_COLORS: [string, string][] = [
+  ['#c0392b', '#ffffff'], ['#1e5aa8', '#ffffff'], ['#146b3a', '#ffffff'],
+  ['#f0b400', '#101010'], ['#111827', '#e5e7eb'], ['#7c2d8f', '#ffffff'],
+  ['#e06a00', '#101010'], ['#0e7490', '#ffffff'], ['#9d174d', '#ffffff'],
+  ['#374151', '#f59e0b'], ['#065f46', '#fbbf24'], ['#1f2937', '#ef4444'],
+  ['#b91c1c', '#111827'], ['#0369a1', '#facc15'], ['#4d7c0f', '#ffffff'],
+  ['#5b21b6', '#a3e635'], ['#831843', '#fde68a'], ['#134e4a', '#ffffff'],
+  ['#7f1d1d', '#fef3c7'], ['#1e3a8a', '#f97316'],
+];
+
+const FORMATIONS: FormationKey[] = ['4-4-2', '4-3-3', '4-2-3-1', '3-5-2', '3-4-3', '5-3-2', '4-1-4-1'];
+
+export interface WorldGenResult {
+  countries: Record<Id, Country>;
+  competitions: Record<Id, Competition>;
+  clubs: Record<Id, Club>;
+  players: Record<Id, Player>;
+}
+
+export interface WorldGenOptions {
+  /** Laender, die vollstaendig mit Ligen erzeugt werden. */
+  fullCountryIds: string[];
+  currentDate: GameDate;
+  makeId: (prefix: string) => Id;
+}
+
+/** Durchschnittliche Kaderstaerke eines Vereins aus seiner Reputation. */
+function abilityForReputation(reputation: number): number {
+  return clamp(29 + reputation * 0.545, 32, 84);
+}
+
+function reputationBand(rng: Rng, level: number, rank: number): number {
+  // rank 0 = staerkster Verein der Liga
+  if (level === 1) return clamp(Math.round(88 - rank * 1.9 + rng.normal(0, 2.5)), 45, 95);
+  if (level === 2) return clamp(Math.round(56 - rank * 1.15 + rng.normal(0, 2.2)), 26, 62);
+  return clamp(Math.round(36 - rank * 0.85 + rng.normal(0, 2)), 12, 42);
+}
+
+function makeClubName(rng: Rng, country: CountryDef, city: string): { name: string; short: string } {
+  const pool = NAME_POOLS[country.id];
+  const prefix = rng.pick(pool.clubPrefixes);
+  const suffix = rng.pick(pool.clubSuffixes);
+  const parts = [prefix, city, suffix].filter(Boolean);
+  const name = parts.join(' ');
+  const short = city.slice(0, 3).toUpperCase();
+  return { name, short };
+}
+
+function makeStadium(rng: Rng, city: string, reputation: number): { name: string; capacity: number } {
+  const word = rng.pick(STADIUM_WORDS);
+  const base = 2500 + Math.pow(reputation, 2.05) * 8;
+  const capacity = Math.round((base * rng.float(0.8, 1.25)) / 500) * 500;
+  return { name: `${city} ${word}`, capacity: clamp(capacity, 2000, 78000) };
+}
+
+/** Erzeugt einen kompletten Kader fuer einen Verein. */
+function generateSquad(
+  rng: Rng, club: Club, level: number, country: CountryDef,
+  currentDate: GameDate, makeId: (p: string) => Id,
+): Player[] {
+  const avgAbility = abilityForReputation(club.reputation);
+  const players: Player[] = [];
+  const usedNumbers = new Set<number>();
+
+  const positions = rng.shuffle(SQUAD_TEMPLATE.slice());
+
+  positions.forEach((position, index) => {
+    // Die ersten Spieler eines Kaders sind die Stammkraefte.
+    const depthPenalty = index < 11 ? rng.float(2, 7) : index < 17 ? rng.float(-3, 2) : rng.float(-12, -4);
+    const ability = clamp(avgAbility + depthPenalty + rng.normal(0, 3.5), 18, 93);
+
+    // Altersverteilung: Schwerpunkt zwischen 22 und 29.
+    const ageRoll = rng.next();
+    let age: number;
+    if (ageRoll < 0.16) age = rng.int(17, 20);
+    else if (ageRoll < 0.42) age = rng.int(21, 24);
+    else if (ageRoll < 0.75) age = rng.int(25, 28);
+    else if (ageRoll < 0.93) age = rng.int(29, 32);
+    else age = rng.int(33, 37);
+
+    // Auslaendische Spieler: in hoeheren Ligen haeufiger.
+    const foreignChance = level === 1 ? 0.3 : level === 2 ? 0.16 : 0.07;
+    const nationality = rng.chance(foreignChance)
+      ? rng.pick(COUNTRIES.filter((c) => c.id !== country.id)).id
+      : country.id;
+
+    let shirtNumber = 0;
+    for (let tries = 0; tries < 60; tries++) {
+      const n = tries < 40 ? rng.int(1, 45) : rng.int(46, 99);
+      if (!usedNumbers.has(n)) { shirtNumber = n; break; }
+    }
+    usedNumbers.add(shirtNumber);
+
+    const player = createPlayer(rng, makeId('p'), {
+      ability,
+      position,
+      age,
+      countryId: nationality,
+      currentDate,
+      clubId: club.id,
+      leagueLevel: level,
+      potentialBoost: country.youth > 82 && age < 21 ? rng.float(0, 7) : 0,
+      shirtNumber: shirtNumber || 60 + index,
+    });
+
+    const role: SquadRole = index < 6 ? 'Schluesselspieler'
+      : index < 11 ? 'Stammspieler'
+      : index < 17 ? 'Rotationsspieler'
+      : age <= 20 ? 'Nachwuchsspieler' : 'Ergaenzungsspieler';
+
+    player.contract = makeContract(
+      rng, player, club.id, currentDate, level, club.reputation, country.wealth, role,
+    );
+    players.push(player);
+  });
+
+  // Kapitaen: erfahrenster Spieler mit hoher Fuehrungsstaerke.
+  const captain = players.reduce((best, p) => {
+    const score = p.attrs.leadership + ageOn(p.birthDate, currentDate) * 1.5 + computeOverall(p.attrs, p.position) * 0.4;
+    const bestScore = best.attrs.leadership + ageOn(best.birthDate, currentDate) * 1.5 + computeOverall(best.attrs, best.position) * 0.4;
+    return score > bestScore ? p : best;
+  }, players[0]);
+  if (captain.contract) captain.contract.role = 'Mannschaftsfuehrer';
+
+  return players;
+}
+
+export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
+  const countries: Record<Id, Country> = {};
+  const competitions: Record<Id, Competition> = {};
+  const clubs: Record<Id, Club> = {};
+  const players: Record<Id, Player> = {};
+
+  for (const def of COUNTRIES) {
+    countries[def.id] = {
+      id: def.id,
+      name: def.name,
+      short: def.short,
+      styleBias: def.attrBias,
+      reputation: def.reputation,
+    };
+  }
+
+  for (const countryId of opts.fullCountryIds) {
+    const country = COUNTRY_BY_ID[countryId];
+    const pool = NAME_POOLS[countryId];
+    const cities = rng.shuffle(pool.cities.slice());
+    const usedNames = new Set<string>();
+    let cityIndex = 0;
+
+    for (let level = 1; level <= 3; level++) {
+      const competitionId = `${countryId}-l${level}`;
+      const competition: Competition = {
+        id: competitionId,
+        countryId,
+        name: country.leagueNames[level - 1],
+        short: `${country.short}${level}`,
+        type: 'league',
+        level,
+        clubIds: [],
+        reputation: clamp(country.reputation - (level - 1) * 22, 10, 95),
+      };
+
+      for (let rank = 0; rank < 20; rank++) {
+        const city = cities[cityIndex++ % cities.length];
+        let naming = makeClubName(rng, country, city);
+        let guard = 0;
+        while (usedNames.has(naming.name) && guard++ < 20) naming = makeClubName(rng, country, city);
+        usedNames.add(naming.name);
+
+        const reputation = reputationBand(rng, level, rank);
+        const stadium = makeStadium(rng, city, reputation);
+        const clubId = opts.makeId('c');
+
+        const club: Club = {
+          id: clubId,
+          countryId,
+          leagueId: competitionId,
+          name: naming.name,
+          short: naming.short,
+          city,
+          colors: CLUB_COLORS[(cityIndex + level) % CLUB_COLORS.length],
+          reputation,
+          budget: Math.round(reputation * reputation * 900 * country.wealth),
+          wageBudget: Math.round(reputation * 1400 * country.wealth),
+          stadiumName: stadium.name,
+          stadiumCapacity: stadium.capacity,
+          formation: rng.pick(FORMATIONS),
+          tacticStyle: rng.pick(country.tactics),
+          training: clamp(Math.round(reputation * 0.7 + country.youth * 0.25 + rng.normal(0, 7)), 15, 95),
+          youth: clamp(Math.round(reputation * 0.5 + country.youth * 0.45 + rng.normal(0, 8)), 15, 95),
+          managerName: `${rng.pick(pool.managerFirst)} ${rng.pick(pool.lastNames)}`,
+          history: [],
+        };
+
+        clubs[clubId] = club;
+        competition.clubIds.push(clubId);
+
+        for (const p of generateSquad(rng, club, level, country, opts.currentDate, opts.makeId)) {
+          players[p.id] = p;
+        }
+      }
+
+      competitions[competitionId] = competition;
+    }
+
+    // Nationaler Pokal (Konzept Abschnitt 9)
+    const cupId = `${countryId}-cup`;
+    competitions[cupId] = {
+      id: cupId,
+      countryId,
+      name: country.cupName,
+      short: 'Pokal',
+      type: 'cup',
+      level: 0,
+      clubIds: Object.values(clubs).filter((c) => c.countryId === countryId).map((c) => c.id),
+      reputation: country.reputation,
+    };
+  }
+
+  return { countries, competitions, clubs, players };
+}
+
+/** Hilfsfunktion: alle Spieler eines Vereins. */
+export function squadOf(players: Record<Id, Player>, clubId: Id): Player[] {
+  return Object.values(players).filter((p) => p.clubId === clubId);
+}
+
+/** Aufstellungsraster je Formation - fuer die Auswahl der Startelf. */
+export const FORMATION_SLOTS: Record<FormationKey, PositionCode[]> = {
+  '4-4-2': ['TW', 'LV', 'IV', 'IV', 'RV', 'LA', 'ZM', 'ZM', 'RA', 'ST', 'ST'],
+  '4-3-3': ['TW', 'LV', 'IV', 'IV', 'RV', 'DM', 'ZM', 'ZM', 'LA', 'ST', 'RA'],
+  '4-2-3-1': ['TW', 'LV', 'IV', 'IV', 'RV', 'DM', 'DM', 'LA', 'OM', 'RA', 'ST'],
+  '3-5-2': ['TW', 'IV', 'IV', 'IV', 'LV', 'DM', 'ZM', 'ZM', 'RV', 'ST', 'ST'],
+  '3-4-3': ['TW', 'IV', 'IV', 'IV', 'LA', 'ZM', 'ZM', 'RA', 'LA', 'ST', 'RA'],
+  '5-3-2': ['TW', 'LV', 'IV', 'IV', 'IV', 'RV', 'DM', 'ZM', 'ZM', 'ST', 'ST'],
+  '4-1-4-1': ['TW', 'LV', 'IV', 'IV', 'RV', 'DM', 'LA', 'ZM', 'ZM', 'RA', 'ST'],
+};

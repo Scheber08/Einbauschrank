@@ -1,0 +1,153 @@
+# Road to Glory
+
+Browserbasiertes Fussball-Karrierespiel. Du steuerst keinen Verein, sondern einen
+einzelnen selbst erstellten Fussballer - von der Jugend bis zur Legende. Die
+wichtigsten Momente spielst du selbst: Richtung, Kraft und Ballkontaktpunkt
+bestimmst du, waehrend im Hintergrund eine vollstaendige Fussballwelt weiterlaeuft.
+
+Dies ist die **erste spielbare Version (0.1)** nach dem Konzept. Sie entspricht
+Phase 1 bis 4 des Entwicklungsplans und geht beim Umfang ueber die in Abschnitt 61
+beschriebene Minimalversion hinaus.
+
+## Starten
+
+```bash
+npm install
+```
+
+```bash
+npm run dev
+```
+
+Danach `http://localhost:5173` im Browser oeffnen.
+
+Weitere Befehle:
+
+```bash
+npm run build
+```
+
+```bash
+npm run typecheck
+```
+
+## Was in dieser Version enthalten ist
+
+| Konzeptabschnitt | Umsetzung |
+| --- | --- |
+| 4-6 Spielwelt, Ligensystem | Falkenland vollstaendig: 3 Ligen, 60 Vereine, rund 1.500 Spieler |
+| 7-8 Ligamodus, Auf- und Abstieg | 38 Spieltage, alle Tabellenkriterien, direkter Auf- und Abstieg, Relegation ueber Hin- und Rueckspiel |
+| 9 Nationaler Pokal | Alle 60 Vereine, Vorrunde bis Finale, Verlaengerung und Elfmeterschiessen |
+| 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende |
+| 16-17 Attribute, Potenzial | 54 Attribute in fuenf Gruppen, positionsabhaengige Gesamtstaerke, veraenderliches Potenzial |
+| 18-19 Wochenablauf, Training | Wochentraining mit 17 Schwerpunkten und vier Intensitaetsstufen |
+| 20-26 Spielmodi und Gameplay | Simulation, eigene Highlights, alle wichtigen Szenen; Schuss, Pass, Zweikampf, Dribbling, Elfmeter, Torwartparade |
+| 22-23 Ballsteuerung | Richtung, Kraftanzeige, Ballkontaktpunkt mit echter Flugbahnberechnung inklusive Effet und Schwerkraft |
+| 27-28 Simulation, Taktik | Minutenweise Detailsimulation fuer eigene Spiele, schnelle Hintergrundsimulation fuer alle uebrigen; sieben Formationen, acht Spielstile |
+| 29 Trainerbeziehung | Beeinflusst Aufstellung, Einsatzzeit und Kaderplatz |
+| 33-34 Vertraege, Transfers | Vertragsverlaengerung, Angebote nach jeder Saison, Wechsel des eigenen Spielers, Transferbewegungen der Computerspieler |
+| 36-38 Marktwert, Form, Fitness | Dynamischer Marktwert, Form, Moral, Fitness, Spielpraxis, Selbstvertrauen |
+| 37 Verletzungen | Neun Verletzungsarten mit Heilungsverlauf und dauerhaften Folgen bei schweren Faellen |
+| 39 Medien | Nachrichtensystem mit Kategorien und Filter |
+| 41-42 Saisonziele, Bewertung | Vier Saisonziele, positionsabhaengige Notenberechnung von 1,0 bis 10,0 |
+| 43-48 Statistiken, Rekorde | Vollstaendige Einzel- und Saisonstatistik, Filter nach Saison, Wettbewerb und Verein, Rekordbuch |
+| 49-50 Chronik, Auszeichnungen | Karrierechronik mit Meilensteinen, fuenf Auszeichnungen je Liga und Saison |
+| 51 Saisonkalender | Juli bis Juni mit Winterpause, Pokalrunden unter der Woche, Relegation im Juni |
+| 53 Save-System | Mehrere Spielstaende in IndexedDB, Autosave, Umbenennen, Duplizieren, Export und Import |
+| 56 Leistungsoptimierung | Zwei Detailstufen: Detailsimulation fuer relevante Spiele, schnelle Simulation fuer den Rest |
+| 57 Oberflaeche | Karriere-Dashboard mit zehn Bereichen, responsiv fuer Desktop und Tablet |
+| 59 Schwierigkeitsgrad | Vier Stufen mit Auswirkung auf Trefferbereiche, Entwicklung, Verletzungen und Einsatzzeit |
+
+## Noch nicht enthalten
+
+Diese Punkte aus dem Konzept sind bewusst spaeteren Ausbauschritten vorbehalten:
+
+- **Abschnitt 5, 10-13**: Die vier weiteren Laender sind als Datensatz und
+  Spielstil hinterlegt (auslaendische Spieler kommen bereits vor), haben aber
+  noch keine eigenen Ligen. Damit fehlen auch Continental Champions Cup,
+  Continental Trophy, Nationalmannschaften und World Nations Cup.
+- **Abschnitt 30-32, 40**: Beziehungen zu Mitspielern, Ereignisse ausserhalb des
+  Platzes, Persoenlichkeit und soziale Medien.
+- **Abschnitt 35**: Beratersystem.
+- **Abschnitt 34**: Leihen, Vorvertraege und Tauschgeschaefte. Der Transfermarkt
+  ist derzeit auf Angebote an den eigenen Spieler und eine einfache Umverteilung
+  der Computerspieler reduziert.
+- **Abschnitt 20.4**: Erweiterte Spielersteuerung ueber ein komplettes Spiel.
+- **Abschnitt 58**: Sound und Musik.
+
+## Aufbau des Projekts
+
+```
+src/
+  engine/            Spiellogik, vollstaendig unabhaengig von der Oberflaeche
+    rng.ts           Deterministischer Zufallsgenerator je Spielstand
+    date.ts          Kalenderrechnung
+    types.ts         Zentrale Datentypen des Spielstands
+    attributes.ts    54 Attribute, Positionen, Gesamtstaerkeberechnung
+    countries.ts     Die fuenf fiktiven Laender
+    names.ts         Fiktive Namens- und Ortspools
+    backgrounds.ts   Karrierehintergruende
+    playerGen.ts     Spielererzeugung, Marktwert, Gehalt
+    worldGen.ts      Laender, Ligen, Vereine, Kader
+    fixtures.ts      Spielplan und Saisonkalender
+    cup.ts           Pokalauslosung
+    table.ts         Tabellenberechnung
+    lineup.ts        Aufstellung und Mannschaftsstaerken
+    matchSim.ts      Gemeinsame Bausteine und Hintergrundsimulation
+    matchEngine.ts   Minutenweise Detailsimulation mit Unterbrechung fuer Highlights
+    matchTypes.ts    Typen fuer Highlights
+    ballAction.ts    Ballphysik, Ausfuehrungsfehler, Torwartlogik
+    development.ts   Training, Entwicklung, Verletzungen, Form
+    season.ts        Saisonstart und -ende, Relegation, Auszeichnungen, Transfers
+    stats.ts         Statistikverwaltung und Rekorde
+    game.ts          Karrierestart, Tagesablauf, Spielabwicklung
+    save.ts          IndexedDB-Spielstaende
+  state/             Zustandsspeicher und Aktionen der Oberflaeche
+  ui/                React-Komponenten
+    tabs/            Die zehn Bereiche des Karriere-Dashboards
+    match/           Spielbildschirm und interaktive Canvas-Szenen
+```
+
+Die Engine kennt React nicht und laesst sich unabhaengig testen oder spaeter
+serverseitig verwenden.
+
+## Steuerung einer Ballaktion
+
+Eine Ballaktion laeuft in drei Schritten ab (bei Paessen in vier):
+
+1. **Richtung** - Zielpunkt auf dem Spielfeld anklicken.
+2. **Kraft** - Maustaste oder Leertaste gedrueckt halten, die Anzeige laeuft auf
+   und wieder zurueck. Beim gewuenschten Wert loslassen.
+3. **Ballkontakt** - In der Nahansicht den Punkt am Ball waehlen:
+   - Mitte: gerader Ball mit voller Kraft
+   - Unterseite: der Ball wird angehoben, hohe Flugbahn
+   - Oberseite: flache Bahn mit Topspin
+   - Seitlich: Effet, der Ball beschreibt eine Kurve
+
+Aus diesen Eingaben wird eine echte Flugbahn berechnet, mit Schwerkraft,
+Luftwiderstand und Magnus-Effekt. Die Attribute des Spielers, der Gegnerdruck,
+Form, Fitness und Selbstvertrauen verrauschen die Eingabe: Eine gute Eingabe
+erhoeht die Erfolgschance, garantiert sie aber nicht. Ein Weltklassespieler
+gleicht kleine Fehler aus, ein Jugendspieler nicht.
+
+Zweikaempfe, Dribblings und Torwartszenen laufen ueber ein Zeitfenster, dessen
+Groesse von den Attributen und vom Schwierigkeitsgrad abhaengt.
+
+## Entwicklerwerkzeug
+
+`devtest.html` ist ein Rauchtest der Spiellogik. Er erzeugt eine Karriere,
+spielt drei komplette Saisons durch und prueft Tabellen, Torquoten, Pokalverlauf,
+Auf- und Abstieg, Statistiken und die Groesse des Spielstands. Aufruf bei
+laufendem Entwicklungsserver:
+
+```bash
+npm run dev
+```
+
+Danach `http://localhost:5173/devtest.html` oeffnen. Der Test ist nicht Teil des
+Produktionsbuilds.
+
+## Hinweis zu Lizenzen
+
+Alle Laender, Ligen, Vereine, Staedte, Stadien und Spielernamen sind frei
+erfunden. Es werden keine echten Vereinsnamen, Wappen oder Personen verwendet.
