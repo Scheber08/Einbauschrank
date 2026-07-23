@@ -169,6 +169,12 @@ Waehrend der Partie waehlst du jederzeit deine **Ausrichtung**:
 So entscheidest du zwischen den Highlights, ob du ein Spiel an dich reisst oder
 Kraefte fuer spaeter sparst.
 
+**Halbzeit:** Zur Pause haelt die Partie an. Der Trainer sagt je nach Spielstand
+etwas, und du waehlst eine Reaktion - kompakt verteidigen, so weitermachen,
+volle Offensive oder die Mannschaft mitreissen. Die Wahl veraendert Angriff und
+Abwehr deines Teams in der zweiten Haelfte sowie den Kraftverbrauch; "Mannschaft
+mitreissen" wirkt umso staerker, je hoeher deine Fuehrungsstaerke ist.
+
 Alle Timingmechaniken rechnen mit der Uhr statt mit Einzelbildern. Sie bleiben
 damit fair, auch wenn der Browser gerade keine Bilder liefert.
 

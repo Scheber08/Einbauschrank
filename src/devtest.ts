@@ -388,6 +388,47 @@ function run() {
   check('Kraefte schonen verbraucht weniger Fitness als Nach vorne',
     rest.fitness > atk.fitness, `${rest.fitness.toFixed(1)} gegen ${atk.fitness.toFixed(1)}`);
 
+  // --- Halbzeitentscheidung (Konzept Abschnitt 18) --------------------
+  log('\n--- Halbzeitentscheidung ---');
+  const halftimeRuns = (choice: string) => {
+    let ownShots = 0; let oppShots = 0; let games = 0; let sawHalftime = 0;
+    for (const m of upcoming.slice(0, 50)) {
+      const prepared = prepareUserMatch(game, m.id, true);
+      if (!prepared) continue;
+      const side = prepared.setup.homeClub.id === user.clubId ? 'home' : 'away';
+      const r = new Rng((game.rngState + games * 2749 + 3) >>> 0);
+      const engine = new MatchEngine({ ...prepared.setup, highlightMode: 'own', rng: r });
+      let guard = 0;
+      while (!engine.finished && !engine.pendingHalftime && guard++ < 200) {
+        const res = engine.step();
+        if (res.pending) engine.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+      }
+      if (engine.pendingHalftime) { sawHalftime++; engine.resolveHalftime(choice); }
+      engine.runToEnd((c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r));
+      // Offensivaktionen der zweiten Haelfte je Seite - weniger verrauscht als Tore.
+      for (const e of engine.events) {
+        if (e.minute <= 45) continue;
+        if (e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss') continue;
+        if (e.side === side) ownShots++;
+        else if (e.side) oppShots++;
+      }
+      games++;
+    }
+    return { ownShots, oppShots, games, sawHalftime };
+  };
+
+  const push = halftimeRuns('push');
+  const hold = halftimeRuns('hold');
+  log(`Halbzeitszene trat auf: ${push.sawHalftime}/${push.games} Spiele`);
+  log(`Volle Offensive:     2. Haelfte ${push.ownShots} eigene Abschluesse, ${push.oppShots} gegnerische`);
+  log(`Kompakt verteidigen: 2. Haelfte ${hold.ownShots} eigene Abschluesse, ${hold.oppShots} gegnerische`);
+  check('Halbzeitszene tritt bei interaktiven Spielen auf',
+    push.sawHalftime > push.games * 0.8, `${push.sawHalftime}/${push.games}`);
+  check('Volle Offensive bringt in Haelfte 2 mehr eigene Abschluesse als Kompakt',
+    push.ownShots > hold.ownShots, `${push.ownShots} gegen ${hold.ownShots}`);
+  check('Volle Offensive laesst in Haelfte 2 mehr gegnerische Abschluesse zu',
+    push.oppShots > hold.oppShots, `${push.oppShots} gegen ${hold.oppShots}`);
+
   // --- Ballphysik ------------------------------------------------------
   log('\n--- Ballphysik (Konzept Abschnitt 22 und 23) ---');
   const physicsRng = new Rng(4242);

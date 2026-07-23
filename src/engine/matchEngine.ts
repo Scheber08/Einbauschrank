@@ -57,6 +57,8 @@ export interface MatchOutcome {
   motmId: Id | null;
   /** Durchschnittliche Eingabequalitaet des Nutzers, 0-1. */
   userInputQuality: number | null;
+  /** Moraleffekt der Halbzeitentscheidung, nach dem Spiel anzuwenden. */
+  halftimeMoraleDelta: number;
 }
 
 interface PendingContext {
@@ -108,6 +110,31 @@ const MENTALITY_EFFECTS: Record<Mentality, MentalityEffect> = {
   conserve: { attack: 0.5, defend: 0.6, effort: 0.68 },
 };
 
+/** Eine waehlbare Reaktion auf die Traineransprache in der Halbzeit. */
+export interface HalftimeOption {
+  id: string;
+  label: string;
+  description: string;
+  /** Faktoren auf Angriff und Abwehr des eigenen Teams in der zweiten Haelfte. */
+  attackMod: number;
+  defenceMod: number;
+  /** Zusaetzlicher Kraftaufwand des Teams in der zweiten Haelfte. */
+  effortMod: number;
+  /** Moralveraenderung des eigenen Spielers (nach dem Spiel wirksam). */
+  moraleDelta: number;
+  /** Wirkt die Fuehrungsstaerke des Spielers verstaerkend? */
+  leadership?: boolean;
+}
+
+export interface HalftimeDecision {
+  scoreline: [number, number];
+  userSide: Side;
+  /** Ist der eigene Spieler zur Pause auf dem Platz? */
+  onPitch: boolean;
+  coachMessage: string;
+  options: HalftimeOption[];
+}
+
 export class MatchEngine {
   readonly setup: MatchEngineSetup;
   minute = 0;
@@ -136,6 +163,13 @@ export class MatchEngine {
   private userQualityCount = 0;
   private squadById = new Map<Id, Player>();
   private mentality: Mentality = 'balanced';
+  /** Wartet auf die Halbzeitentscheidung des Spielers. */
+  pendingHalftime: HalftimeDecision | null = null;
+  private halftimeDone = false;
+  private secondHalfAttackMod = 1;
+  private secondHalfDefenceMod = 1;
+  private secondHalfEffortMod = 1;
+  private halftimeMoraleDelta = 0;
 
   constructor(setup: MatchEngineSetup) {
     this.setup = setup;
@@ -271,10 +305,13 @@ export class MatchEngine {
       (sum, o) => sum + (this.liveFitness.get(o.player.id) ?? 80), 0,
     ) / Math.max(1, this.onPitch[side].length);
     const fitFactor = 0.82 + (avgFit / 100) * 0.18;
+    // Die Halbzeitentscheidung wirkt nur auf das eigene Team in der 2. Haelfte.
+    const atkMod = side === this.userSide ? this.secondHalfAttackMod : 1;
+    const defMod = side === this.userSide ? this.secondHalfDefenceMod : 1;
     return {
-      attack: base.attack * penalty * fitFactor,
-      midfield: base.midfield * penalty * fitFactor,
-      defence: base.defence * penalty * fitFactor,
+      attack: base.attack * penalty * fitFactor * atkMod,
+      midfield: base.midfield * penalty * fitFactor * ((atkMod + defMod) / 2),
+      defence: base.defence * penalty * fitFactor * defMod,
       keeper: base.keeper,
     };
   }
@@ -292,7 +329,7 @@ export class MatchEngine {
     if (this.finished) {
       return { events: [], pending: null, finished: true, minute: this.minute };
     }
-    if (this.pending) {
+    if (this.pending || this.pendingHalftime) {
       return { events: [], pending: this.pending, finished: false, minute: this.minute };
     }
 
@@ -313,6 +350,12 @@ export class MatchEngine {
         minute: 45, type: 'halftime', side: null,
         text: `Halbzeit: ${this.homeScore}:${this.awayScore}`,
       });
+      // Bei einem interaktiven Spiel entscheidet der Spieler in der Pause.
+      if (this.setup.interactive && this.userSide && !this.halftimeDone) {
+        this.pendingHalftime = this.buildHalftimeDecision(this.userSide);
+        this.halftimeDone = true;
+        return { events: evts, pending: null, finished: false, minute: this.minute };
+      }
     }
 
     if ([46, 58, 64, 70, 76, 82, 100, 110].includes(this.minute)) {
@@ -344,6 +387,93 @@ export class MatchEngine {
     return { events: evts, pending: null, finished: this.finished, minute: this.minute };
   }
 
+  // --- Halbzeit (Konzept Abschnitt 18 und 29) ---------------------------
+
+  /** Erstellt die Traineransprache und die Antwortoptionen nach Spielstand. */
+  private buildHalftimeDecision(side: Side): HalftimeDecision {
+    const own = side === 'home' ? this.homeScore : this.awayScore;
+    const opp = side === 'home' ? this.awayScore : this.homeScore;
+    const diff = own - opp;
+    const onPitch = !!this.userOnPitch;
+
+    let coachMessage: string;
+    let options: HalftimeOption[];
+
+    const pushOption: HalftimeOption = {
+      id: 'push', label: 'Volle Offensive',
+      description: 'Nach vorne werfen. Mehr Torgefahr, aber hinten wird es riskant und kostet Kraft.',
+      attackMod: 1.16, defenceMod: 0.9, effortMod: 1.2, moraleDelta: 1,
+    };
+    const holdOption: HalftimeOption = {
+      id: 'hold', label: 'Kompakt verteidigen',
+      description: 'Das Ergebnis absichern. Weniger Torgefahr, dafuer defensive Stabilitaet.',
+      attackMod: 0.9, defenceMod: 1.15, effortMod: 1.0, moraleDelta: 0,
+    };
+    const balancedOption: HalftimeOption = {
+      id: 'balanced', label: 'So weitermachen',
+      description: 'Am Plan festhalten und geduldig bleiben.',
+      attackMod: 1.0, defenceMod: 1.0, effortMod: 1.0, moraleDelta: 0,
+    };
+    const rallyOption: HalftimeOption = {
+      id: 'rally', label: 'Mannschaft mitreissen',
+      description: 'Die Mitspieler aufrichten. Wirkung haengt von deiner Fuehrungsstaerke ab.',
+      attackMod: 1.1, defenceMod: 1.05, effortMod: 1.05, moraleDelta: 3, leadership: true,
+    };
+
+    if (diff > 0) {
+      coachMessage = diff >= 2
+        ? 'Starke erste Haelfte! Jetzt nichts mehr anbrennen lassen.'
+        : 'Knappe Fuehrung. Wie gehen wir die zweite Haelfte an?';
+      options = [holdOption, balancedOption, pushOption, rallyOption];
+    } else if (diff < 0) {
+      coachMessage = diff <= -2
+        ? 'Das reicht so nicht. Wir brauchen eine Reaktion.'
+        : 'Wir liegen zurueck. Es ist noch nichts verloren.';
+      options = [pushOption, rallyOption, balancedOption, holdOption];
+    } else {
+      coachMessage = 'Ausgeglichene erste Haelfte. Die zweite entscheidet.';
+      options = [balancedOption, pushOption, holdOption, rallyOption];
+    }
+
+    return { scoreline: [this.homeScore, this.awayScore], userSide: side, onPitch, coachMessage, options };
+  }
+
+  /** Wendet die gewaehlte Halbzeitreaktion an und setzt das Spiel fort. */
+  resolveHalftime(optionId: string): LiveEvent[] {
+    const decision = this.pendingHalftime;
+    this.pendingHalftime = null;
+    if (!decision) return [];
+    const option = decision.options.find((o) => o.id === optionId) ?? decision.options[0];
+
+    let attackMod = option.attackMod;
+    let defenceMod = option.defenceMod;
+    let morale = option.moraleDelta;
+
+    // Fuehrungsstaerke verstaerkt eine Ansprache - oder laesst sie verpuffen.
+    if (option.leadership) {
+      const leader = this.userOnPitch?.player
+        ?? this.squadById.get(this.setup.userPlayerId ?? '');
+      const lead = leader?.attrs.leadership ?? 40;
+      const factor = (lead - 55) / 100; // -0.5 .. +0.45
+      attackMod += factor * 0.14;
+      defenceMod += factor * 0.08;
+      morale += Math.round(factor * 4);
+    }
+
+    this.secondHalfAttackMod = clamp(attackMod, 0.8, 1.35);
+    this.secondHalfDefenceMod = clamp(defenceMod, 0.8, 1.35);
+    this.secondHalfEffortMod = option.effortMod;
+    this.halftimeMoraleDelta = clamp(morale, -3, 6);
+
+    const evts: LiveEvent[] = [];
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side: decision.userSide, user: true,
+      text: `Halbzeit: ${option.label}.`,
+    });
+    this.events.push(...evts);
+    return evts;
+  }
+
   private handleFullTime(evts: LiveEvent[]) {
     const drawn = this.homeScore === this.awayScore;
     if (this.setup.knockout && drawn && !this.extraTime) {
@@ -372,9 +502,11 @@ export class MatchEngine {
     const userId = this.setup.userPlayerId;
     const effort = MENTALITY_EFFECTS[this.mentality].effort;
     for (const side of ['home', 'away'] as Side[]) {
+      // Eine offensive Halbzeitansage kostet das ganze eigene Team mehr Kraft.
+      const teamEffort = side === this.userSide ? this.secondHalfEffortMod : 1;
       for (const o of this.onPitch[side]) {
         const stamina = o.player.attrs.stamina;
-        let drain = 0.28 + (100 - stamina) / 100 * 0.3;
+        let drain = (0.28 + (100 - stamina) / 100 * 0.3) * teamEffort;
         // Die eigene Ausrichtung steuert, wie viel Kraft der Spieler laesst.
         if (o.player.id === userId) drain *= effort;
         const current = this.liveFitness.get(o.player.id) ?? 90;
@@ -1751,7 +1883,19 @@ export class MatchEngine {
       motmId,
       userInputQuality: this.userQualityCount > 0
         ? this.userQualitySum / this.userQualityCount : null,
+      halftimeMoraleDelta: this.halftimeMoraleDelta,
     };
+  }
+
+  /** Vernuenftige automatische Halbzeitwahl nach Spielstand. */
+  private autoHalftimeChoice(): string {
+    if (!this.pendingHalftime) return 'balanced';
+    const [h, a] = this.pendingHalftime.scoreline;
+    const own = this.userSide === 'home' ? h : a;
+    const opp = this.userSide === 'home' ? a : h;
+    if (own < opp) return 'push';
+    if (own > opp) return 'hold';
+    return 'balanced';
   }
 
   private runShootout(): [number, number] {
@@ -1786,6 +1930,11 @@ export class MatchEngine {
     let guard = 0;
     while (!this.finished && guard++ < 400) {
       const res = this.step();
+      if (this.pendingHalftime) {
+        // Ohne Nutzer wird eine sinnvolle Standardreaktion gewaehlt.
+        this.resolveHalftime(this.autoHalftimeChoice());
+        continue;
+      }
       if (res.pending) {
         this.resolve(autoResolve(res.pending));
       }

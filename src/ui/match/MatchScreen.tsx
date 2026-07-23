@@ -3,7 +3,8 @@ import { autoResolveChallenge } from '../../engine/ballAction';
 import { formatDate } from '../../engine/date';
 import { finishUserMatch, prepareUserMatch } from '../../engine/game';
 import {
-  MatchEngine, MENTALITY_LABELS, type Mentality, type MatchOutcome,
+  MatchEngine, MENTALITY_LABELS,
+  type HalftimeDecision, type Mentality, type MatchOutcome,
 } from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { Rng } from '../../engine/rng';
@@ -36,6 +37,7 @@ export default function MatchScreen() {
   const [paused, setPaused] = useState(false);
   const [mentality, setMentalityState] = useState<Mentality>('balanced');
   const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [halftime, setHalftime] = useState<HalftimeDecision | null>(null);
   const [outcome, setOutcome] = useState<MatchOutcome | null>(null);
   const [, forceRender] = useState(0);
 
@@ -67,12 +69,17 @@ export default function MatchScreen() {
 
   // Spieluhr
   useEffect(() => {
-    if (phase !== 'running' || paused || challenge) return;
+    if (phase !== 'running' || paused || challenge || halftime) return;
     const engine = engineRef.current;
     if (!engine) return;
 
     const timer = window.setInterval(() => {
       const step = engine.step();
+      if (engine.pendingHalftime) {
+        setHalftime(engine.pendingHalftime);
+        forceRender((v) => v + 1);
+        return;
+      }
       if (step.pending) {
         setChallenge(step.pending);
         forceRender((v) => v + 1);
@@ -86,7 +93,7 @@ export default function MatchScreen() {
     }, SPEEDS[speedIndex].ms);
 
     return () => window.clearInterval(timer);
-  }, [phase, paused, challenge, speedIndex, finalise]);
+  }, [phase, paused, challenge, halftime, speedIndex, finalise]);
 
   // Timeline nach unten scrollen
   useEffect(() => {
@@ -122,6 +129,12 @@ export default function MatchScreen() {
   function changeMentality(m: Mentality) {
     setMentalityState(m);
     engineRef.current?.setMentality(m);
+  }
+
+  function resolveHalftime(optionId: string) {
+    engineRef.current?.resolveHalftime(optionId);
+    setHalftime(null);
+    forceRender((v) => v + 1);
   }
 
   function handleChallengeDone(result: ChallengeResult) {
@@ -342,6 +355,55 @@ export default function MatchScreen() {
           onDone={handleChallengeDone}
         />
       )}
+
+      {halftime && (
+        <HalftimeModal
+          decision={halftime}
+          homeShort={homeClub.short}
+          awayShort={awayClub.short}
+          onChoose={resolveHalftime}
+        />
+      )}
+    </div>
+  );
+}
+
+function HalftimeModal(
+  { decision, homeShort, awayShort, onChoose }:
+  {
+    decision: HalftimeDecision; homeShort: string; awayShort: string;
+    onChoose: (id: string) => void;
+  },
+) {
+  const [h, a] = decision.scoreline;
+  const own = decision.userSide === 'home' ? h : a;
+  const opp = decision.userSide === 'home' ? a : h;
+  const tone = own > opp ? 'good' : own < opp ? 'bad' : 'warn';
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="row between" style={{ marginBottom: '0.4rem' }}>
+          <h2 style={{ margin: 0 }}>Halbzeit</h2>
+          <span className={`pill ${tone}`}>{homeShort} {h}:{a} {awayShort}</span>
+        </div>
+        <p className="muted" style={{ fontStyle: 'italic' }}>„{decision.coachMessage}"</p>
+        {!decision.onPitch && (
+          <p className="tiny dim">
+            Du sitzt auf der Bank - deine Ansage wirkt gedaempfter, aber du kannst
+            die Mannschaft trotzdem einstellen.
+          </p>
+        )}
+        <div className="grid two" style={{ marginTop: '0.6rem' }}>
+          {decision.options.map((o) => (
+            <button key={o.id}
+              style={{ textAlign: 'left', padding: '0.7rem 0.85rem', height: '100%' }}
+              onClick={() => onChoose(o.id)}>
+              <div style={{ fontWeight: 680, marginBottom: 2 }}>{o.label}</div>
+              <div className="tiny muted">{o.description}</div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -581,6 +581,7 @@ export function finishUserMatch(state: GameState, matchId: Id, outcome: MatchOut
       text: e.text,
     })).filter((e) => e.type !== null) as StoredMatchEvent[],
     fitnessAfter: outcome.fitnessAfter,
+    moraleDelta: outcome.halftimeMoraleDelta,
   }, rng);
 
   state.pendingMatchId = null;
@@ -612,6 +613,7 @@ interface CommitInput {
   injuries: { playerId: Id; days: number }[];
   events?: StoredMatchEvent[];
   fitnessAfter?: Record<Id, number>;
+  moraleDelta?: number;
 }
 
 function commitMatch(state: GameState, match: Match, input: CommitInput, rng: Rng) {
@@ -729,6 +731,12 @@ function handleUserMatchAftermath(
   const relationDelta = (s.rating - 6.5) * 2.2 + (s.motm ? 2 : 0);
   state.coachRelation = clamp(state.coachRelation + relationDelta, 0, 100);
   state.fanRelation = clamp(state.fanRelation + (s.rating - 6.4) * 1.6 + s.goals * 2.2, 0, 100);
+
+  // Nachwirkung der Halbzeitentscheidung auf Moral und Trainerbeziehung.
+  if (input.moraleDelta) {
+    user.morale = clamp(user.morale + input.moraleDelta, 0, 100);
+    state.coachRelation = clamp(state.coachRelation + input.moraleDelta * 0.4, 0, 100);
+  }
 
   // Reputation und Marktwert
   const league = user.clubId ? state.competitions[state.clubs[user.clubId]?.leagueId] : null;
