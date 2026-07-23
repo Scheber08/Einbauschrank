@@ -257,6 +257,9 @@ export class MatchEngine {
       const side: Side = this.rng.chance(0.55) ? 'home' : 'away';
       this.awardPenalty(side, evts);
       if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
+    } else if (this.rng.chance(0.011)) {
+      this.awardFreeKick(this.pickAttackingSide(), evts);
+      if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
     } else if (this.rng.chance(ATTACK_PROB)) {
       const side = this.pickAttackingSide();
       this.runAttack(side, evts);
@@ -322,26 +325,45 @@ export class MatchEngine {
     // Defensivhighlight des eigenen Spielers, bevor der Angriff Fahrt aufnimmt.
     if (this.tryDefensiveChallenge(defSide, side)) return;
 
+    // Dribbling des eigenen Spielers im Aufbau (Konzept Abschnitt 24).
+    if (this.tryDribbleChallenge(side)) return;
+
     this.continueAttack(side, evts);
   }
 
-  private continueAttack(side: Side, evts: LiveEvent[]) {
+  /**
+   * Setzt einen Angriff fort.
+   * xgBonus verbessert die Situation, etwa nach einem gelungenen Dribbling
+   * oder einem starken Zuspiel. preferShooterId bevorzugt einen Abschlussspieler.
+   */
+  private continueAttack(
+    side: Side, evts: LiveEvent[],
+    opts: { xgBonus?: number; preferShooterId?: Id; guaranteedShot?: boolean } = {},
+  ) {
     const atk = this.strengthOf(side);
     const def = this.strengthOf(this.other(side));
     const balance = atk.attack / (atk.attack + def.defence);
 
     // Nicht jeder Angriff endet mit einem Abschluss.
-    if (!this.rng.chance(0.26 + balance * 0.58)) {
+    if (!opts.guaranteedShot && !this.rng.chance(0.26 + balance * 0.58)) {
       this.registerPossessionLoss(side);
       return;
     }
 
-    const chance = this.makeChance(balance);
+    const chance = this.makeChance(balance, opts.xgBonus ?? 1);
     const squad = this.onPitch[side];
     if (squad.length === 0) return;
 
-    const shooter = pickShooter(this.rng, squad, chance.kind);
-    const creator = this.rng.chance(0.66) ? pickCreator(this.rng, squad, shooter.player.id) : null;
+    // Nach einem gelungenen Dribbling schliesst meist derselbe Spieler ab.
+    const preferred = opts.preferShooterId
+      ? squad.find((o) => o.player.id === opts.preferShooterId)
+      : undefined;
+    const shooter = preferred && this.rng.chance(0.68)
+      ? preferred
+      : pickShooter(this.rng, squad, chance.kind);
+    const creator = shooter === preferred
+      ? null
+      : this.rng.chance(0.66) ? pickCreator(this.rng, squad, shooter.player.id) : null;
 
     const userId = this.setup.userPlayerId;
     const canInteract = this.setup.interactive
@@ -381,7 +403,7 @@ export class MatchEngine {
     this.resolveShot(side, shooter, creator, chance, evts, 1);
   }
 
-  private makeChance(balance: number) {
+  private makeChance(balance: number, xgBonus = 1) {
     const roll = this.rng.next();
     let kind: 'shot' | 'longShot' | 'header' | 'oneOnOne';
     let distance: number;
@@ -396,7 +418,8 @@ export class MatchEngine {
     let xg = expectedGoals(distance, offset, kind === 'header');
     if (kind === 'oneOnOne') xg = clamp(xg * 1.9, 0.12, 0.62);
     xg *= 0.72 + balance * 0.6;
-    xg = clamp(xg, 0.01, 0.78);
+    xg *= xgBonus;
+    xg = clamp(xg, 0.01, 0.82);
 
     return { kind, distance, offset, xg, bigChance: xg >= 0.27 };
   }
@@ -575,6 +598,126 @@ export class MatchEngine {
         minute: this.minute, type: 'penaltyMiss', side,
         playerId: taker.player.id,
         text: `${this.name(taker.player.id)} vergibt den Elfmeter!`,
+      });
+    }
+  }
+
+  // --- Dribbling (Konzept Abschnitt 24) ---------------------------------
+
+  /** Chance je Position, dass der eigene Spieler in ein Dribbling geraet. */
+  private static DRIBBLE_CHANCE: Partial<Record<string, number>> = {
+    LA: 0.20, RA: 0.20, OM: 0.16, ST: 0.12, ZM: 0.07, DM: 0.04,
+    LV: 0.07, RV: 0.07, IV: 0.02,
+  };
+
+  private tryDribbleChallenge(side: Side): boolean {
+    if (!this.setup.interactive) return false;
+    if (this.userSide !== side) return false;
+    if (this.userChallenges >= MAX_USER_CHALLENGES) return false;
+    const user = this.userOnPitch;
+    if (!user || user.slot === 'TW') return false;
+
+    const base = MatchEngine.DRIBBLE_CHANCE[user.slot] ?? 0.03;
+    // Gute Dribbler kommen haeufiger in solche Situationen.
+    const skillFactor = 0.6 + user.player.attrs.dribbling / 125;
+    if (!this.rng.chance(clamp(base * skillFactor, 0.01, 0.4))) return false;
+
+    const defenders = this.onPitch[this.other(side)].filter((o) => o.slot !== 'TW');
+    if (defenders.length === 0) return false;
+    const opponent = this.rng.pick(defenders);
+
+    const distance = this.rng.float(14, 34);
+    const offset = this.rng.normal(0, 12);
+
+    this.startChallenge({
+      ...this.baseChallenge(side, 'dribble'),
+      title: 'Dribbling',
+      hint: 'Setze die Finte im richtigen Moment an. Zu frueh reagiert der Gegner, zu spaet ist der Weg zu.',
+      distance,
+      offset,
+      pressure: clamp(0.35 + opponent.rating / 180, 0.2, 0.95),
+      opponent: opponent.rating,
+      xg: 0,
+      bigChance: false,
+    }, {
+      type: 'dribble',
+      attackingSide: side,
+      xg: 0,
+      distance,
+      offset,
+      opponentId: opponent.player.id,
+    });
+    return true;
+  }
+
+  // --- Freistoesse (Konzept Abschnitt 22 und 64) ------------------------
+
+  private awardFreeKick(side: Side, evts: LiveEvent[]) {
+    const squad = this.onPitch[side];
+    if (squad.length === 0) return;
+
+    const distance = this.rng.float(17, 31);
+    const offset = this.rng.normal(0, 9);
+    const wall = clamp(Math.round(5 - Math.abs(offset) / 9), 2, 5);
+
+    const taker = squad.reduce((best, o) =>
+      o.player.attrs.freeKicks > best.player.attrs.freeKicks ? o : best, squad[0]);
+
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side,
+      text: `Gefaehrlicher Freistoss fuer ${this.clubName(side)} aus etwa ${Math.round(distance)} Metern.`,
+    });
+
+    const userId = this.setup.userPlayerId;
+    if (this.setup.interactive && userId && this.userSide === side
+      && this.userChallenges < MAX_USER_CHALLENGES) {
+      const user = this.userOnPitch;
+      // Der eigene Spieler tritt an, wenn er der beste Schuetze auf dem Platz ist.
+      if (user && (taker.player.id === userId
+        || user.player.attrs.freeKicks >= taker.player.attrs.freeKicks - 3)) {
+        const xg = clamp(expectedGoals(distance, offset) * 1.35, 0.02, 0.22);
+        this.startChallenge({
+          ...this.baseChallenge(side, 'freeKick'),
+          title: 'Freistoss',
+          hint: 'Ueber die Mauer oder aussen herum. Seitlicher Ballkontakt erzeugt den noetigen Effet.',
+          distance,
+          offset,
+          pressure: 0.15,
+          opponent: this.strengthOf(this.other(side)).defence,
+          xg,
+          bigChance: false,
+          wall,
+        }, {
+          type: 'freeKick', attackingSide: side, xg, distance, offset, shooterId: userId,
+        });
+        return;
+      }
+    }
+
+    // Statistische Aufloesung
+    const st = this.statOf(taker.player.id, side, taker.slot);
+    st.shots++;
+    const quality = taker.player.attrs.freeKicks * 0.6 + taker.player.attrs.curve * 0.4;
+    const keeperRating = this.strengthOf(this.other(side)).keeper;
+    const goalProb = clamp(
+      expectedGoals(distance, offset) * (0.5 + quality / 90) * keeperModifier(keeperRating),
+      0.005, 0.3,
+    );
+    if (this.rng.chance(goalProb)) {
+      st.shotsOnTarget++;
+      this.scoreGoal(side, taker, null, evts, false);
+    } else if (this.rng.chance(0.4)) {
+      st.shotsOnTarget++;
+      const gk = this.onPitch[this.other(side)].find((o) => o.slot === 'TW');
+      if (gk) this.statOf(gk.player.id, this.other(side), 'TW').saves++;
+      this.emit(evts, {
+        minute: this.minute, type: 'save', side, playerId: taker.player.id,
+        text: `${this.name(taker.player.id)} zwingt den Torwart per Freistoss zur Parade.`,
+      });
+    } else {
+      this.emit(evts, {
+        minute: this.minute, type: 'miss', side, playerId: taker.player.id,
+        text: `Der Freistoss von ${this.name(taker.player.id)} findet den Weg nicht ins Tor.`,
       });
     }
   }
@@ -802,11 +945,17 @@ export class MatchEngine {
       case 'penalty':
         this.applyPenaltyResult(result, user, st, evts);
         break;
+      case 'freeKick':
+        this.applyFreeKickResult(result, ctx, user, st, evts);
+        break;
       case 'pass':
         this.applyPassResult(result, ctx, user, st, evts, side);
         break;
       case 'duel':
         this.applyDuelResult(result, ctx, user, st, evts);
+        break;
+      case 'dribble':
+        this.applyDribbleResult(result, ctx, user, st, evts);
         break;
       case 'save':
         this.applySaveResult(result, ctx, user, st, evts);
@@ -891,6 +1040,102 @@ export class MatchEngine {
         text: `${this.name(user.player.id)} scheitert vom Elfmeterpunkt!`,
       });
     }
+  }
+
+  private applyFreeKickResult(
+    result: ChallengeResult, ctx: PendingContext,
+    user: OnPitchPlayer, st: PlayerMatchStats, evts: LiveEvent[],
+  ) {
+    const side = this.userSide!;
+    const defSide = this.other(side);
+    st.shots++;
+
+    switch (result.outcome) {
+      case 'goal':
+        st.shotsOnTarget++;
+        this.scoreGoal(side, user, null, evts, ctx.xg >= 0.27);
+        this.emit(evts, {
+          minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
+          text: `Ein Freistosstreffer von ${this.name(user.player.id)}!`,
+        });
+        break;
+      case 'saved': {
+        st.shotsOnTarget++;
+        const gk = this.onPitch[defSide].find((o) => o.slot === 'TW');
+        if (gk) this.statOf(gk.player.id, defSide, 'TW').saves++;
+        this.emit(evts, {
+          minute: this.minute, type: 'save', side, playerId: user.player.id, user: true,
+          text: `Der Freistoss von ${this.name(user.player.id)} wird pariert.`,
+        });
+        break;
+      }
+      case 'blocked':
+        this.emit(evts, {
+          minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
+          text: `Die Mauer blockt den Freistoss von ${this.name(user.player.id)}.`,
+        });
+        break;
+      case 'post':
+        st.shotsOnTarget++;
+        this.emit(evts, {
+          minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
+          text: `${this.name(user.player.id)} trifft per Freistoss den Pfosten!`,
+        });
+        break;
+      default:
+        this.emit(evts, {
+          minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
+          text: `Der Freistoss von ${this.name(user.player.id)} geht am Tor vorbei.`,
+        });
+    }
+  }
+
+  private applyDribbleResult(
+    result: ChallengeResult, ctx: PendingContext,
+    user: OnPitchPlayer, st: PlayerMatchStats, evts: LiveEvent[],
+  ) {
+    const side = this.userSide!;
+    st.dribbles++;
+    st.duels++;
+
+    if (result.outcome === 'dribbleWon') {
+      st.dribblesCompleted++;
+      st.duelsWon++;
+      this.emit(evts, {
+        minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
+        text: `${this.name(user.player.id)} setzt sich im Dribbling durch.`,
+      });
+      // Nach dem gewonnenen Dribbling entsteht eine bessere Situation.
+      this.continueAttack(side, evts, {
+        xgBonus: 1.35,
+        preferShooterId: user.player.id,
+        guaranteedShot: true,
+      });
+      return;
+    }
+
+    if (result.outcome === 'foulSuffered') {
+      st.foulsDrawn++;
+      const opponent = ctx.opponentId;
+      if (opponent) {
+        const defSide = this.other(side);
+        const o = this.onPitch[defSide].find((x) => x.player.id === opponent);
+        if (o) this.statOf(o.player.id, defSide, o.slot).fouls++;
+      }
+      this.emit(evts, {
+        minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
+        text: `${this.name(user.player.id)} wird im Dribbling gefoult.`,
+      });
+      // Aus dem Foul kann ein gefaehrlicher Freistoss entstehen.
+      if (ctx.distance < 30 && this.rng.chance(0.45)) this.awardFreeKick(side, evts);
+      return;
+    }
+
+    st.possessionLost++;
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
+      text: `${this.name(user.player.id)} verliert den Ball im Dribbling.`,
+    });
   }
 
   private applyPassResult(

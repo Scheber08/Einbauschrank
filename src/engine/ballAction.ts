@@ -358,6 +358,61 @@ export function resolveShot(
   return { outcome: 'goal', flight, keeper, quality, crossing: { x, z } };
 }
 
+/**
+ * Erklaert das Ergebnis eines Abschlusses, damit der Spieler die Mechanik lernt
+ * statt nur ein Ergebnis vorgesetzt zu bekommen.
+ */
+export function describeShot(
+  resolution: ShotResolution, input: BallInput, distance: number,
+): string {
+  const c = resolution.crossing;
+  const idealPower = clamp(0.28 + distance / 42, 0.25, 0.95);
+
+  switch (resolution.outcome) {
+    case 'goal':
+      if (c && Math.abs(c.x) > 2.6) return 'Perfekt ins lange Eck gesetzt.';
+      if (c && c.z < 0.5) return 'Flach und platziert - dagegen ist der Torwart machtlos.';
+      return 'Sauber getroffen und verwandelt.';
+
+    case 'post':
+      return 'Aluminium. Wenige Zentimeter weiter nach innen und der Ball ist drin.';
+
+    case 'blocked':
+      return input.contactY < -0.3
+        ? 'Ein Verteidiger blockt. Ein flacherer Ball haette den Weg gefunden.'
+        : 'Ein Verteidiger stand im Schussweg.';
+
+    case 'saved':
+      if (c && Math.abs(c.x) < 1.4) {
+        return 'Zu zentral gezielt - der Torwart musste sich kaum bewegen. Ziele naeher an den Pfosten.';
+      }
+      if (input.power < idealPower - 0.15) {
+        return 'Gute Ecke, aber zu wenig Druck hinter dem Ball. Der Torwart hatte Zeit.';
+      }
+      return 'Starke Parade. Da war nicht viel zu machen.';
+
+    case 'offTarget':
+      if (!c) {
+        return 'Der Ball erreicht die Torlinie gar nicht. Es fehlte deutlich an Kraft.';
+      }
+      if (c.z > CROSSBAR) {
+        return input.contactY < -0.25
+          ? 'Zu hoch. Du hast den Ball zu weit unten getroffen - er steigt zu stark.'
+          : 'Zu hoch angesetzt. Weniger Kraft oder ein Kontakt weiter oben haelt den Ball flach.';
+      }
+      if (Math.abs(c.x) > GOAL_HALF_WIDTH) {
+        const side = c.x > 0 ? 'rechts' : 'links';
+        return Math.abs(input.contactX) > 0.45
+          ? `Der Effet traegt den Ball ${side} am Tor vorbei. Weniger seitlicher Kontakt.`
+          : `${side === 'rechts' ? 'Rechts' : 'Links'} vorbei. Die Richtung war zu weit aussen.`;
+      }
+      return 'Knapp daneben.';
+
+    default:
+      return '';
+  }
+}
+
 // --- Pass --------------------------------------------------------------
 
 export interface PassResolution {
@@ -481,26 +536,84 @@ export function resolveDuel(
   return { outcome: 'duelLost', quality, detail: 'Zu frueh angegangen' };
 }
 
+/**
+ * Dribblingbewegungen (Konzept Abschnitt 24).
+ * Anspruchsvollere Finten haben ein engeres Zeitfenster, bringen dafuer
+ * aber einen deutlichen Vorteil. Sie werden ueber den Dribblingwert freigeschaltet.
+ */
+export interface DribbleMove {
+  key: string;
+  name: string;
+  description: string;
+  /** Ab diesem Dribblingwert verfuegbar. */
+  requires: number;
+  /** Multiplikator fuer das Zeitfenster. */
+  windowScale: number;
+  /** Zuschlag auf die Erfolgschance. */
+  edge: number;
+}
+
+export const DRIBBLE_MOVES: DribbleMove[] = [
+  {
+    key: 'push', name: 'Ball vorlegen', requires: 0, windowScale: 1.45, edge: -0.07,
+    description: 'Einfach und sicher, bringt aber wenig Raumgewinn.',
+  },
+  {
+    key: 'feint', name: 'Koerpertaeuschung', requires: 35, windowScale: 1.15, edge: 0.01,
+    description: 'Solide Standardfinte mit gutem Zeitfenster.',
+  },
+  {
+    key: 'stepover', name: 'Uebersteiger', requires: 50, windowScale: 1.0, edge: 0.06,
+    description: 'Klassisch und wirkungsvoll, verlangt sauberes Timing.',
+  },
+  {
+    key: 'roll', name: 'Ballrolle', requires: 62, windowScale: 0.88, edge: 0.1,
+    description: 'Enges Fenster, dafuer kommst du sofort in den freien Raum.',
+  },
+  {
+    key: 'elastico', name: 'Elastico', requires: 74, windowScale: 0.74, edge: 0.16,
+    description: 'Sehr schwer zu verteidigen, verzeiht aber keine Fehler.',
+  },
+  {
+    key: 'heel', name: 'Hackentrick', requires: 84, windowScale: 0.68, edge: 0.19,
+    description: 'Nur fuer Ausnahmetechniker. Grosses Risiko, grosse Wirkung.',
+  },
+];
+
+export function availableMoves(dribbling: number): DribbleMove[] {
+  return DRIBBLE_MOVES.filter((m) => dribbling >= m.requires);
+}
+
 export function resolveDribble(
   timing: TimingInput, challenge: Challenge, player: Player,
-  difficulty: DifficultySettings, rng: Rng,
+  difficulty: DifficultySettings, rng: Rng, move?: DribbleMove,
 ): ChallengeResult {
   const skill = player.attrs.dribbling * 0.45 + player.attrs.agility * 0.2
     + player.attrs.balance * 0.15 + player.attrs.ballControl * 0.2;
-  const window = (0.12 + skill / 480) * difficulty.targetSize;
+  const window = (0.12 + skill / 480) * difficulty.targetSize * (move?.windowScale ?? 1);
   const dev = Math.abs(timing.offset);
   const quality = clamp(1 - dev / (window * 2.4), 0, 1);
 
-  const attrEdge = clamp(0.45 + (skill - challenge.opponent) / 130, 0.1, 0.92);
+  const attrEdge = clamp(
+    0.45 + (skill - challenge.opponent) / 130 + (move?.edge ?? 0), 0.1, 0.92,
+  );
   const success = attrEdge * (1 - difficulty.inputWeight) + quality * difficulty.inputWeight;
 
   if (rng.chance(clamp(success, 0.04, 0.95))) {
-    return { outcome: 'dribbleWon', quality, detail: 'Gegenspieler ausgespielt' };
+    return {
+      outcome: 'dribbleWon', quality,
+      detail: move ? `${move.name} sitzt` : 'Gegenspieler ausgespielt',
+    };
   }
   if (rng.chance(0.22)) {
-    return { outcome: 'foulSuffered', quality, detail: 'Freistoss herausgeholt' };
+    return { outcome: 'foulSuffered', quality, detail: 'Der Gegner kommt zu spaet - Freistoss' };
   }
-  return { outcome: 'dribbleLost', quality, detail: 'Ball verloren' };
+  return {
+    outcome: 'dribbleLost', quality,
+    detail: dev > window * 1.6
+      ? (timing.offset > 0 ? 'Zu spaet angesetzt' : 'Zu frueh angesetzt')
+      : 'Der Verteidiger liest die Bewegung',
+  };
 }
 
 // --- Torwartszene aus Sicht des eigenen Spielers -----------------------
