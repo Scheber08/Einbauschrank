@@ -41,8 +41,8 @@ npm run typecheck
 | 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende |
 | 16-17 Attribute, Potenzial | 54 Attribute in fuenf Gruppen, positionsabhaengige Gesamtstaerke, veraenderliches Potenzial |
 | 18-19 Wochenablauf, Training | Wochentraining mit 17 Schwerpunkten und vier Intensitaetsstufen |
-| 20-26 Spielmodi und Gameplay | Simulation, eigene Highlights, alle wichtigen Szenen; Schuss, Pass, Zweikampf, Dribbling, Elfmeter, Torwartparade |
-| 22-23 Ballsteuerung | Richtung, Kraftanzeige, Ballkontaktpunkt mit echter Flugbahnberechnung inklusive Effet und Schwerkraft |
+| 20-26 Spielmodi und Gameplay | Simulation, eigene Highlights, alle wichtigen Szenen; Schuss, Pass, Zweikampf, Dribbling mit Finten, Freistoss mit Mauer, Elfmeter, Torwartparade |
+| 22-23 Ballsteuerung | Richtung, Kraftanzeige, Ballkontaktpunkt mit echter Flugbahnberechnung inklusive Effet und Schwerkraft, Live-Torblick als Vorschau und Auswertung |
 | 27-28 Simulation, Taktik | Minutenweise Detailsimulation fuer eigene Spiele, schnelle Hintergrundsimulation fuer alle uebrigen; sieben Formationen, acht Spielstile |
 | 29 Trainerbeziehung | Beeinflusst Aufstellung, Einsatzzeit und Kaderplatz |
 | 33-34 Vertraege, Transfers | Vertragsverlaengerung, Angebote nach jeder Saison, Wechsel des eigenen Spielers, Transferbewegungen der Computerspieler |
@@ -117,12 +117,14 @@ Eine Ballaktion laeuft in drei Schritten ab (bei Paessen in vier):
 
 1. **Richtung** - Zielpunkt auf dem Spielfeld anklicken.
 2. **Kraft** - Maustaste oder Leertaste gedrueckt halten, die Anzeige laeuft auf
-   und wieder zurueck. Beim gewuenschten Wert loslassen.
-3. **Ballkontakt** - In der Nahansicht den Punkt am Ball waehlen:
-   - Mitte: gerader Ball mit voller Kraft
-   - Unterseite: der Ball wird angehoben, hohe Flugbahn
-   - Oberseite: flache Bahn mit Topspin
-   - Seitlich: Effet, der Ball beschreibt eine Kurve
+   und wieder zurueck. Beim gewuenschten Wert loslassen. Massgeblich ist die
+   Haltedauer, nicht die Bildrate.
+3. **Ballkontakt** - In der Nahansicht den Punkt am Ball waehlen. Daneben zeigt
+   ein **Torblick** live, wo der Ball ankaeme:
+   - Mitte: normaler Schuss, rund neun Grad Abflugwinkel
+   - Unterseite: der Ball wird angehoben, bis rund 26 Grad - Lupfer und Flanken
+   - Oberseite: flache Bahn mit Topspin, Bodenpaesse und Flachschuesse
+   - Seitlich: Effet, ueber 20 Meter kruemmt sich die Bahn um rund drei Meter
 
 Aus diesen Eingaben wird eine echte Flugbahn berechnet, mit Schwerkraft,
 Luftwiderstand und Magnus-Effekt. Die Attribute des Spielers, der Gegnerdruck,
@@ -130,15 +132,36 @@ Form, Fitness und Selbstvertrauen verrauschen die Eingabe: Eine gute Eingabe
 erhoeht die Erfolgschance, garantiert sie aber nicht. Ein Weltklassespieler
 gleicht kleine Fehler aus, ein Jugendspieler nicht.
 
-Zweikaempfe, Dribblings und Torwartszenen laufen ueber ein Zeitfenster, dessen
-Groesse von den Attributen und vom Schwierigkeitsgrad abhaengt.
+Nach jedem Abschluss zeigt der Torblick den tatsaechlichen Auftreffpunkt und den
+Sprung des Torwarts, dazu eine Begruendung: "Zu zentral gezielt", "Zu hoch
+angesetzt", "Der Effet traegt den Ball rechts vorbei". So laesst sich die
+Mechanik lernen, statt nur ein Ergebnis hinzunehmen.
+
+### Weitere Spielsituationen
+
+- **Dribbling** (Abschnitt 24): erst die Bewegung waehlen, dann den Moment
+  treffen. Von "Ball vorlegen" bis "Hackentrick" - schwierigere Finten haben ein
+  engeres Zeitfenster, bringen aber deutlich mehr. Sie werden ueber steigende
+  Dribblingwerte freigeschaltet. Ein gelungenes Dribbling fuehrt direkt in eine
+  bessere Abschlusssituation.
+- **Freistoss**: mit Mauer, ueber oder um sie herum. Antreten darf, wer zu den
+  beiden besten Schuetzen der Mannschaft gehoert - ein Platz, den man sich ueber
+  das Freistosstraining erarbeitet.
+- **Zweikampf und Torwartparade**: Zeitfenster, deren Groesse von den Attributen
+  und vom Schwierigkeitsgrad abhaengt.
+
+Alle Timingmechaniken rechnen mit der Uhr statt mit Einzelbildern. Sie bleiben
+damit fair, auch wenn der Browser gerade keine Bilder liefert.
 
 ## Entwicklerwerkzeug
 
 `devtest.html` ist ein Rauchtest der Spiellogik. Er erzeugt eine Karriere,
 spielt drei komplette Saisons durch und prueft Tabellen, Torquoten, Pokalverlauf,
-Auf- und Abstieg, Statistiken und die Groesse des Spielstands. Aufruf bei
-laufendem Entwicklungsserver:
+Auf- und Abstieg, Statistiken und die Groesse des Spielstands. Zusaetzlich
+laesst er 39 Spiele im Highlight-Modus laufen und prueft, welche Situationen
+entstehen, ob die Entwicklung des Spielers stimmt und ob die Ballphysik
+plausible Ergebnisse liefert (gute gegen schlechte Eingabe, Wirkung des
+Kontaktpunkts, Staerke des Effets). Aufruf bei laufendem Entwicklungsserver:
 
 ```bash
 npm run dev

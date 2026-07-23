@@ -76,17 +76,18 @@ function Frame(
  * Dient sowohl als Vorschau waehrend der Eingabe als auch als Auswertung.
  */
 function GoalView(
-  { crossing, keeper, preview, outcome, label }:
+  { crossing, keeper, preview, outcome, label, note }:
   {
     crossing?: { x: number; z: number } | null;
     keeper?: { diveX: number; diveZ: number } | null;
     preview?: { x: number; z: number } | null;
     outcome?: string;
     label?: string;
+    note?: string;
   },
 ) {
   const inFrame = (p: { x: number; z: number }) =>
-    Math.abs(p.x) < GOAL_HALF_WIDTH && p.z > 0 && p.z < CROSSBAR;
+    Math.abs(p.x) < GOAL_HALF_WIDTH && p.z >= 0 && p.z < CROSSBAR;
 
   return (
     <div style={{ flex: '1 1 320px', minWidth: 260 }}>
@@ -151,6 +152,12 @@ function GoalView(
                 stroke="#37d67a" strokeWidth={0.09} opacity={0.9} />
             )}
           </g>
+        )}
+
+        {/* Hinweis, wenn der Ball das Tor gar nicht erreicht */}
+        {note && !crossing && !preview && (
+          <text x={0} y={-1.2} textAnchor="middle" fontSize={0.42}
+            fill="#ff8a95" fontWeight={600}>{note}</text>
         )}
       </svg>
     </div>
@@ -298,12 +305,11 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   const powerRef = useRef(0);
   const chargingRef = useRef(false);
-  const dirRef = useRef(1);
+  const chargeStartRef = useRef(0);
   const [powerDisplay, setPowerDisplay] = useState(0);
   const flightRef = useRef<{ flight: Flight; index: number } | null>(null);
   const shotRef = useRef<ShotResolution | null>(null);
   const finalRef = useRef<ChallengeResult | null>(null);
-  const rafRef = useRef(0);
   const phaseRef = useRef(0);
 
   const depth = Math.max(24, challenge.distance + 12);
@@ -460,24 +466,30 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     return () => cancelAnimationFrame(raf);
   }, [step, draw]);
 
-  // Kraftanzeige laden
+  /**
+   * Kraft aus der verstrichenen Haltedauer. Die Anzeige laeuft auf und wieder
+   * zurueck. Bewusst aus der Uhrzeit berechnet und nicht aus Einzelbildern:
+   * so bleibt die Mechanik unabhaengig von Bildrate und Hintergrundtabs.
+   */
+  const powerFromElapsed = useCallback((elapsedMs: number) => {
+    const rate = 1.05 * difficulty.meterSpeed;
+    const phase = ((elapsedMs / 1000) * rate) % 2;
+    return phase <= 1 ? phase : 2 - phase;
+  }, [difficulty.meterSpeed]);
+
   useEffect(() => {
     if (step !== 'power') return;
-    let last = performance.now();
-    const loop = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
+    let raf = 0;
+    const loop = () => {
       if (chargingRef.current) {
-        powerRef.current += dt * 1.05 * difficulty.meterSpeed * dirRef.current;
-        if (powerRef.current >= 1) { powerRef.current = 1; dirRef.current = -1; }
-        if (powerRef.current <= 0) { powerRef.current = 0; dirRef.current = 1; }
+        powerRef.current = powerFromElapsed(performance.now() - chargeStartRef.current);
         setPowerDisplay(powerRef.current);
       }
-      rafRef.current = requestAnimationFrame(loop);
+      raf = requestAnimationFrame(loop);
     };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [step, difficulty.meterSpeed]);
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [step, powerFromElapsed]);
 
   // Flug abspielen
   useEffect(() => {
@@ -529,14 +541,19 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   }
 
   function startCharge() {
-    if (step !== 'power') return;
+    if (step !== 'power' || chargingRef.current) return;
     chargingRef.current = true;
+    chargeStartRef.current = performance.now();
   }
 
   function releaseCharge() {
     if (step !== 'power' || !chargingRef.current) return;
     chargingRef.current = false;
-    setLockedPower(Math.max(0.08, powerRef.current));
+    // Massgeblich ist die Haltedauer, nicht der zuletzt gezeichnete Frame.
+    const power = Math.max(0.08, powerFromElapsed(performance.now() - chargeStartRef.current));
+    powerRef.current = power;
+    setPowerDisplay(power);
+    setLockedPower(power);
     setStep('contact');
   }
 
@@ -633,7 +650,8 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         }}>
           <ContactPicker onPick={fire} onHover={setContactHover} />
           {!isPass && (
-            <GoalView preview={preview} label="Voraussichtlicher Auftreffpunkt" />
+            <GoalView preview={preview} label="Voraussichtlicher Auftreffpunkt"
+              note="Zu wenig Kraft" />
           )}
         </div>
       ) : (
@@ -838,9 +856,13 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
   const trigger = useCallback((timedOut = false) => {
     if (phase !== 'run') return;
     cancelAnimationFrame(rafRef.current);
+    // Zeitpunkt aus der Uhr statt aus dem letzten gezeichneten Bild.
+    const elapsed = (performance.now() - startRef.current) / 1000;
+    const progress = timedOut ? 1 : Math.min(1, elapsed / duration);
+    posRef.current = progress;
     const offsetSeconds = timedOut
       ? duration * (1 - idealAt)
-      : (posRef.current - idealAt) * duration;
+      : (progress - idealAt) * duration;
     const rng = new Rng(seed ^ 0x85ebca6b);
     const result = isDribble
       ? resolveDribble({ offset: offsetSeconds }, challenge, player, difficulty, rng, activeMove ?? undefined)
@@ -865,11 +887,17 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
       const progress = Math.min(1, elapsed / duration);
       posRef.current = progress;
       draw(progress);
-      if (progress >= 1) { trigger(true); return; }
+      if (progress >= 1) return;
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
+    // Sicherheitsnetz: die Szene loest sich auch dann auf, wenn keine
+    // Einzelbilder geliefert werden, etwa in einem Hintergrundtab.
+    const timeout = window.setTimeout(() => trigger(true), duration * 1000 + 80);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.clearTimeout(timeout);
+    };
   }, [phase, draw, trigger]);
 
   useEffect(() => {
@@ -944,6 +972,7 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   const finalRef = useRef<ChallengeResult | null>(null);
   const crossingRef = useRef<{ x: number; z: number } | null>(null);
   const markerRef = useRef(0);
+  const timingStartRef = useRef(0);
   const rafRef = useRef(0);
 
   const goalW = 560;
@@ -1041,22 +1070,31 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   useEffect(() => { draw(); }, [draw]);
 
+  /** Position der Timingleiste aus der verstrichenen Zeit. */
+  const markerAt = (now: number) => {
+    const phase = ((now - timingStartRef.current) / 900) % 2;
+    return phase <= 1 ? phase : 2 - phase;
+  };
+
   useEffect(() => {
     if (step !== 'timing') return;
-    const start = performance.now();
+    timingStartRef.current = performance.now();
     const loop = (now: number) => {
-      const elapsed = ((now - start) / 900) % 2;
-      markerRef.current = elapsed <= 1 ? elapsed : 2 - elapsed;
+      markerRef.current = markerAt(now);
       draw();
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, draw]);
 
   const commitSave = useCallback(() => {
     if (step !== 'timing' || !dive) return;
     cancelAnimationFrame(rafRef.current);
+    // Aus der Uhr statt aus dem letzten Bild, damit die Parade auch dann
+    // fair bleibt, wenn keine Einzelbilder geliefert werden.
+    markerRef.current = markerAt(performance.now());
     const timing = (markerRef.current - 0.5) * 0.6;
     const rng = new Rng(seed ^ 0xc2b2ae35);
     const resolution = resolveSave(

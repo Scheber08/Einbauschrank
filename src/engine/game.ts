@@ -357,6 +357,7 @@ export function advanceDay(state: GameState): DayResult {
     result.training = applyTraining(
       rng, user, state.training.focus, state.training.intensity,
       club?.training ?? 50, state.date, DIFFICULTY_SETTINGS[state.difficulty], user.sharpness,
+      state.training.individualGoal,
     );
     if (result.training.injured) {
       addNews(state, 'injury', 'Verletzung im Training',

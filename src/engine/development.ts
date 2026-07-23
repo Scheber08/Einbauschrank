@@ -2,7 +2,9 @@
  * Training, Entwicklung, Form und Verletzungen
  * (Konzept Abschnitt 17, 19, 37 und 38).
  */
-import { ATTR_LABELS, computeOverall, type AttrKey } from './attributes';
+import {
+  ATTR_LABELS, POSITION_WEIGHTS, computeOverall, type AttrKey, type PositionCode,
+} from './attributes';
 import { ageOn, type GameDate } from './date';
 import { Rng, clamp } from './rng';
 import type {
@@ -72,6 +74,21 @@ export interface TrainingOutcome {
 }
 
 /**
+ * Grundlagenprogramm des Vereins: die fuer die Position wichtigsten Attribute
+ * werden unabhaengig vom gewaehlten Schwerpunkt mittrainiert. Ohne das wuerde
+ * ein einzelner Schwerpunkt die Gesamtstaerke kaum bewegen.
+ */
+function positionProgramme(position: PositionCode): Partial<Record<AttrKey, number>> {
+  const weights = POSITION_WEIGHTS[position];
+  const max = Math.max(...(Object.values(weights) as number[]));
+  const result: Partial<Record<AttrKey, number>> = {};
+  for (const key in weights) {
+    result[key as AttrKey] = weights[key as AttrKey]! / max;
+  }
+  return result;
+}
+
+/**
  * Eine Trainingswoche des eigenen Spielers.
  * Die Entwicklung haengt von Alter, Potenzial, Trainingsqualitaet,
  * Einsatzzeiten und Professionalitaet ab (Konzept Abschnitt 17).
@@ -79,7 +96,7 @@ export interface TrainingOutcome {
 export function applyTraining(
   rng: Rng, player: Player, focus: TrainingFocus, intensity: TrainingIntensity,
   clubTraining: number, currentDate: GameDate, difficulty: DifficultySettings,
-  matchSharpness: number,
+  matchSharpness: number, individualGoal: TrainingFocus | null = null,
 ): TrainingOutcome {
   const before = computeOverall(player.attrs, player.position);
   const age = ageOn(player.birthDate, currentDate);
@@ -97,7 +114,21 @@ export function applyTraining(
   rate *= factors.gain;
 
   const gains: TrainingOutcome['gains'] = [];
-  const effects = TRAINING_EFFECTS[focus];
+
+  // Wochenschwerpunkt, individuelles Langzeitziel und Grundlagenprogramm
+  // fliessen zusammen, damit sich die Gesamtstaerke spuerbar entwickelt.
+  const effects: Partial<Record<AttrKey, number>> = {};
+  const merge = (map: Partial<Record<AttrKey, number>>, scale: number) => {
+    for (const key in map) {
+      const attr = key as AttrKey;
+      effects[attr] = (effects[attr] ?? 0) + map[attr]! * scale;
+    }
+  };
+  merge(TRAINING_EFFECTS[focus], 1);
+  if (individualGoal && individualGoal !== focus) {
+    merge(TRAINING_EFFECTS[individualGoal], 0.45);
+  }
+  if (focus !== 'recovery') merge(positionProgramme(player.position), 0.3);
 
   for (const key in effects) {
     const attr = key as AttrKey;
@@ -135,6 +166,7 @@ export function applyTraining(
     injured = rollInjury(rng, player, 'Training');
   }
 
+  gains.sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label));
   const after = computeOverall(player.attrs, player.position);
   return { gains, fatigue, injured, overallBefore: before, overallAfter: after };
 }

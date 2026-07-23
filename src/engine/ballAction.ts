@@ -14,9 +14,20 @@ export const GOAL_HALF_WIDTH = 3.66;
 export const CROSSBAR = 2.44;
 const GRAVITY = 9.81;
 const DT = 1 / 120;
-const DRAG = 0.0055;
-/** Staerke des Magnus-Effekts. */
-const SPIN_FACTOR = 13;
+/**
+ * Luftwiderstand. Die Verzoegerung waechst mit dem Quadrat der Geschwindigkeit:
+ * a = k * v^2. Der Wert entspricht ungefaehr einem Fussball
+ * (0,43 kg, cw rund 0,25) und kostet einem 25-m/s-Schuss etwa ein Viertel
+ * seiner Geschwindigkeit pro Sekunde.
+ */
+const DRAG = 0.0132;
+/** Rollreibung auf Rasen je Simulationsschritt. */
+const ROLL_FRICTION = 0.996;
+/**
+ * Staerke des Magnus-Effekts. Bei maximalem seitlichem Kontakt und hohem
+ * Effetwert kruemmt sich die Flugbahn ueber 20 Meter um rund drei Meter.
+ */
+const SPIN_FACTOR = 6;
 
 // --- Eingabe -----------------------------------------------------------
 
@@ -74,10 +85,18 @@ export function simulateBallFlight(p: FlightParams): Flight {
   const dirX = dx / horiz;
   const dirY = dy / horiz;
 
-  // Unterseite hebt den Ball an, Oberseite haelt ihn flach.
+  /*
+   * Abflugwinkel aus dem Ballkontaktpunkt.
+   * Die Mitte des Balls ergibt bewusst schon rund neun Grad: ein Schuss aus
+   * 25 Metern braucht etwa 14 Grad, um das Tor in Kopfhoehe zu erreichen.
+   * Waere die Mitte flach, muesste man jeden Schuss von unten treffen.
+   *   Mitte        rund  9 Grad  - normaler Schuss
+   *   Unterseite   bis  26 Grad  - Lupfer, Flanke, hoher Pass
+   *   Oberseite    rund  2 Grad  - flacher Ball, Bodenpass
+   */
   const lift = Math.max(0, -p.contactY);
   const topspin = Math.max(0, p.contactY);
-  const launchAngle = clamp(0.045 + lift * 0.52 - topspin * 0.035, 0, 0.72);
+  const launchAngle = clamp(0.16 + lift * 0.30 - topspin * 0.13, 0, 0.55);
 
   const speed = (7.5 + p.power * 20) * (0.74 + p.shotPower / 250);
 
@@ -93,7 +112,8 @@ export function simulateBallFlight(p: FlightParams): Flight {
 
   const points: TrajectoryPoint[] = [{ x, y, z, t: 0 }];
   let crossing: Flight['crossing'] = null;
-  const maxTime = p.maxTime ?? 3.2;
+  // Grosszuegig bemessen: flache Baelle rollen die letzten Meter aus.
+  const maxTime = p.maxTime ?? 5;
   let t = 0;
 
   while (t < maxTime) {
@@ -102,11 +122,11 @@ export function simulateBallFlight(p: FlightParams): Flight {
     const prevZ = z;
 
     const v = Math.hypot(vx, vy, vz) || 1;
-    // Luftwiderstand
+    // Luftwiderstand: Verzoegerung proportional zum Quadrat der Geschwindigkeit
     const drag = DRAG * v;
-    vx -= vx * drag * DT * 8;
-    vy -= vy * drag * DT * 8;
-    vz -= vz * drag * DT * 8;
+    vx -= vx * drag * DT;
+    vy -= vy * drag * DT;
+    vz -= vz * drag * DT;
 
     // Magnus-Effekt wirkt senkrecht zur Bewegungsrichtung in der Ebene
     const horizSpeed = Math.hypot(vx, vy) || 1;
@@ -127,13 +147,14 @@ export function simulateBallFlight(p: FlightParams): Flight {
     if (z <= 0) {
       z = 0;
       if (Math.abs(vz) > 1.4) {
-        vz = -vz * 0.52;
-        vx *= 0.82;
-        vy *= 0.82;
+        // Aufsprung: ein Teil der Energie geht verloren
+        vz = -vz * 0.55;
+        vx *= 0.9;
+        vy *= 0.9;
       } else {
         vz = 0;
-        vx *= 0.985;
-        vy *= 0.985;
+        vx *= ROLL_FRICTION;
+        vy *= ROLL_FRICTION;
       }
     }
 
@@ -339,7 +360,8 @@ export function resolveShot(
 
   const hitsFrame = (Math.abs(Math.abs(x) - post) < 0.16 && z <= CROSSBAR + 0.16)
     || (Math.abs(z - CROSSBAR) < 0.16 && Math.abs(x) <= post + 0.16);
-  const onTarget = Math.abs(x) < post && z > 0 && z < CROSSBAR;
+  // Ein flach am Boden rollender Ball ist ebenfalls im Tor - deshalb kein z > 0.
+  const onTarget = Math.abs(x) < post && z < CROSSBAR;
 
   if (hitsFrame && !onTarget) {
     return { outcome: 'post', flight, keeper: null, quality, crossing: { x, z } };

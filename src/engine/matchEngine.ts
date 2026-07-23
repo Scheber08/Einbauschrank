@@ -257,7 +257,7 @@ export class MatchEngine {
       const side: Side = this.rng.chance(0.55) ? 'home' : 'away';
       this.awardPenalty(side, evts);
       if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
-    } else if (this.rng.chance(0.011)) {
+    } else if (this.rng.chance(0.016)) {
       this.awardFreeKick(this.pickAttackingSide(), evts);
       if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
     } else if (this.rng.chance(ATTACK_PROB)) {
@@ -660,8 +660,10 @@ export class MatchEngine {
     const offset = this.rng.normal(0, 9);
     const wall = clamp(Math.round(5 - Math.abs(offset) / 9), 2, 5);
 
-    const taker = squad.reduce((best, o) =>
-      o.player.attrs.freeKicks > best.player.attrs.freeKicks ? o : best, squad[0]);
+    // Die beiden besten Schuetzen der Mannschaft teilen sich die Standards.
+    const ranked = squad.slice().sort(
+      (a, b) => b.player.attrs.freeKicks - a.player.attrs.freeKicks);
+    const taker = ranked[0];
 
     this.emit(evts, {
       minute: this.minute, type: 'note', side,
@@ -672,9 +674,9 @@ export class MatchEngine {
     if (this.setup.interactive && userId && this.userSide === side
       && this.userChallenges < MAX_USER_CHALLENGES) {
       const user = this.userOnPitch;
-      // Der eigene Spieler tritt an, wenn er der beste Schuetze auf dem Platz ist.
-      if (user && (taker.player.id === userId
-        || user.player.attrs.freeKicks >= taker.player.attrs.freeKicks - 3)) {
+      // Wer zu den beiden besten Schuetzen gehoert, darf antreten.
+      // Ueber das Freistosstraining laesst sich dieser Platz erarbeiten.
+      if (user && ranked.slice(0, 2).some((o) => o.player.id === userId)) {
         const xg = clamp(expectedGoals(distance, offset) * 1.35, 0.02, 0.22);
         this.startChallenge({
           ...this.baseChallenge(side, 'freeKick'),

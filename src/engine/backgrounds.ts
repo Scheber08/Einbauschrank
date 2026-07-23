@@ -16,7 +16,8 @@ export const BACKGROUNDS: Record<BackgroundKey, BackgroundDef> = {
     growthMod: 1.12,
     startReputation: 22,
     startLevel: 2,
-    clubReputationBand: [42, 72],
+    // Bewusst kein Spitzenverein: der Abstand zum Stammkader muss aufholbar bleiben.
+    clubReputationBand: [36, 56],
   },
   homeClub: {
     key: 'homeClub',
