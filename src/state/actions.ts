@@ -4,6 +4,7 @@ import {
   advanceDay, createNewGame, createObjectives, userClub,
   type DayResult, type NewGameOptions,
 } from '../engine/game';
+import { applyLifeChoice, type LifeEvent } from '../engine/events';
 import { addCareerEvent, addNews } from '../engine/ids';
 import { calcMarketValue } from '../engine/playerGen';
 import { Rng } from '../engine/rng';
@@ -63,6 +64,7 @@ export interface AdvanceSummary {
   matchToPlay: string | null;
   seasonReport: SeasonReport | null;
   training: DayResult['training'];
+  lifeEvent: DayResult['lifeEvent'];
 }
 
 /**
@@ -71,7 +73,7 @@ export interface AdvanceSummary {
  */
 export function advanceCalendar(maxDays = 60): AdvanceSummary {
   const game = getState().game;
-  if (!game) return { days: 0, matchToPlay: null, seasonReport: null, training: null };
+  if (!game) return { days: 0, matchToPlay: null, seasonReport: null, training: null, lifeEvent: null };
 
   let days = 0;
   let seasonReport: SeasonReport | null = null;
@@ -83,20 +85,34 @@ export function advanceCalendar(maxDays = 60): AdvanceSummary {
     if (result.training) training = result.training;
     if (result.matchToPlay) {
       commit();
-      return { days, matchToPlay: result.matchToPlay, seasonReport, training };
+      return { days, matchToPlay: result.matchToPlay, seasonReport, training, lifeEvent: null };
     }
     days++;
+    if (result.lifeEvent) {
+      commit();
+      void saveCurrent(true);
+      return { days, matchToPlay: null, seasonReport, training, lifeEvent: result.lifeEvent };
+    }
     if (result.training || result.seasonReport) break;
   }
 
   commit();
   void saveCurrent(true);
-  return { days, matchToPlay: null, seasonReport, training };
+  return { days, matchToPlay: null, seasonReport, training, lifeEvent: null };
 }
 
 /** Einen einzelnen Tag weiterschalten. */
 export function advanceOneDay(): AdvanceSummary {
   return advanceCalendar(1);
+}
+
+export function applyLifeEvent(event: LifeEvent, optionId: string) {
+  const game = getState().game;
+  if (!game) return null;
+  const option = applyLifeChoice(game, event, optionId);
+  commit();
+  void saveCurrent(true);
+  return option;
 }
 
 // --- Training ----------------------------------------------------------

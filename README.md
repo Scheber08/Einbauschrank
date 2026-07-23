@@ -49,6 +49,7 @@ npm run typecheck
 | 36-38 Marktwert, Form, Fitness | Dynamischer Marktwert, Form, Moral, Fitness, Spielpraxis, Selbstvertrauen |
 | 37 Verletzungen | Neun Verletzungsarten mit Heilungsverlauf und dauerhaften Folgen bei schweren Faellen |
 | 39 Medien | Nachrichtensystem mit Kategorien und Filter; Interviews nach markanten Spielen mit drei Antworttonlagen (Wirkung auf Moral, Trainer, Fans, Image, Reputation) |
+| 31-32 Leben abseits des Platzes | Woechentliche Ereignisse (Sponsor, Mannschaftsabend, Charity, Zusatztraining, soziale Medien) mit Wirkung auf Moral, Fitness, Image, Fans und Trainerbeziehung |
 | 41-42 Saisonziele, Bewertung | Vier Saisonziele, positionsabhaengige Notenberechnung von 1,0 bis 10,0 |
 | 43-48 Statistiken, Rekorde | Vollstaendige Einzel- und Saisonstatistik, Filter nach Saison, Wettbewerb und Verein, Rekordbuch |
 | 49-50 Chronik, Auszeichnungen | Karrierechronik mit Meilensteinen, fuenf Auszeichnungen je Liga und Saison |
@@ -66,10 +67,11 @@ Diese Punkte aus dem Konzept sind bewusst spaeteren Ausbauschritten vorbehalten:
   Spielstil hinterlegt (auslaendische Spieler kommen bereits vor), haben aber
   noch keine eigenen Ligen. Damit fehlen auch Continental Champions Cup,
   Continental Trophy, Nationalmannschaften und World Nations Cup.
-- **Abschnitt 30, 40**: Beziehungen zu Mitspielern, weitere Ereignisse ausserhalb
-  des Platzes und soziale Medien. (Interviews und das oeffentliche Image aus
-  Abschnitt 31/32/39 sind teilweise umgesetzt: nach Spielen gibt es Interviews,
-  die Moral, Trainerbeziehung, Fanbeliebtheit und Image verschieben.)
+- **Abschnitt 30, 40**: Beziehungen zu Mitspielern und ein voll ausgebautes
+  soziales Netzwerk. (Interviews, Ereignisse ausserhalb des Platzes und das
+  oeffentliche Image aus Abschnitt 31/32/39 sind umgesetzt: nach Spielen gibt es
+  Interviews, unter der Woche persoenliche Entscheidungen, und Moral, Trainer-
+  beziehung, Fanbeliebtheit sowie Image reagieren darauf.)
 - **Abschnitt 35**: Beratersystem.
 - **Abschnitt 34**: Leihen, Vorvertraege und Tauschgeschaefte. Der Transfermarkt
   ist derzeit auf Angebote an den eigenen Spieler und eine einfache Umverteilung

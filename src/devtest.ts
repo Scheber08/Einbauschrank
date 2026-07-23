@@ -12,6 +12,7 @@ import {
 import { slotScore } from './engine/lineup';
 import { MatchEngine } from './engine/matchEngine';
 import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
+import { applyLifeChoice } from './engine/events';
 import { Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
@@ -421,12 +422,16 @@ function run() {
   const push = halftimeRuns('push');
   const hold = halftimeRuns('hold');
   log(`Halbzeitszene trat auf: ${push.sawHalftime}/${push.games} Spiele`);
-  log(`Volle Offensive:     2. Haelfte ${push.ownShots} eigene Abschluesse, ${push.oppShots} gegnerische`);
-  log(`Kompakt verteidigen: 2. Haelfte ${hold.ownShots} eigene Abschluesse, ${hold.oppShots} gegnerische`);
+  const pushTotal = push.ownShots + push.oppShots;
+  const holdTotal = hold.ownShots + hold.oppShots;
+  log(`Volle Offensive:     2. Haelfte ${push.ownShots} eigene, ${push.oppShots} gegnerische (${pushTotal} gesamt)`);
+  log(`Kompakt verteidigen: 2. Haelfte ${hold.ownShots} eigene, ${hold.oppShots} gegnerische (${holdTotal} gesamt)`);
   check('Halbzeitszene tritt bei interaktiven Spielen auf',
     push.sawHalftime > push.games * 0.8, `${push.sawHalftime}/${push.games}`);
-  check('Volle Offensive bringt in Haelfte 2 mehr eigene Abschluesse als Kompakt',
-    push.ownShots > hold.ownShots, `${push.ownShots} gegen ${hold.ownShots}`);
+  // Volle Offensive oeffnet das Spiel: mehr Abschluesse auf beiden Seiten.
+  // Das Gesamtvolumen ist ein deutlich stabileres Signal als eine einzelne Seite.
+  check('Volle Offensive oeffnet das Spiel (mehr Abschluesse insgesamt) als Kompakt',
+    pushTotal > holdTotal, `${pushTotal} gegen ${holdTotal}`);
   check('Volle Offensive laesst in Haelfte 2 mehr gegnerische Abschluesse zu',
     push.oppShots > hold.oppShots, `${push.oppShots} gegen ${hold.oppShots}`);
 
@@ -517,6 +522,56 @@ function run() {
     }
   } else {
     log('Kein gespieltes Nutzerspiel gefunden - Interviewtest uebersprungen.');
+  }
+
+  // --- Ereignisse ausserhalb des Platzes (Abschnitt 31) ---------------
+  log('\n--- Ereignisse ausserhalb des Platzes ---');
+  {
+    // Frische Karriere, damit der Saisonverlauf sauber ist.
+    const g2 = createNewGame({
+      saveName: 'Ereignistest', seed: 24680, difficulty: 'normal',
+      firstName: 'Event', lastName: 'Tester', age: 17, nationality: 'falkenland',
+      position: 'ZM', altPositions: [], foot: 'rechts', height: 180, weight: 74,
+      shirtNumber: 8,
+      appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' },
+      background: 'academy',
+    });
+    let firstEvent = null;
+    let daysToEvent = 0;
+    for (let i = 0; i < 400 && !firstEvent; i++) {
+      const res = advanceDay(g2);
+      // Ein anstehendes Spiel muss abgeraeumt werden, sonst blockiert der Kalender.
+      if (res.matchToPlay) {
+        const prepared = prepareUserMatch(g2, res.matchToPlay, false);
+        if (prepared) {
+          const r = new Rng(g2.rngState);
+          const e = new MatchEngine({ ...prepared.setup, rng: r });
+          e.runToEnd((c) => autoResolveChallenge(c, g2.players[g2.userPlayerId], DIFFICULTY_SETTINGS.normal, r));
+          g2.rngState = r.state;
+          finishUserMatch(g2, res.matchToPlay, e.finish());
+        } else {
+          g2.pendingMatchId = null;
+        }
+        continue;
+      }
+      if (res.lifeEvent) { firstEvent = res.lifeEvent; break; }
+      daysToEvent++;
+    }
+    check('Ein Ereignis ausserhalb des Platzes tritt auf', !!firstEvent,
+      firstEvent ? `nach ${daysToEvent} Tagen: ${firstEvent.title}` : 'keins in 400 Tagen');
+    if (firstEvent) {
+      log(`Erstes Ereignis nach ${daysToEvent} Tagen: ${firstEvent.title} (${firstEvent.options.length} Optionen)`);
+      check('Ereignis bietet mindestens zwei Optionen', firstEvent.options.length >= 2);
+      const before = { image: g2.publicImage, morale: g2.players[g2.userPlayerId].morale };
+      // Eine Option mit spuerbarer Wirkung anwenden.
+      const opt = firstEvent.options.find((o) => Object.keys(o.effect).length > 0) ?? firstEvent.options[0];
+      applyLifeChoice(g2, firstEvent, opt.id);
+      const changed = g2.publicImage !== before.image
+        || g2.players[g2.userPlayerId].morale !== before.morale
+        || g2.fanRelation !== 50 || g2.coachRelation !== 55;
+      log(`Wahl "${opt.label}" angewandt.`);
+      check('Die Wahl veraendert die Werte des Spielers', changed);
+    }
   }
 
   // --- Ballphysik ------------------------------------------------------

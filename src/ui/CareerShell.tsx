@@ -4,7 +4,8 @@ import { ageOn, formatDate, seasonLabel } from '../engine/date';
 import { nextUserMatch, userClub, userLeague } from '../engine/game';
 import type { SeasonReport } from '../engine/season';
 import type { TrainingOutcome } from '../engine/development';
-import { advanceCalendar, backToMenu, saveCurrent } from '../state/actions';
+import type { LifeEvent, LifeOption } from '../engine/events';
+import { advanceCalendar, applyLifeEvent, backToMenu, saveCurrent } from '../state/actions';
 import { setState, useAppState, type CareerTab } from '../state/store';
 import { Bar, Meter, initials, money } from './components';
 import CalendarTab from './tabs/CalendarTab';
@@ -36,6 +37,7 @@ export default function CareerShell() {
   const game = app.game!;
   const [seasonReport, setSeasonReport] = useState<SeasonReport | null>(null);
   const [training, setTraining] = useState<TrainingOutcome | null>(null);
+  const [lifeEvent, setLifeEvent] = useState<LifeEvent | null>(null);
 
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -50,7 +52,8 @@ export default function CareerShell() {
       setState({ screen: 'match' });
       return;
     }
-    if (result.seasonReport) setSeasonReport(result.seasonReport);
+    if (result.lifeEvent) setLifeEvent(result.lifeEvent);
+    else if (result.seasonReport) setSeasonReport(result.seasonReport);
     else if (result.training) setTraining(result.training);
   }
 
@@ -83,6 +86,8 @@ export default function CareerShell() {
           <Meter label="Fitness" value={user.fitness} />
           <Meter label="Moral" value={user.morale} />
           <Meter label="Trainer" value={game.coachRelation} />
+          <Meter label="Fans" value={game.fanRelation} />
+          <Meter label="Oeffentliches Image" value={game.publicImage} />
           {user.injury && (
             <div className="pill bad" style={{ marginTop: '0.4rem' }}>
               {user.injury.name} - noch {user.injury.daysOut} Tage
@@ -146,8 +151,67 @@ export default function CareerShell() {
         {app.tab === 'chronicle' && <ChronicleTab />}
       </main>
 
+      {lifeEvent && <LifeEventModal event={lifeEvent} onClose={() => setLifeEvent(null)} />}
       {training && <TrainingModal outcome={training} onClose={() => setTraining(null)} />}
       {seasonReport && <SeasonModal report={seasonReport} onClose={() => setSeasonReport(null)} />}
+    </div>
+  );
+}
+
+function LifeEventModal({ event, onClose }: { event: LifeEvent; onClose: () => void }) {
+  const [chosen, setChosen] = useState<LifeOption | null>(null);
+
+  function choose(id: string) {
+    setChosen(applyLifeEvent(event, id));
+  }
+
+  const effectItems = (o: LifeOption) => ([
+    { label: 'Moral', value: o.effect.morale ?? 0 },
+    { label: 'Fitness', value: o.effect.fitness ?? 0 },
+    { label: 'Spielpraxis', value: o.effect.sharpness ?? 0 },
+    { label: 'Image', value: o.effect.image ?? 0 },
+    { label: 'Fans', value: o.effect.fans ?? 0 },
+    { label: 'Trainer', value: o.effect.coach ?? 0 },
+  ].filter((i) => i.value !== 0));
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="row between" style={{ marginBottom: '0.3rem' }}>
+          <h2 style={{ margin: 0 }}>{event.title}</h2>
+          <span className="pill">{event.category}</span>
+        </div>
+        <p className="muted">{event.description}</p>
+
+        {!chosen && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
+            {event.options.map((o) => (
+              <button key={o.id} style={{ textAlign: 'left', padding: '0.6rem 0.8rem' }}
+                onClick={() => choose(o.id)}>
+                <div style={{ fontWeight: 660 }}>{o.label}</div>
+                <div className="tiny muted">{o.description}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {chosen && (
+          <div style={{ marginTop: '0.6rem' }}>
+            <div className="small" style={{ fontStyle: 'italic', marginBottom: '0.3rem' }}>
+              „{chosen.label}"
+            </div>
+            <div className="row" style={{ gap: '0.35rem', flexWrap: 'wrap' }}>
+              {effectItems(chosen).map((i) => (
+                <span key={i.label} className={`pill ${i.value > 0 ? 'good' : 'bad'}`}>
+                  {i.label} {i.value > 0 ? `+${i.value}` : i.value}
+                </span>
+              ))}
+              {effectItems(chosen).length === 0 && <span className="tiny dim">Keine spuerbaren Folgen.</span>}
+            </div>
+            <button className="primary" style={{ marginTop: '0.8rem' }} onClick={onClose}>Weiter</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

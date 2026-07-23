@@ -12,6 +12,7 @@ import {
   advancePlayerDay, applyTraining, driftForm, rollInjury, updateFormAfterMatch,
   type TrainingOutcome,
 } from './development';
+import { buildLifeEvent, type LifeEvent } from './events';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
 import { selectLineup, type Lineup } from './lineup';
 import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
@@ -317,6 +318,7 @@ export interface DayResult {
   matchToPlay: Id | null;
   training: TrainingOutcome | null;
   seasonReport: SeasonReport | null;
+  lifeEvent: LifeEvent | null;
   headlines: string[];
 }
 
@@ -333,7 +335,8 @@ export function involvesUserClub(state: GameState, match: Match): boolean {
 export function advanceDay(state: GameState): DayResult {
   const rng = new Rng(state.rngState);
   const result: DayResult = {
-    date: state.date, matchToPlay: null, training: null, seasonReport: null, headlines: [],
+    date: state.date, matchToPlay: null, training: null, seasonReport: null,
+    lifeEvent: null, headlines: [],
   };
 
   const today = matchesOn(state, state.date).filter((m) => !m.played);
@@ -371,6 +374,13 @@ export function advanceDay(state: GameState): DayResult {
   for (const player of Object.values(state.players)) {
     advancePlayerDay(rng, player, today.length > 0);
     if (weekday(state.date) === 1) driftForm(player);
+  }
+
+  // Ereignis ausserhalb des Platzes (Konzept Abschnitt 31): unter der Woche,
+  // wenn kein Spiel ansteht und der Spieler fit ist. Haelt den Kalender an.
+  if (user && !user.injury && state.seasonPhase === 'inSeason'
+    && weekday(state.date) === 3 && rng.chance(0.3)) {
+    result.lifeEvent = buildLifeEvent(rng, state.nextId++);
   }
 
   // Pokalrunden nachziehen
