@@ -3,6 +3,10 @@ import { autoResolveChallenge } from '../../engine/ballAction';
 import { formatDate } from '../../engine/date';
 import { finishUserMatch, prepareUserMatch } from '../../engine/game';
 import {
+  applyInterviewAnswer, buildPostMatchInterview,
+  type Interview, type InterviewOption,
+} from '../../engine/media';
+import {
   MatchEngine, MENTALITY_LABELS,
   type HalftimeDecision, type InjuryDecision, type Mentality, type MatchOutcome,
 } from '../../engine/matchEngine';
@@ -39,6 +43,8 @@ export default function MatchScreen() {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [halftime, setHalftime] = useState<HalftimeDecision | null>(null);
   const [injury, setInjury] = useState<InjuryDecision | null>(null);
+  const [interview, setInterview] = useState<Interview | null>(null);
+  const [interviewReaction, setInterviewReaction] = useState<InterviewOption | null>(null);
   const [outcome, setOutcome] = useState<MatchOutcome | null>(null);
   const [, forceRender] = useState(0);
 
@@ -64,9 +70,26 @@ export default function MatchScreen() {
     finishUserMatch(game, matchId, result);
     setOutcome(result);
     setPhase('done');
+
+    // Interview nach dem Spiel (Konzept Abschnitt 39).
+    const match = game.matches[matchId];
+    if (match?.userStats && rngRef.current) {
+      const iv = buildPostMatchInterview(game, match, match.userStats, rngRef.current);
+      game.rngState = rngRef.current.state;
+      if (iv) setInterview(iv);
+    }
+
     commit();
     void saveCurrent(true);
   }, [game, matchId]);
+
+  function answerInterview(optionId: string) {
+    if (!interview) return;
+    const reaction = applyInterviewAnswer(game, interview, optionId);
+    setInterviewReaction(reaction);
+    commit();
+    void saveCurrent(true);
+  }
 
   // Spieluhr
   useEffect(() => {
@@ -348,9 +371,47 @@ export default function MatchScreen() {
                     {Math.round(outcome.userInputQuality * 100)}%
                   </p>
                 )}
+
+                {interview && !interviewReaction && (
+                  <div style={{
+                    marginTop: '0.8rem', padding: '0.7rem 0.8rem',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    background: '#0c1729',
+                  }}>
+                    <div className="tiny dim">Interview nach dem Spiel</div>
+                    <div style={{ fontWeight: 620, margin: '0.2rem 0 0.6rem' }}>
+                      „{interview.question}"
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {interview.options.map((o) => (
+                        <button key={o.id} style={{ textAlign: 'left', padding: '0.5rem 0.7rem' }}
+                          onClick={() => answerInterview(o.id)}>
+                          <div className="small" style={{ fontWeight: 600 }}>{o.label}</div>
+                          <div className="tiny dim">{o.tone}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {interviewReaction && (
+                  <div style={{
+                    marginTop: '0.8rem', padding: '0.7rem 0.8rem',
+                    border: '1px solid var(--border-soft)', borderRadius: 'var(--radius-sm)',
+                    background: '#0c1729',
+                  }}>
+                    <div className="tiny dim">Deine Antwort</div>
+                    <div className="small" style={{ fontStyle: 'italic', marginBottom: '0.3rem' }}>
+                      „{interviewReaction.label}"
+                    </div>
+                    <div className="small muted">{interviewReaction.reaction}</div>
+                    <InterviewEffects effect={interviewReaction.effect} />
+                  </div>
+                )}
+
                 <button className="primary" style={{ width: '100%', marginTop: '0.5rem' }}
                   onClick={leave}>
-                  Zurueck zur Karriere
+                  {interview && !interviewReaction ? 'Interview ueberspringen und zurueck' : 'Zurueck zur Karriere'}
                 </button>
               </div>
             )}
@@ -478,6 +539,26 @@ function MentalityRow(
       {MENTALITY_ORDER.map((m) => (
         <span key={m} className={`chip ${value === m ? 'active' : ''}`}
           onClick={() => onChange(m)}>{MENTALITY_LABELS[m]}</span>
+      ))}
+    </div>
+  );
+}
+
+function InterviewEffects({ effect }: { effect: InterviewOption['effect'] }) {
+  const items: { label: string; value: number }[] = [
+    { label: 'Moral', value: effect.morale ?? 0 },
+    { label: 'Trainer', value: effect.coach ?? 0 },
+    { label: 'Fans', value: effect.fans ?? 0 },
+    { label: 'Image', value: effect.image ?? 0 },
+    { label: 'Reputation', value: effect.reputation ?? 0 },
+  ].filter((i) => i.value !== 0);
+  if (items.length === 0) return null;
+  return (
+    <div className="row" style={{ gap: '0.35rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+      {items.map((i) => (
+        <span key={i.label} className={`pill ${i.value > 0 ? 'good' : 'bad'}`}>
+          {i.label} {i.value > 0 ? `+${i.value}` : i.value}
+        </span>
       ))}
     </div>
   );

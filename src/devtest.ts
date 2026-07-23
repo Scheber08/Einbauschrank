@@ -11,6 +11,7 @@ import {
 } from './engine/game';
 import { slotScore } from './engine/lineup';
 import { MatchEngine } from './engine/matchEngine';
+import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
 import { Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
@@ -473,6 +474,49 @@ function run() {
     check('Weiterspielen kann sich verschlimmern', worse > 0, `${worse}`);
   } else {
     log('Kein Spiel mit dem Nutzer in der Startelf gefunden - Verletzungstest uebersprungen.');
+  }
+
+  // --- Interviews (Konzept Abschnitt 39) ------------------------------
+  log('\n--- Interviews ---');
+  const playedUserMatch = Object.values(game.matches).find(
+    (m) => m.played && m.userStats && m.userStats.minutes > 0);
+  if (playedUserMatch && playedUserMatch.userStats) {
+    // Interview erzwingen: mit verschiedenen Seeds bauen, bis eines entsteht.
+    let iv = null;
+    for (let i = 0; i < 40 && !iv; i++) {
+      iv = buildPostMatchInterview(game, playedUserMatch, playedUserMatch.userStats,
+        new Rng(9001 + i * 131));
+    }
+    check('Nach einem Einsatz entsteht ein Interview', !!iv, iv ? `${iv.options.length} Optionen` : 'keins');
+    if (iv) {
+      check('Interview bietet drei Antworten', iv.options.length === 3, `${iv.options.length}`);
+      const hasTones = ['humble', 'confident', 'provocative'].every(
+        (id) => iv!.options.some((o) => o.id === id));
+      check('Interview enthaelt alle drei Tonlagen', hasTones);
+
+      // Wirkung der bescheidenen gegen die provokante Antwort auf die Trainerbeziehung.
+      const snap = () => ({ coach: game.coachRelation, fans: game.fanRelation, image: game.publicImage });
+      const before = snap();
+      applyInterviewAnswer(game, iv, 'humble');
+      const afterHumble = snap();
+      // Zustand zuruecksetzen
+      game.coachRelation = before.coach; game.fanRelation = before.fans; game.publicImage = before.image;
+      applyInterviewAnswer(game, iv, 'provocative');
+      const afterProv = snap();
+      game.coachRelation = before.coach; game.fanRelation = before.fans; game.publicImage = before.image;
+
+      log(`Bescheiden: Trainer ${before.coach.toFixed(0)} -> ${afterHumble.coach.toFixed(0)}, `
+        + `Image ${before.image.toFixed(0)} -> ${afterHumble.image.toFixed(0)}`);
+      log(`Provokant:  Trainer ${before.coach.toFixed(0)} -> ${afterProv.coach.toFixed(0)}, `
+        + `Image ${before.image.toFixed(0)} -> ${afterProv.image.toFixed(0)}`);
+      check('Bescheidene Antwort verbessert die Trainerbeziehung',
+        afterHumble.coach > before.coach, `${before.coach.toFixed(0)} -> ${afterHumble.coach.toFixed(0)}`);
+      check('Provokante Antwort schadet Trainer und Image',
+        afterProv.coach < before.coach && afterProv.image < before.image,
+        `Trainer ${afterProv.coach.toFixed(0)}, Image ${afterProv.image.toFixed(0)}`);
+    }
+  } else {
+    log('Kein gespieltes Nutzerspiel gefunden - Interviewtest uebersprungen.');
   }
 
   // --- Ballphysik ------------------------------------------------------
