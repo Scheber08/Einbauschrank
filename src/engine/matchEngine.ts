@@ -32,6 +32,12 @@ export interface MatchEngineSetup {
   userPlayerId: Id | null;
   /** Highlights selbst spielen oder alles simulieren lassen. */
   interactive: boolean;
+  /**
+   * 'own' zeigt nur Situationen mit Ballaktion des eigenen Spielers.
+   * 'all' bindet den Spieler zusaetzlich ohne Ball ein: mehr Zweikaempfe und
+   *  Klaerungen gegnerischer Grosschancen (Konzept Abschnitt 20.3).
+   */
+  highlightMode?: 'own' | 'all';
   difficulty: DifficultySettings;
   rng: Rng;
   neutral?: boolean;
@@ -54,7 +60,8 @@ export interface MatchOutcome {
 }
 
 interface PendingContext {
-  type: 'shot' | 'longShot' | 'header' | 'oneOnOne' | 'pass' | 'duel' | 'save' | 'penalty' | 'freeKick' | 'dribble';
+  type: 'shot' | 'longShot' | 'header' | 'oneOnOne' | 'pass' | 'duel' | 'save'
+    | 'penalty' | 'freeKick' | 'dribble' | 'block';
   attackingSide: Side;
   xg: number;
   distance: number;
@@ -64,10 +71,16 @@ interface PendingContext {
   targets?: ChallengeTarget[];
   /** Bei Torwartszenen: wer schiesst. */
   opponentId?: Id;
+  /** Bei einer Klaerung: Daten, um den Schuss fortzusetzen, falls sie misslingt. */
+  blockKind?: string;
+  blockBigChance?: boolean;
+  blockInputBonus?: number;
 }
 
 const ATTACK_PROB = 0.40;
-const MAX_USER_CHALLENGES = 8;
+/** Obergrenze selbst gespielter Situationen je Modus, damit ein Spiel zuegig bleibt. */
+const MAX_USER_CHALLENGES_OWN = 8;
+const MAX_USER_CHALLENGES_ALL = 12;
 
 export class MatchEngine {
   readonly setup: MatchEngineSetup;
@@ -130,6 +143,14 @@ export class MatchEngine {
   }
 
   // --- Zugriffshilfen ----------------------------------------------------
+
+  private get allHighlights(): boolean {
+    return this.setup.highlightMode === 'all';
+  }
+
+  private get maxChallenges(): number {
+    return this.allHighlights ? MAX_USER_CHALLENGES_ALL : MAX_USER_CHALLENGES_OWN;
+  }
 
   get userSide(): Side | null {
     const id = this.setup.userPlayerId;
@@ -368,7 +389,7 @@ export class MatchEngine {
     const userId = this.setup.userPlayerId;
     const canInteract = this.setup.interactive
       && this.userSide === side
-      && this.userChallenges < MAX_USER_CHALLENGES;
+      && this.userChallenges < this.maxChallenges;
 
     // Eigener Spieler schliesst ab
     if (canInteract && userId && shooter.player.id === userId) {
@@ -452,8 +473,73 @@ export class MatchEngine {
     st.shots++;
     if (chance.bigChance) st.bigChances++;
 
+    // Klaerung durch den eigenen Feldspieler, bevor der Schuss faellt
+    // (Konzept Abschnitt 20.3, nur im Modus "Alle Szenen").
+    if (this.tryBlockChallenge(side, shooter, creator, chance, inputBonus)) return;
+
+    this.resolveShotOnGoal(side, shooter, creator, chance, inputBonus, evts);
+  }
+
+  /**
+   * Bietet dem eigenen Feldspieler eine Klaerung an, wenn der Gegner eine
+   * gefaehrliche Chance hat. Gibt true zurueck, wenn eine Situation startet.
+   */
+  private tryBlockChallenge(
+    side: Side,
+    shooter: OnPitchPlayer,
+    creator: OnPitchPlayer | null,
+    chance: { kind: string; distance: number; offset: number; xg: number; bigChance: boolean },
+    inputBonus: number,
+  ): boolean {
+    if (!this.allHighlights || !this.setup.interactive) return false;
+    if (chance.xg < 0.18) return false;
     const defSide = this.other(side);
-    const gk = this.onPitch[defSide].find((o) => o.slot === 'TW');
+    if (this.userSide !== defSide) return false;
+    if (this.userChallenges >= this.maxChallenges) return false;
+    const user = this.userOnPitch;
+    if (!user || user.slot === 'TW') return false;
+
+    // Verteidiger werfen sich haeufig dazwischen, Stuermer kaum.
+    const line = POSITION_LINE[user.slot];
+    const prob = line === 'DEF' ? 0.82 : user.slot === 'DM' ? 0.6 : line === 'MID' ? 0.4 : 0.14;
+    if (!this.rng.chance(prob)) return false;
+
+    this.startChallenge({
+      ...this.baseChallenge(defSide, 'duel'),
+      title: 'Klaerung',
+      hint: 'Wirf dich im richtigen Moment in den Schuss. Zu frueh und der Gegner zieht vorbei.',
+      distance: chance.distance,
+      offset: chance.offset,
+      pressure: 0.6,
+      opponent: shooter.rating,
+      xg: chance.xg,
+      bigChance: chance.bigChance,
+    }, {
+      type: 'block',
+      attackingSide: side,
+      xg: chance.xg,
+      distance: chance.distance,
+      offset: chance.offset,
+      shooterId: shooter.player.id,
+      assistId: creator?.player.id,
+      blockKind: chance.kind,
+      blockBigChance: chance.bigChance,
+      blockInputBonus: inputBonus,
+    });
+    return true;
+  }
+
+  /** Aufloesung eines Abschlusses ab dem Genauigkeits-Check. */
+  private resolveShotOnGoal(
+    side: Side,
+    shooter: OnPitchPlayer,
+    creator: OnPitchPlayer | null,
+    chance: { kind: string; distance: number; offset: number; xg: number; bigChance: boolean },
+    inputBonus: number,
+    evts: LiveEvent[],
+  ) {
+    const st = this.statOf(shooter.player.id, side, shooter.slot);
+    const defSide = this.other(side);
     const keeperRating = this.strengthOf(defSide).keeper;
 
     // Ist der Schuss auf dem Tor?
@@ -481,7 +567,7 @@ export class MatchEngine {
     // Torwartszene des eigenen Spielers
     const userId = this.setup.userPlayerId;
     if (this.setup.interactive && userId && this.userSide === defSide
-      && this.userChallenges < MAX_USER_CHALLENGES) {
+      && this.userChallenges < this.maxChallenges) {
       const userPitch = this.userOnPitch;
       if (userPitch && userPitch.slot === 'TW') {
         this.startChallenge(this.buildSaveChallenge(defSide, chance, shooter), {
@@ -504,13 +590,19 @@ export class MatchEngine {
       0.02, 0.94,
     );
 
+    this.finishShot(side, shooter, creator, goalProb, chance.bigChance, evts);
+  }
+
+  /** Schliesst einen Abschluss ab: Tor oder Parade des Torhueters. */
+  private finishShot(
+    side: Side, shooter: OnPitchPlayer, creator: OnPitchPlayer | null,
+    goalProb: number, bigChance: boolean, evts: LiveEvent[],
+  ) {
     if (this.rng.chance(goalProb)) {
-      this.scoreGoal(side, shooter, creator, evts, chance.bigChance);
+      this.scoreGoal(side, shooter, creator, evts, bigChance);
     } else {
-      if (gk) {
-        const gs = this.statOf(gk.player.id, defSide, 'TW');
-        gs.saves++;
-      }
+      const gk = this.onPitch[this.other(side)].find((o) => o.slot === 'TW');
+      if (gk) this.statOf(gk.player.id, this.other(side), 'TW').saves++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side,
         playerId: shooter.player.id,
@@ -613,7 +705,7 @@ export class MatchEngine {
   private tryDribbleChallenge(side: Side): boolean {
     if (!this.setup.interactive) return false;
     if (this.userSide !== side) return false;
-    if (this.userChallenges >= MAX_USER_CHALLENGES) return false;
+    if (this.userChallenges >= this.maxChallenges) return false;
     const user = this.userOnPitch;
     if (!user || user.slot === 'TW') return false;
 
@@ -672,7 +764,7 @@ export class MatchEngine {
 
     const userId = this.setup.userPlayerId;
     if (this.setup.interactive && userId && this.userSide === side
-      && this.userChallenges < MAX_USER_CHALLENGES) {
+      && this.userChallenges < this.maxChallenges) {
       const user = this.userOnPitch;
       // Wer zu den beiden besten Schuetzen gehoert, darf antreten.
       // Ueber das Freistosstraining laesst sich dieser Platz erarbeiten.
@@ -729,12 +821,15 @@ export class MatchEngine {
   private tryDefensiveChallenge(defSide: Side, attackingSide: Side): boolean {
     if (!this.setup.interactive) return false;
     if (this.userSide !== defSide) return false;
-    if (this.userChallenges >= MAX_USER_CHALLENGES) return false;
+    if (this.userChallenges >= this.maxChallenges) return false;
     const user = this.userOnPitch;
     if (!user || user.slot === 'TW') return false;
 
     const line = POSITION_LINE[user.slot];
-    const base = line === 'DEF' ? 0.20 : user.slot === 'DM' ? 0.15 : line === 'MID' ? 0.09 : 0.03;
+    let base = line === 'DEF' ? 0.20 : user.slot === 'DM' ? 0.15 : line === 'MID' ? 0.09 : 0.03;
+    // Im Modus "Alle Szenen" ist der Spieler auch ohne Ball staerker eingebunden.
+    // Der Zuwachs bleibt moderat, weil Klaerungen am Schuss dazukommen.
+    if (this.allHighlights) base *= 1.3;
     if (!this.rng.chance(base)) return false;
 
     const attacker = this.rng.pick(this.onPitch[attackingSide].filter((o) => o.slot !== 'TW'));
@@ -956,6 +1051,9 @@ export class MatchEngine {
       case 'duel':
         this.applyDuelResult(result, ctx, user, st, evts);
         break;
+      case 'block':
+        this.applyBlockResult(result, ctx, user, st, evts);
+        break;
       case 'dribble':
         this.applyDribbleResult(result, ctx, user, st, evts);
         break;
@@ -1138,6 +1236,56 @@ export class MatchEngine {
       minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
       text: `${this.name(user.player.id)} verliert den Ball im Dribbling.`,
     });
+  }
+
+  /** Klaerung eines gefaehrlichen Gegnerschusses (Modus "Alle Szenen"). */
+  private applyBlockResult(
+    result: ChallengeResult, ctx: PendingContext,
+    user: OnPitchPlayer, st: PlayerMatchStats, evts: LiveEvent[],
+  ) {
+    const defSide = this.userSide!;
+    const side = ctx.attackingSide;
+    const shooter = this.onPitch[side].find((o) => o.player.id === ctx.shooterId);
+
+    if (result.outcome === 'duelWon') {
+      st.blocks++;
+      this.emit(evts, {
+        minute: this.minute, type: 'save', side: defSide, playerId: user.player.id, user: true,
+        text: `${this.name(user.player.id)} wirft sich in den Schuss und klaert!`,
+      });
+      return;
+    }
+
+    if (result.outcome === 'foulCommitted') {
+      st.fouls++;
+      // Ein Foul im eigenen Strafraumbereich kann teuer werden.
+      if (ctx.distance < 17 && this.rng.chance(0.5)) {
+        this.awardPenalty(side, evts);
+      } else {
+        this.emit(evts, {
+          minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
+          text: `${this.name(user.player.id)} kommt zu spaet und foult.`,
+        });
+      }
+      return;
+    }
+
+    // Block misslungen: der Schuss laeuft ganz normal weiter.
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
+      text: `${this.name(user.player.id)} rutscht am Ball vorbei.`,
+    });
+    if (shooter) {
+      const creator = ctx.assistId
+        ? this.onPitch[side].find((o) => o.player.id === ctx.assistId) ?? null : null;
+      this.resolveShotOnGoal(side, shooter, creator, {
+        kind: ctx.blockKind ?? 'shot',
+        distance: ctx.distance,
+        offset: ctx.offset,
+        xg: ctx.xg,
+        bigChance: ctx.blockBigChance ?? false,
+      }, ctx.blockInputBonus ?? 1, evts);
+    }
   }
 
   private applyPassResult(

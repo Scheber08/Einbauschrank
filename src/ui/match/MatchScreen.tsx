@@ -98,6 +98,7 @@ export default function MatchScreen() {
     rngRef.current = rng;
     const engine = new MatchEngine({
       ...prepareUserMatch(game, matchId, selected !== 'simulate')!.setup,
+      highlightMode: selected === 'allHighlights' ? 'all' : 'own',
       rng,
     });
     engineRef.current = engine;
@@ -220,7 +221,8 @@ export default function MatchScreen() {
               onClick={() => start('allHighlights')}>
               <div style={{ fontWeight: 680 }}>Alle wichtigen Szenen</div>
               <div className="tiny muted">
-                Wie oben, aber der gesamte Spielverlauf wird langsamer und vollstaendiger gezeigt.
+                Wie oben, aber du bist auch ohne Ball gefragt: mehr Zweikaempfe und
+                Klaerungen gegnerischer Grosschancen.
               </div>
             </button>
           </div>

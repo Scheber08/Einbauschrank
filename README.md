@@ -150,6 +150,15 @@ Mechanik lernen, statt nur ein Ergebnis hinzunehmen.
 - **Zweikampf und Torwartparade**: Zeitfenster, deren Groesse von den Attributen
   und vom Schwierigkeitsgrad abhaengt.
 
+Die drei Spielmodi unterscheiden sich spuerbar:
+
+- **Komplett simulieren**: nur Ergebnis, Bewertung und Statistik.
+- **Nur eigene Highlights**: du spielst jede Ballaktion deines Spielers selbst.
+- **Alle wichtigen Szenen**: zusaetzlich bist du ohne Ball gefragt - mehr
+  Zweikaempfe und Klaerungen gegnerischer Grosschancen (Konzept Abschnitt 20.3).
+  Wie oft du dich in Schuesse wirfst, haengt von deiner Position ab: Verteidiger
+  haeufig, Stuermer kaum.
+
 Alle Timingmechaniken rechnen mit der Uhr statt mit Einzelbildern. Sie bleiben
 damit fair, auch wenn der Browser gerade keine Bilder liefert.
 

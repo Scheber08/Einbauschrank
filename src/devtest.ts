@@ -238,7 +238,7 @@ function run() {
     const prepared = prepareUserMatch(game, m.id, true);
     if (!prepared) continue;
     const rng2 = new Rng((game.rngState + interactiveMatches * 7919) >>> 0);
-    const engine = new MatchEngine({ ...prepared.setup, rng: rng2 });
+    const engine = new MatchEngine({ ...prepared.setup, highlightMode: 'own', rng: rng2 });
     engine.runToEnd((c) => {
       kinds.set(c.kind, (kinds.get(c.kind) ?? 0) + 1);
       return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rng2);
@@ -287,6 +287,55 @@ function run() {
   check('Nicht zu viele Unterbrechungen pro Spiel',
     totalChallenges / Math.max(1, interactiveMatches) < 9,
     `${(totalChallenges / Math.max(1, interactiveMatches)).toFixed(1)}`);
+
+  // --- Modus "Alle wichtigen Szenen" (Konzept Abschnitt 20.3) ---------
+  log('\n--- Modus-Vergleich own gegen all ---');
+  const allKinds = new Map<string, number>();
+  let allMatches = 0;
+  for (const m of upcoming.slice(0, 39)) {
+    const prepared = prepareUserMatch(game, m.id, true);
+    if (!prepared) continue;
+    const rng4 = new Rng((game.rngState + allMatches * 5387 + 991) >>> 0);
+    const engine = new MatchEngine({ ...prepared.setup, highlightMode: 'all', rng: rng4 });
+    engine.runToEnd((c) => {
+      allKinds.set(c.kind, (allKinds.get(c.kind) ?? 0) + 1);
+      return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rng4);
+    });
+    engine.finish();
+    allMatches++;
+  }
+  const ownDefensive = (kinds.get('duel') ?? 0);
+  const allDefensive = (allKinds.get('duel') ?? 0) + (allKinds.get('block') ?? 0);
+  const allTotal = [...allKinds.values()].reduce((a, b) => a + b, 0);
+  log(`Modus "own": ${totalChallenges} Situationen, davon ${ownDefensive} defensiv`);
+  log(`Modus "all": ${allTotal} Situationen, davon ${allDefensive} defensiv `
+    + `(${allKinds.get('block') ?? 0} Klaerungen)`);
+  check('Modus "all" bindet den Spieler defensiv staerker ein (Abschnitt 20.3)',
+    allDefensive > ownDefensive, `${allDefensive} gegen ${ownDefensive}`);
+
+  // Klaerungen betreffen vor allem Defensivspieler. Fuer diese Pruefung wird der
+  // Spieler kurzzeitig als Innenverteidiger eingesetzt.
+  const savedPos = user.position;
+  user.position = 'IV';
+  let ivBlocks = 0; let ivOwnBlocks = 0;
+  for (const m of upcoming.slice(0, 25)) {
+    const prepared = prepareUserMatch(game, m.id, true);
+    if (!prepared) continue;
+    const rngA = new Rng((game.rngState + ivBlocks * 3301 + 47) >>> 0);
+    const eAll = new MatchEngine({ ...prepared.setup, highlightMode: 'all', rng: rngA });
+    eAll.runToEnd((c) => { if (c.kind === 'duel' && c.title === 'Klaerung') ivBlocks++;
+      return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngA); });
+    eAll.finish();
+    const rngO = new Rng((game.rngState + ivOwnBlocks * 3301 + 47) >>> 0);
+    const eOwn = new MatchEngine({ ...prepared.setup, highlightMode: 'own', rng: rngO });
+    eOwn.runToEnd((c) => { if (c.kind === 'duel' && c.title === 'Klaerung') ivOwnBlocks++;
+      return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngO); });
+    eOwn.finish();
+  }
+  user.position = savedPos;
+  log(`Als Innenverteidiger: ${ivBlocks} Klaerungen im Modus "all", ${ivOwnBlocks} im Modus "own"`);
+  check('Klaerungen gegnerischer Grosschancen entstehen nur im Modus "all"',
+    ivBlocks > 0 && ivOwnBlocks === 0, `all ${ivBlocks}, own ${ivOwnBlocks}`);
 
   // --- Ballphysik ------------------------------------------------------
   log('\n--- Ballphysik (Konzept Abschnitt 22 und 23) ---');
