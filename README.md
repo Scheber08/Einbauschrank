@@ -159,6 +159,16 @@ Die drei Spielmodi unterscheiden sich spuerbar:
   Wie oft du dich in Schuesse wirfst, haengt von deiner Position ab: Verteidiger
   haeufig, Stuermer kaum.
 
+Waehrend der Partie waehlst du jederzeit deine **Ausrichtung**:
+
+- **Nach vorne**: mehr Abschluesse und Dribblings, hoher Kraftverbrauch.
+- **Ausbalanciert**: ausgeglichene Beteiligung.
+- **Defensiv**: mehr Zweikaempfe und Klaerungen, weniger im Angriff.
+- **Kraefte schonen**: Zurueckhaltung, schont die Fitness fuer die Schlussphase.
+
+So entscheidest du zwischen den Highlights, ob du ein Spiel an dich reisst oder
+Kraefte fuer spaeter sparst.
+
 Alle Timingmechaniken rechnen mit der Uhr statt mit Einzelbildern. Sie bleiben
 damit fair, auch wenn der Browser gerade keine Bilder liefert.
 

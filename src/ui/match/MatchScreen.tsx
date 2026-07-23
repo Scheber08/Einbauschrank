@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { autoResolveChallenge } from '../../engine/ballAction';
 import { formatDate } from '../../engine/date';
 import { finishUserMatch, prepareUserMatch } from '../../engine/game';
-import { MatchEngine, type MatchOutcome } from '../../engine/matchEngine';
+import {
+  MatchEngine, MENTALITY_LABELS, type Mentality, type MatchOutcome,
+} from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { Rng } from '../../engine/rng';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
@@ -32,6 +34,7 @@ export default function MatchScreen() {
   const [mode, setMode] = useState<Mode>('ownHighlights');
   const [speedIndex, setSpeedIndex] = useState(1);
   const [paused, setPaused] = useState(false);
+  const [mentality, setMentalityState] = useState<Mentality>('balanced');
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [outcome, setOutcome] = useState<MatchOutcome | null>(null);
   const [, forceRender] = useState(0);
@@ -101,6 +104,7 @@ export default function MatchScreen() {
       highlightMode: selected === 'allHighlights' ? 'all' : 'own',
       rng,
     });
+    engine.setMentality(mentality);
     engineRef.current = engine;
 
     if (selected === 'simulate') {
@@ -113,6 +117,11 @@ export default function MatchScreen() {
       return;
     }
     setPhase('running');
+  }
+
+  function changeMentality(m: Mentality) {
+    setMentalityState(m);
+    engineRef.current?.setMentality(m);
   }
 
   function handleChallengeDone(result: ChallengeResult) {
@@ -180,6 +189,15 @@ export default function MatchScreen() {
         )}
       </div>
 
+      {phase === 'running' && mode !== 'simulate' && (prepared.userInLineup || prepared.userOnBench) && (
+        <Panel title="Deine Ausrichtung">
+          <div className="row between">
+            <MentalityRow value={mentality} onChange={changeMentality} />
+            <span className="tiny dim">{mentalityHint(mentality)}</span>
+          </div>
+        </Panel>
+      )}
+
       {phase === 'setup' && (
         <Panel title="Wie moechtest du dieses Spiel erleben?">
           <div className="row" style={{ marginBottom: '0.9rem' }}>
@@ -199,6 +217,16 @@ export default function MatchScreen() {
               Werten, halte die Fitness hoch und verbessere die Trainerbeziehung -
               dann rueckst du in den Kader. Das Spiel kannst du simulieren lassen.
             </p>
+          )}
+
+          {(prepared.userInLineup || prepared.userOnBench) && (
+            <div style={{ marginBottom: '0.9rem' }}>
+              <label>Ausrichtung fuer dieses Spiel (jederzeit aenderbar)</label>
+              <div className="row between">
+                <MentalityRow value={mentality} onChange={changeMentality} />
+                <span className="tiny dim">{mentalityHint(mentality)}</span>
+              </div>
+            </div>
           )}
 
           <div className="grid three">
@@ -316,6 +344,30 @@ export default function MatchScreen() {
       )}
     </div>
   );
+}
+
+const MENTALITY_ORDER: Mentality[] = ['attack', 'balanced', 'contain', 'conserve'];
+
+function MentalityRow(
+  { value, onChange }: { value: Mentality; onChange: (m: Mentality) => void },
+) {
+  return (
+    <div className="chip-row">
+      {MENTALITY_ORDER.map((m) => (
+        <span key={m} className={`chip ${value === m ? 'active' : ''}`}
+          onClick={() => onChange(m)}>{MENTALITY_LABELS[m]}</span>
+      ))}
+    </div>
+  );
+}
+
+function mentalityHint(m: Mentality): string {
+  switch (m) {
+    case 'attack': return 'Mehr Abschluesse und Dribblings, hoher Kraftverbrauch.';
+    case 'contain': return 'Mehr Zweikaempfe und Klaerungen, weniger im Angriff.';
+    case 'conserve': return 'Zurueckhaltung, schont die Fitness fuer spaeter.';
+    default: return 'Ausgeglichene Beteiligung in Angriff und Abwehr.';
+  }
 }
 
 function EventRow({ event }: { event: LiveEvent }) {

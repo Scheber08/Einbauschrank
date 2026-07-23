@@ -82,6 +82,32 @@ const ATTACK_PROB = 0.40;
 const MAX_USER_CHALLENGES_OWN = 8;
 const MAX_USER_CHALLENGES_ALL = 12;
 
+/** Spielausrichtung des eigenen Spielers waehrend der Partie. */
+export type Mentality = 'attack' | 'balanced' | 'contain' | 'conserve';
+
+export const MENTALITY_LABELS: Record<Mentality, string> = {
+  attack: 'Nach vorne',
+  balanced: 'Ausbalanciert',
+  contain: 'Defensiv',
+  conserve: 'Kraefte schonen',
+};
+
+interface MentalityEffect {
+  /** Faktor auf offensive Beteiligung (Dribbling, Abschluss suchen). */
+  attack: number;
+  /** Faktor auf defensive Beteiligung (Zweikaempfe, Klaerungen). */
+  defend: number;
+  /** Faktor auf den Fitnessverbrauch. */
+  effort: number;
+}
+
+const MENTALITY_EFFECTS: Record<Mentality, MentalityEffect> = {
+  attack: { attack: 1.55, defend: 0.6, effort: 1.25 },
+  balanced: { attack: 1.0, defend: 1.0, effort: 1.0 },
+  contain: { attack: 0.55, defend: 1.5, effort: 1.1 },
+  conserve: { attack: 0.5, defend: 0.6, effort: 0.68 },
+};
+
 export class MatchEngine {
   readonly setup: MatchEngineSetup;
   minute = 0;
@@ -109,6 +135,7 @@ export class MatchEngine {
   private userQualitySum = 0;
   private userQualityCount = 0;
   private squadById = new Map<Id, Player>();
+  private mentality: Mentality = 'balanced';
 
   constructor(setup: MatchEngineSetup) {
     this.setup = setup;
@@ -146,6 +173,29 @@ export class MatchEngine {
 
   private get allHighlights(): boolean {
     return this.setup.highlightMode === 'all';
+  }
+
+  /** Ausrichtung zwischen zwei Situationen aendern. */
+  setMentality(m: Mentality) {
+    this.mentality = m;
+  }
+
+  get currentMentality(): Mentality {
+    return this.mentality;
+  }
+
+  /** Aktuelle Live-Fitness des eigenen Spielers, fuer Anzeige und Tests. */
+  get userLiveFitness(): number {
+    const id = this.setup.userPlayerId;
+    return id ? this.liveFitness.get(id) ?? 100 : 100;
+  }
+
+  private get attackFactor(): number {
+    return MENTALITY_EFFECTS[this.mentality].attack;
+  }
+
+  private get defendFactor(): number {
+    return MENTALITY_EFFECTS[this.mentality].defend;
   }
 
   private get maxChallenges(): number {
@@ -319,10 +369,14 @@ export class MatchEngine {
   }
 
   private drainFitness() {
+    const userId = this.setup.userPlayerId;
+    const effort = MENTALITY_EFFECTS[this.mentality].effort;
     for (const side of ['home', 'away'] as Side[]) {
       for (const o of this.onPitch[side]) {
         const stamina = o.player.attrs.stamina;
-        const drain = 0.28 + (100 - stamina) / 100 * 0.3;
+        let drain = 0.28 + (100 - stamina) / 100 * 0.3;
+        // Die eigene Ausrichtung steuert, wie viel Kraft der Spieler laesst.
+        if (o.player.id === userId) drain *= effort;
         const current = this.liveFitness.get(o.player.id) ?? 90;
         this.liveFitness.set(o.player.id, clamp(current - drain, 10, 100));
         const st = this.stats.get(o.player.id);
@@ -379,9 +433,12 @@ export class MatchEngine {
     const preferred = opts.preferShooterId
       ? squad.find((o) => o.player.id === opts.preferShooterId)
       : undefined;
-    const shooter = preferred && this.rng.chance(0.68)
+    let shooter = preferred && this.rng.chance(0.68)
       ? preferred
       : pickShooter(this.rng, squad, chance.kind);
+    // Ausrichtung "Nach vorne" schiebt Abschluesse zum eigenen Spieler, "Defensiv"
+    // und "Schonen" ueberlassen sie eher den Mitspielern.
+    if (!preferred) shooter = this.biasShooterToUser(side, shooter, chance.kind);
     const creator = shooter === preferred
       ? null
       : this.rng.chance(0.66) ? pickCreator(this.rng, squad, shooter.player.id) : null;
@@ -422,6 +479,32 @@ export class MatchEngine {
     }
 
     this.resolveShot(side, shooter, creator, chance, evts, 1);
+  }
+
+  /**
+   * Verschiebt die Abschlusswahl je nach Ausrichtung Richtung eigener Spieler
+   * (oder von ihm weg). Nur wirksam, wenn der Spieler ein plausibler Abschluss-
+   * spieler auf dem Feld ist.
+   */
+  private biasShooterToUser(side: Side, shooter: OnPitchPlayer, kind: 'shot' | 'longShot' | 'header' | 'oneOnOne'): OnPitchPlayer {
+    const userId = this.setup.userPlayerId;
+    if (!userId || this.userSide !== side) return shooter;
+    const user = this.onPitch[side].find((o) => o.player.id === userId);
+    if (!user || user.slot === 'TW') return shooter;
+    const line = POSITION_LINE[user.slot];
+    if (line === 'DEF') return shooter; // Verteidiger schliessen selten ab
+
+    const swapToUser = clamp((this.attackFactor - 1) * 0.5, 0, 0.4);
+    const swapAway = clamp((1 - this.attackFactor) * 0.5, 0, 0.4);
+
+    if (shooter.player.id !== userId && swapToUser > 0 && this.rng.chance(swapToUser)) {
+      return user;
+    }
+    if (shooter.player.id === userId && swapAway > 0 && this.rng.chance(swapAway)) {
+      const others = this.onPitch[side].filter((o) => o.player.id !== userId && o.slot !== 'TW');
+      if (others.length) return pickShooter(this.rng, others, kind);
+    }
+    return shooter;
   }
 
   private makeChance(balance: number, xgBonus = 1) {
@@ -501,7 +584,8 @@ export class MatchEngine {
 
     // Verteidiger werfen sich haeufig dazwischen, Stuermer kaum.
     const line = POSITION_LINE[user.slot];
-    const prob = line === 'DEF' ? 0.82 : user.slot === 'DM' ? 0.6 : line === 'MID' ? 0.4 : 0.14;
+    const prob = (line === 'DEF' ? 0.82 : user.slot === 'DM' ? 0.6 : line === 'MID' ? 0.4 : 0.14)
+      * this.defendFactor;
     if (!this.rng.chance(prob)) return false;
 
     this.startChallenge({
@@ -712,7 +796,7 @@ export class MatchEngine {
     const base = MatchEngine.DRIBBLE_CHANCE[user.slot] ?? 0.03;
     // Gute Dribbler kommen haeufiger in solche Situationen.
     const skillFactor = 0.6 + user.player.attrs.dribbling / 125;
-    if (!this.rng.chance(clamp(base * skillFactor, 0.01, 0.4))) return false;
+    if (!this.rng.chance(clamp(base * skillFactor * this.attackFactor, 0.01, 0.5))) return false;
 
     const defenders = this.onPitch[this.other(side)].filter((o) => o.slot !== 'TW');
     if (defenders.length === 0) return false;
@@ -830,6 +914,7 @@ export class MatchEngine {
     // Im Modus "Alle Szenen" ist der Spieler auch ohne Ball staerker eingebunden.
     // Der Zuwachs bleibt moderat, weil Klaerungen am Schuss dazukommen.
     if (this.allHighlights) base *= 1.3;
+    base *= this.defendFactor;
     if (!this.rng.chance(base)) return false;
 
     const attacker = this.rng.pick(this.onPitch[attackingSide].filter((o) => o.slot !== 'TW'));

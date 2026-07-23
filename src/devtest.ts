@@ -337,6 +337,57 @@ function run() {
   check('Klaerungen gegnerischer Grosschancen entstehen nur im Modus "all"',
     ivBlocks > 0 && ivOwnBlocks === 0, `all ${ivBlocks}, own ${ivOwnBlocks}`);
 
+  // --- Spielausrichtung (Mentalitaet) ---------------------------------
+  log('\n--- Spielausrichtung ---');
+  const measure = (mentality: 'attack' | 'balanced' | 'contain' | 'conserve') => {
+    let attackCh = 0; let defendCh = 0; let fitness40 = 0; let games = 0;
+    for (const m of upcoming.slice(0, 30)) {
+      const prepared = prepareUserMatch(game, m.id, true);
+      if (!prepared) continue;
+      const r = new Rng((game.rngState + games * 6151 + 7) >>> 0);
+      const engine = new MatchEngine({ ...prepared.setup, highlightMode: 'all', rng: r });
+      engine.setMentality(mentality);
+      let snap = 100;
+      let guard = 0;
+      // Bis Minute 40 laufen lassen: davor greifen noch keine Wechsel,
+      // die Fitnessmessung bleibt dadurch unverfaelscht.
+      while (!engine.finished && engine.minute < 40 && guard++ < 200) {
+        const res = engine.step();
+        if (res.pending) {
+          if (res.pending.kind === 'dribble' || /shot|Shot|header|oneOnOne/.test(res.pending.kind)) attackCh++;
+          if (res.pending.kind === 'duel') defendCh++;
+          engine.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+        }
+        snap = engine.userLiveFitness;
+      }
+      // Rest des Spiels zu Ende bringen, damit die Zaehlung vollstaendig ist.
+      engine.runToEnd((c) => {
+        if (c.kind === 'dribble' || /shot|Shot|header|oneOnOne/.test(c.kind)) attackCh++;
+        if (c.kind === 'duel') defendCh++;
+        return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
+      });
+      engine.finish();
+      fitness40 += snap;
+      games++;
+    }
+    return { attack: attackCh, defend: defendCh, fitness: fitness40 / Math.max(1, games) };
+  };
+
+  const atk = measure('attack');
+  const bal = measure('balanced');
+  const con = measure('contain');
+  const rest = measure('conserve');
+  log(`Nach vorne:      ${atk.attack} offensiv, ${atk.defend} defensiv, Fitness bei Min 40 ${atk.fitness.toFixed(1)}`);
+  log(`Ausbalanciert:   ${bal.attack} offensiv, ${bal.defend} defensiv, Fitness bei Min 40 ${bal.fitness.toFixed(1)}`);
+  log(`Defensiv:        ${con.attack} offensiv, ${con.defend} defensiv, Fitness bei Min 40 ${con.fitness.toFixed(1)}`);
+  log(`Kraefte schonen: ${rest.attack} offensiv, ${rest.defend} defensiv, Fitness bei Min 40 ${rest.fitness.toFixed(1)}`);
+  check('Nach vorne bringt mehr Offensivszenen als Defensiv',
+    atk.attack > con.attack, `${atk.attack} gegen ${con.attack}`);
+  check('Defensiv bringt mehr Defensivszenen als Nach vorne',
+    con.defend > atk.defend, `${con.defend} gegen ${atk.defend}`);
+  check('Kraefte schonen verbraucht weniger Fitness als Nach vorne',
+    rest.fitness > atk.fitness, `${rest.fitness.toFixed(1)} gegen ${atk.fitness.toFixed(1)}`);
+
   // --- Ballphysik ------------------------------------------------------
   log('\n--- Ballphysik (Konzept Abschnitt 22 und 23) ---');
   const physicsRng = new Rng(4242);
