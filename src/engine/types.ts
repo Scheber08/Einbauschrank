@@ -506,6 +506,8 @@ export interface GameState {
   publicImage: number;
   /** Beziehungen zu Mitspielern: playerId -> Wert -100..100 */
   relationships: Record<Id, number>;
+  /** Aktueller Mentor unter den Mitspielern, falls vorhanden. */
+  mentorId: Id | null;
 
   /** Wartet der Spielablauf auf eine Entscheidung des Spielers? */
   pendingMatchId: Id | null;

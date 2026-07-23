@@ -13,6 +13,7 @@ import {
   type TrainingOutcome,
 } from './development';
 import { buildLifeEvent, type LifeEvent } from './events';
+import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
 import { selectLineup, type Lineup } from './lineup';
 import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
@@ -102,6 +103,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
     fanRelation: 50,
     publicImage: 55,
     relationships: {},
+    mentorId: null,
     pendingMatchId: null,
     cupState: {},
     offers: [],
@@ -115,6 +117,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
 
   startSeason(state, rng);
   createObjectives(state);
+  seedRelationships(state, rng);
 
   const club = user.clubId ? state.clubs[user.clubId] : null;
   addCareerEvent(state, 'start', 'Karrierestart',
@@ -375,6 +378,10 @@ export function advanceDay(state: GameState): DayResult {
     advancePlayerDay(rng, player, today.length > 0);
     if (weekday(state.date) === 1) driftForm(player);
   }
+  // Montags wirkt das Beziehungsumfeld leicht auf die Moral des Spielers.
+  if (user && weekday(state.date) === 1) {
+    user.morale = clamp(user.morale + relationshipMoraleDrift(state), 0, 100);
+  }
 
   // Ereignis ausserhalb des Platzes (Konzept Abschnitt 31): unter der Woche,
   // wenn kein Spiel ansteht und der Spieler fit ist. Haelt den Kalender an.
@@ -550,6 +557,7 @@ export function prepareUserMatch(
       difficulty: DIFFICULTY_SETTINGS[state.difficulty],
       neutral: match.neutralVenue,
       knockout: isKnockout(state, match),
+      relationships: state.relationships,
     },
     homeLineup, awayLineup, userInLineup, userOnBench,
   };
@@ -698,7 +706,17 @@ function commitMatch(state: GameState, match: Match, input: CommitInput, rng: Rn
     }
   }
 
-  if (userStats) handleUserMatchAftermath(state, match, userStats, input);
+  if (userStats) {
+    // Gemeinsame Einsatzzeit entwickelt die Beziehungen zu den Mitspielern.
+    const user = state.players[state.userPlayerId];
+    if (user?.clubId) {
+      const teammates = input.stats
+        .filter((s) => s.clubId === user.clubId && s.minutes > 0 && s.playerId !== user.id)
+        .map((s) => s.playerId);
+      driftRelationships(state, teammates, rng);
+    }
+    handleUserMatchAftermath(state, match, userStats, input);
+  }
 }
 
 function applyResultToTable(state: GameState, match: Match) {

@@ -43,6 +43,8 @@ export interface MatchEngineSetup {
   neutral?: boolean;
   /** K.-o.-Spiel: Verlaengerung und Elfmeterschiessen bei Gleichstand. */
   knockout?: boolean;
+  /** Beziehungen des eigenen Spielers: gute Freunde werden oefter angespielt. */
+  relationships?: Record<Id, number>;
 }
 
 export interface MatchOutcome {
@@ -236,6 +238,11 @@ export class MatchEngine {
   get userLiveFitness(): number {
     const id = this.setup.userPlayerId;
     return id ? this.liveFitness.get(id) ?? 100 : 100;
+  }
+
+  /** Aktuelle Halbzeit-Faktoren auf die zweite Haelfte, fuer Tests. */
+  get secondHalfMods(): { attack: number; defence: number } {
+    return { attack: this.secondHalfAttackMod, defence: this.secondHalfDefenceMod };
   }
 
   private get attackFactor(): number {
@@ -1156,7 +1163,13 @@ export class MatchEngine {
   private buildPassTargets(side: Side, preferred: OnPitchPlayer): ChallengeTarget[] {
     const pool = this.onPitch[side]
       .filter((o) => o.slot !== 'TW' && o.player.id !== this.setup.userPlayerId);
-    const chosen = [preferred, ...this.rng.sample(pool.filter((o) => o.player.id !== preferred.player.id), 3)];
+    // Gute Freunde bieten sich dem Spieler haeufiger an (Konzept Abschnitt 30).
+    const rel = this.setup.relationships;
+    const rest = pool.filter((o) => o.player.id !== preferred.player.id);
+    const others = rel
+      ? this.sampleWeighted(rest, 3, (o) => 1 + Math.max(0, rel[o.player.id] ?? 0) / 25)
+      : this.rng.sample(rest, 3);
+    const chosen = [preferred, ...others];
     return chosen.filter(Boolean).map((o, i) => {
       const isPreferred = i === 0;
       const distance = isPreferred ? this.rng.float(7, 16) : this.rng.float(9, 26);
@@ -1172,6 +1185,18 @@ export class MatchEngine {
         finishing: o.player.attrs.finishing,
       };
     });
+  }
+
+  /** Zieht n Elemente gewichtet ohne Zuruecklegen. */
+  private sampleWeighted<T>(items: T[], n: number, weightOf: (item: T) => number): T[] {
+    const pool = items.slice();
+    const result: T[] = [];
+    while (result.length < n && pool.length > 0) {
+      const pick = this.rng.weighted(pool, weightOf);
+      result.push(pick);
+      pool.splice(pool.indexOf(pick), 1);
+    }
+    return result;
   }
 
   private buildPassChallenge(

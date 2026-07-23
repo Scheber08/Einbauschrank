@@ -8,6 +8,7 @@ import { applyLifeChoice, type LifeEvent } from '../engine/events';
 import { addCareerEvent, addNews } from '../engine/ids';
 import { calcMarketValue } from '../engine/playerGen';
 import { Rng } from '../engine/rng';
+import { seedRelationships } from '../engine/relationships';
 import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '../engine/save';
 import type { SeasonReport } from '../engine/season';
 import { computeOverall } from '../engine/attributes';
@@ -161,6 +162,11 @@ export function acceptOffer(offerId: string) {
   game.coachRelation = 55;
   game.fanRelation = 50;
   game.offers = [];
+
+  // Neuer Verein, neues Umfeld: Beziehungen von vorn.
+  const relRng = new Rng(game.rngState);
+  seedRelationships(game, relRng);
+  game.rngState = relRng.state;
 
   addCareerEvent(game, 'transfer', `Wechsel zu ${club.name}`,
     `Von ${oldClub?.name ?? 'vereinslos'} zu ${club.name} gewechselt. `

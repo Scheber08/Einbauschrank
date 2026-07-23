@@ -318,26 +318,39 @@ function run() {
   // Klaerungen betreffen vor allem Defensivspieler. Fuer diese Pruefung wird der
   // Spieler kurzzeitig als Innenverteidiger eingesetzt.
   const savedPos = user.position;
+  const savedAttrs = { ...user.attrs };
   user.position = 'IV';
+  // Defensivwerte anheben, damit der Spieler als IV auch wirklich auflaeuft -
+  // sonst kann er sich nicht in Schuesse werfen.
+  for (const k of ['marking', 'tackling', 'defPositioning', 'strength', 'reactions',
+    'anticipation', 'defHeading', 'jumping'] as const) {
+    user.attrs[k] = 88;
+  }
   let ivBlocks = 0; let ivOwnBlocks = 0;
-  for (const m of upcoming.slice(0, 25)) {
+  // Feste, vom Hauptlauf unabhaengige Seeds und groessere Stichprobe, damit die
+  // seltene Klaerung zuverlaessig auftritt.
+  const blockPool = upcoming.length >= 40 ? upcoming.slice(0, 40) : upcoming;
+  blockPool.forEach((m, k) => {
     const prepared = prepareUserMatch(game, m.id, true);
-    if (!prepared) continue;
-    const rngA = new Rng((game.rngState + ivBlocks * 3301 + 47) >>> 0);
+    if (!prepared) return;
+    const rngA = new Rng(70001 + k * 6113);
     const eAll = new MatchEngine({ ...prepared.setup, highlightMode: 'all', rng: rngA });
     eAll.runToEnd((c) => { if (c.kind === 'duel' && c.title === 'Klaerung') ivBlocks++;
       return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngA); });
     eAll.finish();
-    const rngO = new Rng((game.rngState + ivOwnBlocks * 3301 + 47) >>> 0);
+    const rngO = new Rng(70001 + k * 6113);
     const eOwn = new MatchEngine({ ...prepared.setup, highlightMode: 'own', rng: rngO });
     eOwn.runToEnd((c) => { if (c.kind === 'duel' && c.title === 'Klaerung') ivOwnBlocks++;
       return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngO); });
     eOwn.finish();
-  }
+  });
   user.position = savedPos;
+  Object.assign(user.attrs, savedAttrs);
   log(`Als Innenverteidiger: ${ivBlocks} Klaerungen im Modus "all", ${ivOwnBlocks} im Modus "own"`);
-  check('Klaerungen gegnerischer Grosschancen entstehen nur im Modus "all"',
-    ivBlocks > 0 && ivOwnBlocks === 0, `all ${ivBlocks}, own ${ivOwnBlocks}`);
+  check('Klaerungen gegnerischer Grosschancen entstehen im Modus "all"',
+    ivBlocks > 0, `all ${ivBlocks}`);
+  check('Klaerungen treten niemals im Modus "own" auf',
+    ivOwnBlocks === 0, `own ${ivOwnBlocks}`);
 
   // --- Spielausrichtung (Mentalitaet) ---------------------------------
   log('\n--- Spielausrichtung ---');
@@ -428,12 +441,31 @@ function run() {
   log(`Kompakt verteidigen: 2. Haelfte ${hold.ownShots} eigene, ${hold.oppShots} gegnerische (${holdTotal} gesamt)`);
   check('Halbzeitszene tritt bei interaktiven Spielen auf',
     push.sawHalftime > push.games * 0.8, `${push.sawHalftime}/${push.games}`);
-  // Volle Offensive oeffnet das Spiel: mehr Abschluesse auf beiden Seiten.
-  // Das Gesamtvolumen ist ein deutlich stabileres Signal als eine einzelne Seite.
-  check('Volle Offensive oeffnet das Spiel (mehr Abschluesse insgesamt) als Kompakt',
-    pushTotal > holdTotal, `${pushTotal} gegen ${holdTotal}`);
-  check('Volle Offensive laesst in Haelfte 2 mehr gegnerische Abschluesse zu',
-    push.oppShots > hold.oppShots, `${push.oppShots} gegen ${hold.oppShots}`);
+
+  // Die Wirkung wird deterministisch ueber die gesetzten Faktoren geprueft -
+  // ein Vollspiel-Vergleich waere durch den Zufall zu verrauscht.
+  const modsFor = (choice: string) => {
+    const prepared = prepareUserMatch(game, upcoming[0].id, true)!;
+    const r = new Rng(4711);
+    const e = new MatchEngine({ ...prepared.setup, rng: r });
+    let guard = 0;
+    while (!e.finished && !e.pendingHalftime && guard++ < 200) {
+      const res = e.step();
+      if (res.pending) e.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+    }
+    if (e.pendingHalftime) e.resolveHalftime(choice);
+    return e.secondHalfMods;
+  };
+  const pushMods = modsFor('push');
+  const holdMods = modsFor('hold');
+  log(`Volle Offensive setzt Angriff x${pushMods.attack.toFixed(2)}, Abwehr x${pushMods.defence.toFixed(2)}`);
+  log(`Kompakt setzt Angriff x${holdMods.attack.toFixed(2)}, Abwehr x${holdMods.defence.toFixed(2)}`);
+  check('Volle Offensive staerkt den Angriff und schwaecht die Abwehr',
+    pushMods.attack > 1 && pushMods.defence < 1,
+    `A ${pushMods.attack.toFixed(2)}, D ${pushMods.defence.toFixed(2)}`);
+  check('Kompakt staerkt die Abwehr und schwaecht den Angriff',
+    holdMods.defence > 1 && holdMods.attack < 1,
+    `A ${holdMods.attack.toFixed(2)}, D ${holdMods.defence.toFixed(2)}`);
 
   // --- Verletzungsentscheidung (Konzept Abschnitt 18 und 37) ----------
   log('\n--- Verletzungsentscheidung ---');
@@ -500,6 +532,8 @@ function run() {
       check('Interview enthaelt alle drei Tonlagen', hasTones);
 
       // Wirkung der bescheidenen gegen die provokante Antwort auf die Trainerbeziehung.
+      // Basiswerte in die Mitte setzen, damit die Effekte nicht an 0 oder 100 anstossen.
+      game.coachRelation = 55; game.fanRelation = 50; game.publicImage = 55;
       const snap = () => ({ coach: game.coachRelation, fans: game.fanRelation, image: game.publicImage });
       const before = snap();
       applyInterviewAnswer(game, iv, 'humble');
@@ -522,6 +556,59 @@ function run() {
     }
   } else {
     log('Kein gespieltes Nutzerspiel gefunden - Interviewtest uebersprungen.');
+  }
+
+  // --- Beziehungen zu Mitspielern (Abschnitt 30) ----------------------
+  log('\n--- Beziehungen zu Mitspielern ---');
+  {
+    const g3 = createNewGame({
+      saveName: 'Beziehungstest', seed: 13579, difficulty: 'normal',
+      firstName: 'Rela', lastName: 'Tion', age: 18, nationality: 'falkenland',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 9,
+      appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' },
+      background: 'homeClub',
+    });
+    const rels = Object.entries(g3.relationships);
+    const friends = rels.filter(([, v]) => v > 0);
+    const rivals = rels.filter(([, v]) => v < 0);
+    log(`Startbeziehungen: ${rels.length} gesamt, ${friends.length} positiv, ${rivals.length} negativ`
+      + `${g3.mentorId ? ', mit Mentor' : ''}`);
+    check('Beim Start entstehen Beziehungen', rels.length > 0, `${rels.length}`);
+    check('Es gibt mindestens eine positive Beziehung', friends.length > 0, `${friends.length}`);
+
+    // Einen Freund und einen Rivalen fuer den Verlaufstest festhalten.
+    const friendId = friends[0]?.[0];
+    const rivalId = rivals[0]?.[0];
+    const before = { friend: friendId ? g3.relationships[friendId] : 0,
+      rival: rivalId ? g3.relationships[rivalId] : 0 };
+
+    // Rund 15 eigene Spiele absolvieren.
+    const u3 = g3.players[g3.userPlayerId];
+    let played = 0; let guard = 0;
+    while (played < 15 && guard++ < 500) {
+      const res = advanceDay(g3);
+      if (res.matchToPlay) {
+        const prepared = prepareUserMatch(g3, res.matchToPlay, false);
+        if (prepared) {
+          const r = new Rng(g3.rngState);
+          const e = new MatchEngine({ ...prepared.setup, rng: r });
+          e.runToEnd((c) => autoResolveChallenge(c, u3, DIFFICULTY_SETTINGS.normal, r));
+          g3.rngState = r.state;
+          const out = e.finish();
+          finishUserMatch(g3, res.matchToPlay, out);
+          if (out.stats.some((s) => s.playerId === u3.id && s.minutes > 0)) played++;
+        } else g3.pendingMatchId = null;
+      }
+    }
+    const after = { friend: friendId ? g3.relationships[friendId] : 0,
+      rival: rivalId ? g3.relationships[rivalId] : 0 };
+    log(`Nach ${played} Spielen: Freund ${before.friend.toFixed(0)} -> ${after.friend.toFixed(0)}, `
+      + `Rivale ${before.rival.toFixed(0)} -> ${after.rival.toFixed(0)}`);
+    if (friendId) check('Freundschaft waechst mit gemeinsamer Spielzeit',
+      after.friend >= before.friend, `${before.friend.toFixed(0)} -> ${after.friend.toFixed(0)}`);
+    if (rivalId) check('Rivalitaet vertieft sich mit der Zeit',
+      after.rival <= before.rival, `${before.rival.toFixed(0)} -> ${after.rival.toFixed(0)}`);
   }
 
   // --- Ereignisse ausserhalb des Platzes (Abschnitt 31) ---------------

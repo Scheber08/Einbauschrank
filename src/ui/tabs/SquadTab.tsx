@@ -3,6 +3,7 @@ import { computeOverall } from '../../engine/attributes';
 import { ageOn } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { selectLineup } from '../../engine/lineup';
+import { RELATION_LABELS, relationList } from '../../engine/relationships';
 import { squadOf } from '../../engine/worldGen';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { useAppState } from '../../state/store';
@@ -88,6 +89,8 @@ export default function SquadTab() {
         </div>
       </Panel>
 
+      <RelationshipsPanel />
+
       <Panel title="Kader" action={
         <div className="chip-row">
           {([['position', 'Position'], ['ability', 'Staerke'], ['age', 'Alter'],
@@ -147,5 +150,41 @@ export default function SquadTab() {
         </p>
       </Panel>
     </>
+  );
+}
+
+function RelationshipsPanel() {
+  const game = useAppState().game!;
+  const relations = useMemo(() => relationList(game), [game.version]);
+  if (relations.filter((r) => r.kind !== 'neutral').length === 0) return null;
+
+  const tone = (kind: string) => (kind === 'mentor' || kind === 'friend' ? 'good'
+    : kind === 'rival' || kind === 'conflict' ? 'bad' : undefined);
+
+  return (
+    <Panel title="Beziehungen im Team">
+      <p className="tiny dim" style={{ marginTop: 0 }}>
+        Gute Freunde bieten sich im Spiel haeufiger an, ein starkes Umfeld hebt deine Moral.
+        Beziehungen entwickeln sich mit gemeinsamer Spielzeit.
+      </p>
+      <div className="grid two">
+        {relations.filter((r) => r.kind !== 'neutral').map((r) => {
+          const p = game.players[r.playerId];
+          if (!p) return null;
+          return (
+            <div className="row between small" key={r.playerId}
+              style={{ padding: '0.25rem 0', borderBottom: '1px solid var(--border-soft)' }}>
+              <span>
+                {shortName(p.firstName, p.lastName)}
+                <span className="tiny dim"> · {p.position}</span>
+              </span>
+              <Pill tone={tone(r.kind) as 'good' | 'bad' | undefined}>
+                {RELATION_LABELS[r.kind]} {r.value > 0 ? `+${Math.round(r.value)}` : Math.round(r.value)}
+              </Pill>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }
