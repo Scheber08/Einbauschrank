@@ -429,6 +429,52 @@ function run() {
   check('Volle Offensive laesst in Haelfte 2 mehr gegnerische Abschluesse zu',
     push.oppShots > hold.oppShots, `${push.oppShots} gegen ${hold.oppShots}`);
 
+  // --- Verletzungsentscheidung (Konzept Abschnitt 18 und 37) ----------
+  log('\n--- Verletzungsentscheidung ---');
+  const injuryMatch = upcoming.find((m) => prepareUserMatch(game, m.id, true)?.userInLineup);
+  if (injuryMatch) {
+    // "Auswechseln lassen" ergibt exakt die geschaetzte Ausfalldauer.
+    const off = (() => {
+      const prepared = prepareUserMatch(game, injuryMatch.id, true)!;
+      const r = new Rng(555);
+      const e = new MatchEngine({ ...prepared.setup, rng: r });
+      e.pendingInjury = { minute: 30, estimatedDays: 20, severity: 'mittel', canSubstitute: true };
+      e.resolveInjury('off');
+      const out = e.finish();
+      return out.injuries.filter((i) => i.playerId === user.id);
+    })();
+    log(`Auswechseln lassen: ${off.length} Verletzung(en), Tage ${off.map((i) => i.days).join(',')}`);
+    check('Auswechseln ergibt die geschaetzte Ausfalldauer',
+      off.length === 1 && off[0].days === 20, `${off.map((i) => i.days).join(',')}`);
+
+    // "Weiterspielen" ueber viele Versuche: mal glimpflich, mal schlimmer.
+    let mild = 0; let worse = 0;
+    for (let i = 0; i < 60; i++) {
+      const prepared = prepareUserMatch(game, injuryMatch.id, true)!;
+      const r = new Rng(1000 + i * 97);
+      const e = new MatchEngine({ ...prepared.setup, rng: r });
+      // Frueh im Spiel verletzen, damit viel Zeit fuer eine Verschlimmerung bleibt.
+      let guard = 0;
+      while (e.minute < 20 && !e.finished && guard++ < 60) {
+        const res = e.step();
+        if (e.pendingHalftime) e.resolveHalftime('balanced');
+        else if (res.pending) e.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+      }
+      e.pendingInjury = { minute: e.minute, estimatedDays: 20, severity: 'mittel', canSubstitute: true };
+      e.resolveInjury('play');
+      e.runToEnd((c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r));
+      const out = e.finish();
+      const mine = out.injuries.filter((x) => x.playerId === user.id);
+      const days = mine.length ? Math.max(...mine.map((x) => x.days)) : 0;
+      if (days > 20) worse++; else mild++;
+    }
+    log(`Weiterspielen (60 Versuche): ${mild} glimpflich, ${worse} verschlimmert`);
+    check('Weiterspielen geht meistens glimpflich aus', mild > worse, `${mild} zu ${worse}`);
+    check('Weiterspielen kann sich verschlimmern', worse > 0, `${worse}`);
+  } else {
+    log('Kein Spiel mit dem Nutzer in der Startelf gefunden - Verletzungstest uebersprungen.');
+  }
+
   // --- Ballphysik ------------------------------------------------------
   log('\n--- Ballphysik (Konzept Abschnitt 22 und 23) ---');
   const physicsRng = new Rng(4242);

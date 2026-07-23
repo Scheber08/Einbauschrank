@@ -4,7 +4,7 @@ import { formatDate } from '../../engine/date';
 import { finishUserMatch, prepareUserMatch } from '../../engine/game';
 import {
   MatchEngine, MENTALITY_LABELS,
-  type HalftimeDecision, type Mentality, type MatchOutcome,
+  type HalftimeDecision, type InjuryDecision, type Mentality, type MatchOutcome,
 } from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { Rng } from '../../engine/rng';
@@ -38,6 +38,7 @@ export default function MatchScreen() {
   const [mentality, setMentalityState] = useState<Mentality>('balanced');
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [halftime, setHalftime] = useState<HalftimeDecision | null>(null);
+  const [injury, setInjury] = useState<InjuryDecision | null>(null);
   const [outcome, setOutcome] = useState<MatchOutcome | null>(null);
   const [, forceRender] = useState(0);
 
@@ -69,7 +70,7 @@ export default function MatchScreen() {
 
   // Spieluhr
   useEffect(() => {
-    if (phase !== 'running' || paused || challenge || halftime) return;
+    if (phase !== 'running' || paused || challenge || halftime || injury) return;
     const engine = engineRef.current;
     if (!engine) return;
 
@@ -77,6 +78,11 @@ export default function MatchScreen() {
       const step = engine.step();
       if (engine.pendingHalftime) {
         setHalftime(engine.pendingHalftime);
+        forceRender((v) => v + 1);
+        return;
+      }
+      if (engine.pendingInjury) {
+        setInjury(engine.pendingInjury);
         forceRender((v) => v + 1);
         return;
       }
@@ -93,7 +99,7 @@ export default function MatchScreen() {
     }, SPEEDS[speedIndex].ms);
 
     return () => window.clearInterval(timer);
-  }, [phase, paused, challenge, halftime, speedIndex, finalise]);
+  }, [phase, paused, challenge, halftime, injury, speedIndex, finalise]);
 
   // Timeline nach unten scrollen
   useEffect(() => {
@@ -134,6 +140,12 @@ export default function MatchScreen() {
   function resolveHalftime(optionId: string) {
     engineRef.current?.resolveHalftime(optionId);
     setHalftime(null);
+    forceRender((v) => v + 1);
+  }
+
+  function resolveInjury(choice: 'play' | 'off') {
+    engineRef.current?.resolveInjury(choice);
+    setInjury(null);
     forceRender((v) => v + 1);
   }
 
@@ -364,6 +376,54 @@ export default function MatchScreen() {
           onChoose={resolveHalftime}
         />
       )}
+
+      {injury && <InjuryModal decision={injury} onChoose={resolveInjury} />}
+    </div>
+  );
+}
+
+function InjuryModal(
+  { decision, onChoose }:
+  { decision: InjuryDecision; onChoose: (c: 'play' | 'off') => void },
+) {
+  const sevTone = decision.severity === 'schwer' ? 'bad'
+    : decision.severity === 'mittel' ? 'warn' : '';
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="row between" style={{ marginBottom: '0.4rem' }}>
+          <h2 style={{ margin: 0 }}>Verletzung ({decision.minute}.)</h2>
+          <span className={`pill ${sevTone}`}>{decision.severity}</span>
+        </div>
+        <p className="muted">
+          Du bist angeschlagen. Der Betreuer schaetzt bei sofortiger Auswechslung
+          etwa {decision.estimatedDays} Tage Pause. Weiterspielen ist moeglich,
+          riskiert aber eine Verschlimmerung - und du bist geschwaecht.
+        </p>
+        <div className="grid two" style={{ marginTop: '0.6rem' }}>
+          <button className="primary" style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
+            onClick={() => onChoose('off')}>
+            <div style={{ fontWeight: 680 }}>Auswechseln lassen</div>
+            <div className="tiny" style={{ opacity: 0.85 }}>
+              Sicher. Etwa {decision.estimatedDays} Tage Pause, normale Genesung.
+            </div>
+          </button>
+          <button style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
+            onClick={() => onChoose('play')}>
+            <div style={{ fontWeight: 680 }}>Auf die Zaehne beissen</div>
+            <div className="tiny muted">
+              Weiterspielen mit Leistungseinbruch. Geht es gut, kommst du
+              glimpflich davon - sonst wird es schlimmer.
+            </div>
+          </button>
+        </div>
+        {!decision.canSubstitute && (
+          <p className="tiny dim" style={{ marginTop: '0.5rem' }}>
+            Alle Wechsel sind aufgebraucht. Ein Ausscheiden liesse dein Team in
+            Unterzahl zurueck.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

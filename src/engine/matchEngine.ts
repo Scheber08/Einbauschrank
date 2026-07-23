@@ -135,6 +135,16 @@ export interface HalftimeDecision {
   options: HalftimeOption[];
 }
 
+/** Entscheidung bei einer Verletzung des eigenen Spielers (Abschnitt 37). */
+export interface InjuryDecision {
+  minute: number;
+  /** Voraussichtliche Ausfalldauer bei sofortiger Auswechslung. */
+  estimatedDays: number;
+  severity: 'leicht' | 'mittel' | 'schwer';
+  /** Kann der Spieler noch gewechselt werden? Sonst nur weiterspielen. */
+  canSubstitute: boolean;
+}
+
 export class MatchEngine {
   readonly setup: MatchEngineSetup;
   minute = 0;
@@ -170,6 +180,10 @@ export class MatchEngine {
   private secondHalfDefenceMod = 1;
   private secondHalfEffortMod = 1;
   private halftimeMoraleDelta = 0;
+  /** Wartet auf die Verletzungsentscheidung des Spielers. */
+  pendingInjury: InjuryDecision | null = null;
+  private knockDays = 0;
+  private aggravationRisk = 0;
 
   constructor(setup: MatchEngineSetup) {
     this.setup = setup;
@@ -329,7 +343,7 @@ export class MatchEngine {
     if (this.finished) {
       return { events: [], pending: null, finished: true, minute: this.minute };
     }
-    if (this.pending || this.pendingHalftime) {
+    if (this.pending || this.pendingHalftime || this.pendingInjury) {
       return { events: [], pending: this.pending, finished: false, minute: this.minute };
     }
 
@@ -365,6 +379,10 @@ export class MatchEngine {
 
     this.rollDiscipline(evts);
     this.rollInjury(evts);
+    if (this.pendingInjury) {
+      return { events: evts, pending: null, finished: false, minute: this.minute };
+    }
+    this.rollAggravation(evts);
 
     // Elfmeter sind selten und werden gesondert behandelt.
     if (this.rng.chance(0.0026)) {
@@ -1686,16 +1704,86 @@ export class MatchEngine {
         if (!this.rng.chance(risk)) continue;
 
         const days = Math.max(3, Math.round(this.rng.normal(18, 16)));
+
+        // Beim eigenen Spieler entscheidet der Nutzer selbst (Abschnitt 37).
+        if (p.id === this.setup.userPlayerId && this.setup.interactive) {
+          this.pendingInjury = {
+            minute: this.minute,
+            estimatedDays: days,
+            severity: days >= 45 ? 'schwer' : days >= 18 ? 'mittel' : 'leicht',
+            canSubstitute: this.subsUsed[side] < 5,
+          };
+          this.emit(evts, {
+            minute: this.minute, type: 'injury', side, playerId: p.id, user: true,
+            text: `${this.name(p.id)} bleibt nach einer Aktion angeschlagen liegen.`,
+          });
+          return;
+        }
+
         this.injuries.push({ playerId: p.id, days });
         this.emit(evts, {
           minute: this.minute, type: 'injury', side, playerId: p.id,
-          user: p.id === this.setup.userPlayerId,
+          user: false,
           text: `${this.name(p.id)} muss verletzt behandelt werden.`,
         });
         this.substitute(side, o, evts, true);
         return;
       }
     }
+  }
+
+  /** Loest die Verletzungsentscheidung des Spielers auf. */
+  resolveInjury(choice: 'play' | 'off'): LiveEvent[] {
+    const decision = this.pendingInjury;
+    this.pendingInjury = null;
+    if (!decision) return [];
+    const side = this.userSide!;
+    const user = this.userOnPitch;
+    const evts: LiveEvent[] = [];
+
+    if (choice === 'off' || !user) {
+      this.injuries.push({ playerId: this.setup.userPlayerId!, days: decision.estimatedDays });
+      this.emit(evts, {
+        minute: this.minute, type: 'injury', side, playerId: this.setup.userPlayerId!, user: true,
+        text: `${this.name(this.setup.userPlayerId!)} kann nicht weitermachen und wird ausgewechselt.`,
+      });
+      if (user) this.substitute(side, user, evts, true);
+      this.events.push(...evts);
+      return evts;
+    }
+
+    // Weiterspielen: angeschlagen, mit Leistungseinbruch und Risiko.
+    this.knockDays = decision.estimatedDays;
+    const current = this.liveFitness.get(this.setup.userPlayerId!) ?? 80;
+    this.liveFitness.set(this.setup.userPlayerId!, clamp(current - 26, 10, 100));
+    // Risiko je Minute. Ueber eine Halbzeit ergibt das grob 45% (schwer),
+    // 30% (mittel) und 16% (leicht) Wahrscheinlichkeit einer Verschlimmerung.
+    this.aggravationRisk = decision.severity === 'schwer' ? 0.013
+      : decision.severity === 'mittel' ? 0.008 : 0.004;
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side, playerId: this.setup.userPlayerId!, user: true,
+      text: `${this.name(this.setup.userPlayerId!)} beisst auf die Zaehne und macht weiter.`,
+    });
+    this.events.push(...evts);
+    return evts;
+  }
+
+  /** Prueft je Minute, ob eine durchgespielte Verletzung sich verschlimmert. */
+  private rollAggravation(evts: LiveEvent[]) {
+    if (this.aggravationRisk <= 0) return;
+    const user = this.userOnPitch;
+    if (!user) { this.aggravationRisk = 0; return; }
+    if (!this.rng.chance(this.aggravationRisk)) return;
+
+    const worseDays = Math.round(this.knockDays * this.rng.float(1.6, 2.2));
+    this.injuries.push({ playerId: user.player.id, days: worseDays });
+    this.knockDays = 0;
+    this.aggravationRisk = 0;
+    this.emit(evts, {
+      minute: this.minute, type: 'injury', side: this.userSide!, playerId: user.player.id, user: true,
+      text: `Die Verletzung von ${this.name(user.player.id)} wird schlimmer - jetzt ist Schluss.`,
+    });
+    this.substitute(this.userSide!, user, evts, true);
   }
 
   private considerSubstitutions(side: Side, evts: LiveEvent[]) {
@@ -1842,6 +1930,15 @@ export class MatchEngine {
 
   finish(): MatchOutcome {
     if (!this.finished) this.finished = true;
+
+    // Wer angeschlagen durchgespielt hat und es ueberstanden hat, traegt
+    // trotzdem eine kleinere Blessur davon.
+    if (this.knockDays > 0 && this.setup.userPlayerId) {
+      const minor = Math.max(3, Math.round(this.knockDays * 0.45));
+      this.injuries.push({ playerId: this.setup.userPlayerId, days: minor });
+      this.knockDays = 0;
+    }
+
     this.fillBaseStats();
 
     if (this.setup.knockout && this.homeScore === this.awayScore) {
@@ -1933,6 +2030,11 @@ export class MatchEngine {
       if (this.pendingHalftime) {
         // Ohne Nutzer wird eine sinnvolle Standardreaktion gewaehlt.
         this.resolveHalftime(this.autoHalftimeChoice());
+        continue;
+      }
+      if (this.pendingInjury) {
+        // Ohne Nutzer wird sicher ausgewechselt.
+        this.resolveInjury('off');
         continue;
       }
       if (res.pending) {

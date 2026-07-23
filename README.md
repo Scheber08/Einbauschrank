@@ -175,6 +175,12 @@ volle Offensive oder die Mannschaft mitreissen. Die Wahl veraendert Angriff und
 Abwehr deines Teams in der zweiten Haelfte sowie den Kraftverbrauch; "Mannschaft
 mitreissen" wirkt umso staerker, je hoeher deine Fuehrungsstaerke ist.
 
+**Verletzung:** Ziehst du dir im Spiel eine Blessur zu, entscheidest du selbst
+(Konzept Abschnitt 37): auswechseln lassen (sicher, normale Genesung) oder auf
+die Zaehne beissen. Weiterspielen kostet Leistung und riskiert je nach Schwere
+eine Verschlimmerung mit deutlich laengerem Ausfall - meistens, aber nicht immer,
+geht es glimpflich aus.
+
 Alle Timingmechaniken rechnen mit der Uhr statt mit Einzelbildern. Sie bleiben
 damit fair, auch wenn der Browser gerade keine Bilder liefert.
 
