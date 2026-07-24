@@ -256,37 +256,39 @@ export function keeperAttempt(
   rng: Rng, keeperRating: number, crossing: { x: number; z: number; t: number; speed: number },
   distance: number, telegraphed: number,
 ): KeeperResult {
-  // Der Torwart deckt die kurze Ecke leicht ab.
-  const startX = clamp(crossing.x * 0.18, -1.4, 1.4);
+  const post = GOAL_HALF_WIDTH;
 
-  // Antizipation: wie gut liest er die Richtung?
-  const readsIt = rng.chance(clamp(0.25 + keeperRating / 190 + telegraphed * 0.3, 0.15, 0.92));
-  const guessX = readsIt
-    ? crossing.x + rng.normal(0, 0.75)
-    : startX + rng.normal(0, 3.2);
+  // Platzierung des Balls: 0 = zentral (leicht zu halten), 1 = perfekte Ecke.
+  // Der Torwart startet in der Mitte und kann beide Ecken nicht gleichzeitig
+  // abdecken - ein sauber platzierter Schuss ist daher kaum zu halten.
+  const lateral = clamp(Math.abs(crossing.x) / post, 0, 1);
+  const low = clamp(1 - crossing.z / 1.4, 0, 1);        // flach am Boden ist schwer
+  const high = clamp((crossing.z - 1.6) / 0.8, 0, 1);   // hoch ins Eck ist schwer
+  const placement = clamp(lateral * 0.82 + Math.max(low * 0.32, high * 0.5), 0, 1.1);
 
-  // Verfuegbare Zeit bis der Ball die Linie erreicht
-  const flightTime = Math.max(0.16, crossing.t);
-  const reactionDelay = clamp(0.34 - keeperRating / 420, 0.11, 0.34);
-  const usable = Math.max(0, flightTime - reactionDelay);
+  // Weniger Zeit (kurze Distanz, schneller Ball) laesst dem Torwart kaum Chancen.
+  const timeFactor = clamp(crossing.t * 1.5 - 0.1, 0.12, 1);
+  const speedFactor = clamp(1 - Math.max(0, crossing.speed - 20) * 0.02, 0.5, 1);
+  const closeRange = distance < 7 ? 0.82 : 1;
 
-  // Reichweite in Metern
-  const reach = 0.72 + (0.9 + keeperRating / 60) * Math.min(usable, 0.85) * 2.1;
+  // Zentraler Schuss: der Torwart haelt oft. Ecke: fast nie.
+  let saveProb = (0.62 + keeperRating / 300) * (1 - placement * 0.9);
+  saveProb *= 0.68 + timeFactor * 0.32;
+  saveProb *= speedFactor * closeRange;
+  saveProb += telegraphed * 0.08; // schlechte Ruhe verraet die Ecke
+  saveProb = clamp(saveProb, 0.02, 0.93);
 
-  const dx = Math.abs(crossing.x - guessX);
-  // Hohe Baelle sind schwerer zu erreichen als flache
-  const heightPenalty = crossing.z > 1.5 ? (crossing.z - 1.5) * 0.7 : 0;
-  const cornerPenalty = Math.abs(crossing.x) > 2.9 ? (Math.abs(crossing.x) - 2.9) * 0.55 : 0;
-  const speedPenalty = crossing.speed > 24 ? (crossing.speed - 24) * 0.035 : 0;
-  const effectiveReach = Math.max(0.2, reach - heightPenalty - cornerPenalty - speedPenalty);
+  const saved = rng.chance(saveProb);
+  const caught = saved && rng.chance(clamp(0.32 + keeperRating / 260 - crossing.speed / 120, 0.05, 0.7));
 
-  // Aus kurzer Distanz bleibt kaum Zeit
-  const closeRange = distance < 8 ? 0.72 : 1;
+  // Anzeige: bei einer Parade taucht der Torwart zum Ball, sonst daneben/kurz.
+  const diveX = saved
+    ? crossing.x + rng.normal(0, 0.35)
+    : rng.chance(0.5)
+      ? crossing.x * rng.float(0.1, 0.5)
+      : -Math.sign(crossing.x || 1) * rng.float(0.4, 2.2);
 
-  const saved = dx <= effectiveReach * closeRange;
-  const caught = saved && rng.chance(clamp(0.28 + keeperRating / 260 - crossing.speed / 130, 0.05, 0.75));
-
-  return { saved, caught, diveX: guessX, diveZ: crossing.z };
+  return { saved, caught, diveX, diveZ: saved ? crossing.z : rng.float(0, CROSSBAR) };
 }
 
 // --- Abschluss ---------------------------------------------------------

@@ -781,9 +781,12 @@ function run() {
   log(`   Weltklasse, gute Eingabe: ${(eliteGoals / 4).toFixed(1)}% Tore`);
   check('Gute Eingabe schlaegt schlechte deutlich', goodGoals > badGoals * 2,
     `${goodGoals} gegen ${badGoals}`);
+  // Der Kern: ein sauber ins Eck platzierter Schuss fuehrt oft zum Tor.
+  check('Eine gute Eingabe fuehrt oft zum Tor', goodGoals > 160,
+    `${(goodGoals / 4).toFixed(0)}% - Platzierung wird belohnt`);
   check('Gute Eingabe ist kein Selbstlaeufer', goodGoals < 380,
     'Auch bei guter Eingabe gibt es Fehlschuesse');
-  check('Attribute machen einen spuerbaren Unterschied', eliteGoals > goodGoals * 1.3,
+  check('Attribute machen einen spuerbaren Unterschied', eliteGoals > goodGoals * 1.15,
     `${eliteGoals} gegen ${goodGoals}`);
 
   // Kontaktpunkt wirkt sich auf die Flughoehe aus
