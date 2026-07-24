@@ -4,7 +4,7 @@
  */
 import { computeOverall, POSITION_LINE, type PositionCode } from './attributes';
 import { BACKGROUNDS } from './backgrounds';
-import { COUNTRY_BY_ID } from './countries';
+import { COUNTRIES, COUNTRY_BY_ID } from './countries';
 import {
   addDays, ageOn, formatShort, makeDate, seasonLabel, weekday, type GameDate,
 } from './date';
@@ -15,7 +15,7 @@ import {
 import { buildLifeEvent, type LifeEvent } from './events';
 import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
-import { selectLineup, type Lineup } from './lineup';
+import { quickTeamRating, selectLineup, type Lineup } from './lineup';
 import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
 import { simulateLight } from './matchSim';
 import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
@@ -36,8 +36,22 @@ import { generateWorld, squadOf } from './worldGen';
 
 /** In diesem Jahr beginnt die erste Saison. */
 const START_YEAR = 2026;
-/** Das Land, das in dieser Version vollstaendig simuliert wird. */
+/** Das Startland des Spielers. */
 export const PLAYABLE_COUNTRY = 'falkenland';
+/** Pseudo-Land fuer internationale Wettbewerbe. */
+export const INTERNATIONAL = 'international';
+
+/** Baut einen Index Vereins-ID -> Kader, um wiederholte O(n)-Scans zu sparen. */
+export function buildSquadIndex(players: Record<Id, Player>): Map<Id, Player[]> {
+  const index = new Map<Id, Player[]>();
+  for (const p of Object.values(players)) {
+    if (!p.clubId) continue;
+    let list = index.get(p.clubId);
+    if (!list) { list = []; index.set(p.clubId, list); }
+    list.push(p);
+  }
+  return index;
+}
 
 export interface NewGameOptions {
   saveName: string;
@@ -66,7 +80,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
   const counter = { nextId: 0 };
 
   const world = generateWorld(rng, {
-    fullCountryIds: [PLAYABLE_COUNTRY],
+    fullCountryIds: COUNTRIES.map((c) => c.id),
     currentDate: startDate,
     makeId: (prefix) => makeId(counter, prefix),
   });
@@ -352,8 +366,16 @@ export function advanceDay(state: GameState): DayResult {
     return result;
   }
 
-  for (const match of today) {
-    simulateBackgroundMatch(state, match, rng);
+  if (today.length > 0) {
+    // Kader-Index einmal je Tag bauen statt pro Spiel ueber alle Spieler zu scannen.
+    const index = buildSquadIndex(state.players);
+    const fullCountry = userClub(state)?.countryId ?? PLAYABLE_COUNTRY;
+    for (const match of today) {
+      const comp = state.competitions[match.competitionId];
+      // Volle Detailtiefe fuer das Land des Spielers und internationale Spiele.
+      const full = !comp || comp.countryId === fullCountry || comp.countryId === INTERNATIONAL;
+      simulateBackgroundMatch(state, match, rng, index, full);
+    }
   }
 
   // Training: einmal pro Woche am Freitag (Abschlusstraining)
@@ -427,19 +449,30 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
 
 // --- Hintergrundspiele -------------------------------------------------
 
-function simulateBackgroundMatch(state: GameState, match: Match, rng: Rng) {
+function simulateBackgroundMatch(
+  state: GameState, match: Match, rng: Rng,
+  index: Map<Id, Player[]>, fullDetail: boolean,
+) {
   const homeClub = state.clubs[match.homeClubId];
   const awayClub = state.clubs[match.awayClubId];
   if (!homeClub || !awayClub) { match.played = true; return; }
 
-  const homeSquad = squadOf(state.players, homeClub.id);
-  const awaySquad = squadOf(state.players, awayClub.id);
+  const homeSquad = index.get(homeClub.id) ?? [];
+  const awaySquad = index.get(awayClub.id) ?? [];
+
+  // Niedrige Detailstufe fuer entfernte Ligen (Konzept Abschnitt 56):
+  // nur Ergebnis und Tabelle, keine Einzelstatistiken - spart Zeit und Speicher.
+  if (!fullDetail) {
+    simulateResultOnly(state, match, rng, homeSquad, awaySquad);
+    return;
+  }
+
   const result = simulateLight(
     rng, match.id, homeClub, awayClub, homeSquad, awaySquad, match.neutralVenue,
   );
 
-  let homeScore = result.homeScore;
-  let awayScore = result.awayScore;
+  const homeScore = result.homeScore;
+  const awayScore = result.awayScore;
   let penalties: [number, number] | null = null;
 
   if (isKnockout(state, match) && homeScore === awayScore) {
@@ -451,13 +484,46 @@ function simulateBackgroundMatch(state: GameState, match: Match, rng: Rng) {
     stats: result.appearances,
     injuries: result.injuries,
     events: buildLightEvents(state, match, result),
-  }, rng);
+  }, rng, index);
 
   for (const s of result.appearances) {
     const p = state.players[s.playerId];
     if (!p) continue;
     p.fitness = clamp(p.fitness - (26 + rng.float(0, 10)) * (s.minutes / 90), 8, 100);
   }
+}
+
+/** Ergebnis-nur-Simulation fuer Hintergrundligen ohne Einzelstatistik. */
+function simulateResultOnly(
+  state: GameState, match: Match, rng: Rng, homeSquad: Player[], awaySquad: Player[],
+) {
+  const homeRating = quickTeamRating(homeSquad);
+  const awayRating = quickTeamRating(awaySquad);
+  const diff = (homeRating - awayRating) / 9;
+  const advantage = match.neutralVenue ? 0 : 0.26;
+  const homeScore = rng.poisson(clamp(1.32 + diff * 0.44 + advantage, 0.18, 5));
+  const awayScore = rng.poisson(clamp(1.12 - diff * 0.44, 0.14, 4.6));
+
+  match.homeScore = homeScore;
+  match.awayScore = awayScore;
+  match.played = true;
+  match.attendance = 0;
+
+  if (isKnockout(state, match) && homeScore === awayScore) {
+    match.penalties = shootoutFrom(rng, homeSquad, awaySquad);
+  }
+  if (state.competitions[match.competitionId]?.type === 'league') {
+    applyResultToTable(state, match);
+  }
+
+  // Leichte Fitnessbelastung fuer die voraussichtliche Startelf.
+  const drain = (squad: Player[]) => {
+    for (const p of squad.slice().sort((a, b) => b.fitness - a.fitness).slice(0, 11)) {
+      p.fitness = clamp(p.fitness - (24 + rng.float(0, 10)), 8, 100);
+    }
+  };
+  drain(homeSquad);
+  drain(awaySquad);
 }
 
 function buildLightEvents(
@@ -634,7 +700,10 @@ interface CommitInput {
   moraleDelta?: number;
 }
 
-function commitMatch(state: GameState, match: Match, input: CommitInput, rng: Rng) {
+function commitMatch(
+  state: GameState, match: Match, input: CommitInput, rng: Rng,
+  index?: Map<Id, Player[]>,
+) {
   match.homeScore = input.homeScore;
   match.awayScore = input.awayScore;
   match.played = true;
@@ -686,7 +755,7 @@ function commitMatch(state: GameState, match: Match, input: CommitInput, rng: Rn
 
   // Sperren der nicht eingesetzten Spieler abbauen
   for (const clubId of [match.homeClubId, match.awayClubId]) {
-    for (const p of squadOf(state.players, clubId)) {
+    for (const p of (index?.get(clubId) ?? squadOf(state.players, clubId))) {
       const played = input.stats.some((s) => s.playerId === p.id && s.minutes > 0);
       if (!played && p.suspension > 0) p.suspension -= 1;
     }

@@ -61,15 +61,19 @@ function run() {
   const matchCount = Object.keys(game.matches).length;
   log(`Vereine: ${clubCount}, Spieler: ${playerCount}, Spiele im Plan: ${matchCount}`);
 
-  check('60 Vereine erzeugt', clubCount === 60, `${clubCount}`);
-  check('Ueber 1400 Spieler erzeugt', playerCount > 1400, `${playerCount}`);
-  check('3 Ligen mit je 380 Spielen', matchCount >= 1140, `${matchCount}`);
+  check('300 Vereine erzeugt (5 Laender)', clubCount === 300, `${clubCount}`);
+  check('Ueber 7000 Spieler erzeugt', playerCount > 7000, `${playerCount}`);
+  check('15 Ligen im Spielplan', matchCount >= 5700, `${matchCount}`);
 
   const leagues = leaguesOfCountry(game, 'falkenland');
-  check('Drei Ligen vorhanden', leagues.length === 3);
+  check('Drei Ligen im Startland vorhanden', leagues.length === 3);
   for (const l of leagues) {
     check(`${l.name}: 20 Vereine`, l.clubIds.length === 20, `${l.clubIds.length}`);
   }
+  // Alle fuenf Laender besitzen ein vollstaendiges Ligasystem.
+  const allCountriesFull = ['falkenland', 'albion', 'iberia', 'calcio', 'gallia']
+    .every((c) => leaguesOfCountry(game, c).length === 3);
+  check('Alle fuenf Laender haben drei Ligen', allCountriesFull);
 
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -372,6 +376,8 @@ function run() {
           if (res.pending.kind === 'dribble' || /shot|Shot|header|oneOnOne/.test(res.pending.kind)) attackCh++;
           if (res.pending.kind === 'duel') defendCh++;
           engine.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+        } else if (engine.pendingInjury) {
+          engine.resolveInjury('off');
         }
         snap = engine.userLiveFitness;
       }
@@ -417,6 +423,7 @@ function run() {
       while (!engine.finished && !engine.pendingHalftime && guard++ < 200) {
         const res = engine.step();
         if (res.pending) engine.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+        else if (engine.pendingInjury) engine.resolveInjury('off');
       }
       if (engine.pendingHalftime) { sawHalftime++; engine.resolveHalftime(choice); }
       engine.runToEnd((c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r));
@@ -452,6 +459,7 @@ function run() {
     while (!e.finished && !e.pendingHalftime && guard++ < 200) {
       const res = e.step();
       if (res.pending) e.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
+      else if (e.pendingInjury) e.resolveInjury('off');
     }
     if (e.pendingHalftime) e.resolveHalftime(choice);
     return e.secondHalfMods;
@@ -675,8 +683,16 @@ function run() {
   // Weit am Tor vorbei gezielt, viel zu viel Kraft, Ball von unten getroffen
   const sloppy = { aimX: 9.5, aimY: 0, power: 0.99, contactX: 0.9, contactY: -0.9 };
 
+  // Fester Durchschnittsstuermer als Basis, unabhaengig von den Karrierewerten,
+  // damit der Vergleich reproduzierbar bleibt.
+  const baseShooter: typeof user = structuredClone(user);
+  for (const key of Object.keys(baseShooter.attrs) as (keyof typeof baseShooter.attrs)[]) {
+    baseShooter.attrs[key] = 55;
+  }
+  baseShooter.form = 55; baseShooter.confidence = 55; baseShooter.fitness = 90;
+
   // Weltklassestuermer zum Vergleich: gleiche Eingabe, deutlich mehr Ertrag
-  const worldClass: typeof user = structuredClone(user);
+  const worldClass: typeof user = structuredClone(baseShooter);
   for (const key of Object.keys(worldClass.attrs) as (keyof typeof worldClass.attrs)[]) {
     worldClass.attrs[key] = Math.min(95, worldClass.attrs[key] + 30);
   }
@@ -684,8 +700,8 @@ function run() {
 
   let goodGoals = 0; let badGoals = 0; let eliteGoals = 0;
   for (let i = 0; i < 400; i++) {
-    if (resolveShot(perfect, testChallenge, user, DIFFICULTY_SETTINGS.normal, physicsRng).outcome === 'goal') goodGoals++;
-    if (resolveShot(sloppy, testChallenge, user, DIFFICULTY_SETTINGS.normal, physicsRng).outcome === 'goal') badGoals++;
+    if (resolveShot(perfect, testChallenge, baseShooter, DIFFICULTY_SETTINGS.normal, physicsRng).outcome === 'goal') goodGoals++;
+    if (resolveShot(sloppy, testChallenge, baseShooter, DIFFICULTY_SETTINGS.normal, physicsRng).outcome === 'goal') badGoals++;
     if (resolveShot(perfect, testChallenge, worldClass, DIFFICULTY_SETTINGS.normal, physicsRng).outcome === 'goal') eliteGoals++;
   }
   log(`Gleiche Situation aus 14 Metern:`);

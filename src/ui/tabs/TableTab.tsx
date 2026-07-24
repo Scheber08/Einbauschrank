@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { PLAYABLE_COUNTRY, sortedTable, userClub } from '../../engine/game';
+import { sortedTable, userClub } from '../../engine/game';
+import { COUNTRIES } from '../../engine/countries';
 import { leaguesOfCountry, cupOfCountry } from '../../engine/season';
 import { topAssists, topScorers } from '../../engine/stats';
 import { CUP_ROUNDS } from '../../engine/cup';
@@ -9,9 +10,19 @@ import { Empty, FormDots, Panel, shortName } from '../components';
 export default function TableTab() {
   const game = useAppState().game!;
   const club = userClub(game);
-  const leagues = useMemo(() => leaguesOfCountry(game, PLAYABLE_COUNTRY), [game.version]);
-  const cup = useMemo(() => cupOfCountry(game, PLAYABLE_COUNTRY), [game.version]);
-  const [selected, setSelected] = useState(club?.leagueId ?? leagues[0]?.id ?? '');
+  // Nur Laender mit erzeugten Ligen anbieten.
+  const countries = useMemo(
+    () => COUNTRIES.filter((c) => leaguesOfCountry(game, c.id).length > 0),
+    [game.version],
+  );
+  const [country, setCountry] = useState(club?.countryId ?? countries[0]?.id ?? '');
+  const leagues = useMemo(() => leaguesOfCountry(game, country), [country, game.version]);
+  const cup = useMemo(() => cupOfCountry(game, country), [country, game.version]);
+  const [selectedRaw, setSelected] = useState('');
+  // Bei Laenderwechsel automatisch die erste Liga des Landes zeigen.
+  const selected = leagues.some((l) => l.id === selectedRaw) || selectedRaw === cup?.id
+    ? selectedRaw
+    : (club?.countryId === country ? club?.leagueId : undefined) ?? leagues[0]?.id ?? '';
 
   const isCup = selected === cup?.id;
   const competition = game.competitions[selected];
@@ -53,6 +64,14 @@ export default function TableTab() {
           )}
         </div>
       }>
+        {countries.length > 1 && (
+          <div className="chip-row" style={{ marginBottom: '0.6rem' }}>
+            {countries.map((c) => (
+              <span key={c.id} className={`chip ${country === c.id ? 'active' : ''}`}
+                onClick={() => setCountry(c.id)}>{c.name}</span>
+            ))}
+          </div>
+        )}
         <h3 style={{ marginBottom: '0.6rem' }}>{competition?.name}</h3>
 
         {isCup && (
