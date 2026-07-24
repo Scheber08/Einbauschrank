@@ -13,6 +13,9 @@ import {
   type TrainingOutcome,
 } from './development';
 import { buildLifeEvent, type LifeEvent } from './events';
+import {
+  CC_ID, CC_LEAGUE_ROUNDS, advanceChampionsCup, clearOldChampionsCup, startChampionsCup,
+} from './international';
 import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
 import { quickTeamRating, selectLineup, type Lineup } from './lineup';
@@ -130,6 +133,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
   state.userPlayerId = user.id;
 
   startSeason(state, rng);
+  startChampionsCup(state, rng, null);
   createObjectives(state);
   seedRelationships(state, rng);
 
@@ -417,6 +421,7 @@ export function advanceDay(state: GameState): DayResult {
     const cup = cupOfCountry(state, country.id);
     if (cup) advanceCup(state, rng, cup.id);
   }
+  advanceChampionsCup(state, rng);
 
   handleSeasonTransitions(state, rng, result);
   updateObjectives(state);
@@ -441,6 +446,10 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
   if (state.seasonPhase === 'postSeason' && postSeasonFinished(state)) {
     const report = endSeason(state, rng);
     result.seasonReport = report;
+    // Neue Auflage des internationalen Wettbewerbs mit den Qualifikanten der
+    // gerade beendeten Saison.
+    clearOldChampionsCup(state);
+    startChampionsCup(state, rng, report.season);
     createObjectives(state);
     addNews(state, 'season', `Saison ${seasonLabel(report.season)} abgeschlossen`,
       'Die Auswertung der Saison liegt vor. Eine neue Spielzeit beginnt.', true);
@@ -549,7 +558,10 @@ function buildLightEvents(
 
 function isKnockout(state: GameState, match: Match): boolean {
   const comp = state.competitions[match.competitionId];
-  return comp?.type === 'cup';
+  if (comp?.type !== 'cup') return false;
+  // Die Ligaphase des Champions Cup laesst Unentschieden zu.
+  if (match.competitionId === CC_ID && (match.matchday ?? 0) <= CC_LEAGUE_ROUNDS) return false;
+  return true;
 }
 
 function shootoutFrom(rng: Rng, homeSquad: Player[], awaySquad: Player[]): [number, number] {

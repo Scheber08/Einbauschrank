@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sortedTable, userClub } from '../../engine/game';
 import { COUNTRIES } from '../../engine/countries';
+import { CC_ID, CC_NAME, championsCupTable } from '../../engine/international';
 import { leaguesOfCountry, cupOfCountry } from '../../engine/season';
 import { topAssists, topScorers } from '../../engine/stats';
 import { CUP_ROUNDS } from '../../engine/cup';
@@ -52,6 +53,8 @@ export default function TableTab() {
 
   return (
     <>
+      <ChampionsCupPanel />
+
       <Panel title="Wettbewerbe" action={
         <div className="chip-row">
           {leagues.map((l) => (
@@ -196,5 +199,102 @@ export default function TableTab() {
         </Panel>
       </div>
     </>
+  );
+}
+
+function ChampionsCupPanel() {
+  const game = useAppState().game!;
+  const club = userClub(game);
+  const cc = game.competitions[CC_ID];
+  const [view, setView] = useState<'table' | 'ko'>('table');
+
+  const table = useMemo(() => (cc ? championsCupTable(game) : []), [cc, game.version]);
+  const koMatches = useMemo(() => {
+    if (!cc) return [];
+    return Object.values(game.matches)
+      .filter((m) => m.competitionId === CC_ID && m.season === game.season && (m.matchday ?? 0) >= 100)
+      .sort((a, b) => (a.matchday ?? 0) - (b.matchday ?? 0) || a.date.localeCompare(b.date));
+  }, [cc, game.season, game.version]);
+
+  if (!cc) return null;
+
+  return (
+    <Panel title={CC_NAME} action={
+      <div className="chip-row">
+        <span className={`chip ${view === 'table' ? 'active' : ''}`}
+          onClick={() => setView('table')}>Ligaphase</span>
+        <span className={`chip ${view === 'ko' ? 'active' : ''}`}
+          onClick={() => setView('ko')}>K.-o.-Phase</span>
+      </div>
+    }>
+      {view === 'table' && (
+        <>
+          {table.every((r) => r.played === 0) && (
+            <Empty text="Die Ligaphase hat noch nicht begonnen." />
+          )}
+          {table.some((r) => r.played > 0) && (
+            <div className="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 28 }}>#</th><th>Verein</th>
+                    <th className="num">Sp</th><th className="num">Tore</th>
+                    <th className="num">Diff</th><th className="num">Pkt</th><th>Form</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.map((row, i) => {
+                    const pos = i + 1;
+                    const isUser = club?.id === row.clubId;
+                    // 1-16 kommen weiter, 1-8 direkt ins Achtelfinale.
+                    const border = pos <= 8 ? '#2fae63' : pos <= 16 ? '#c98a1c' : '#b8404d';
+                    return (
+                      <tr key={row.clubId} className={isUser ? 'user' : ''}>
+                        <td className="mono" style={{ borderLeft: `3px solid ${border}` }}>{pos}</td>
+                        <td>{game.clubs[row.clubId]?.name}</td>
+                        <td className="num mono">{row.played}</td>
+                        <td className="num mono tiny">{row.goalsFor}:{row.goalsAgainst}</td>
+                        <td className="num mono">{row.goalsFor - row.goalsAgainst > 0 ? '+' : ''}
+                          {row.goalsFor - row.goalsAgainst}</td>
+                        <td className="num mono"><strong>{row.points}</strong></td>
+                        <td><FormDots form={row.form} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="tiny dim" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+            {cc.clubIds.length} Teilnehmer aus fuenf Laendern. Die besten 16 der Ligaphase
+            erreichen die K.-o.-Phase, ab Platz 17 ist Schluss.
+          </p>
+        </>
+      )}
+
+      {view === 'ko' && (
+        <>
+          {koMatches.length === 0 && <Empty text="Die K.-o.-Phase beginnt nach der Ligaphase." />}
+          <div className="scroll">
+            <table>
+              <tbody>
+                {koMatches.map((m) => (
+                  <tr key={m.id} className={
+                    club && (m.homeClubId === club.id || m.awayClubId === club.id) ? 'user' : ''}>
+                    <td className="tiny dim">{m.roundName}</td>
+                    <td style={{ textAlign: 'right' }}>{game.clubs[m.homeClubId]?.name}</td>
+                    <td className="center mono" style={{ width: 66 }}>
+                      {m.played ? `${m.homeScore}:${m.awayScore}` : <span className="dim">-:-</span>}
+                      {m.penalties && <div className="tiny dim">n.E. {m.penalties[0]}:{m.penalties[1]}</div>}
+                    </td>
+                    <td>{game.clubs[m.awayClubId]?.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Panel>
   );
 }

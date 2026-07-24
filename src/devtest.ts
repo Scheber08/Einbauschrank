@@ -148,6 +148,28 @@ function run() {
   check('Ligen behalten 20 Vereine nach Auf- und Abstieg',
     leagueSizes.every((n) => n === 20), leagueSizes.join(', '));
 
+  // --- Continental Champions Cup (Abschnitt 10) -----------------------
+  const cc = game.competitions['cc'];
+  check('Champions Cup existiert', !!cc, cc ? `${cc.clubIds.length} Teilnehmer` : 'fehlt');
+  if (cc) {
+    check('Champions Cup hat 24 Teilnehmer', cc.clubIds.length === 24, `${cc.clubIds.length}`);
+    const ccMatches = Object.values(game.matches).filter((m) => m.competitionId === 'cc');
+    const leaguePhase = ccMatches.filter((m) => (m.matchday ?? 0) <= 8);
+    const ko = ccMatches.filter((m) => (m.matchday ?? 0) >= 100);
+    log(`Champions Cup: ${leaguePhase.length} Ligaphasenspiele (aktuelle Saison), `
+      + `${ko.length} K.-o.-Spiele im Plan`);
+    // 24 Teams, 8 Spieltage = 96 Ligaphasenspiele je Saison.
+    check('Ligaphase umfasst 96 Spiele', leaguePhase.length === 96, `${leaguePhase.length}`);
+
+    // Ueber die gespielten Saisons muss es mindestens einen Sieger geben.
+    let champions = 0;
+    for (const club of Object.values(game.clubs)) {
+      champions += club.history.filter((h) => h.note === 'Continental Champions Cup-Sieger').length;
+    }
+    log(`Bisherige Champions-Cup-Sieger verzeichnet: ${champions}`);
+    check('Der Champions Cup kuert Sieger', champions >= 1, `${champions}`);
+  }
+
   // --- Spielerstatistiken ---------------------------------------------
   const totals = sumStats(collectStats(game, game.userPlayerId));
   log(`\nEigene Bilanz: ${totals.appearances} Spiele, ${totals.goals} Tore, `

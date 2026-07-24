@@ -716,9 +716,16 @@ function resetForNewSeason(state: GameState, rng: Rng) {
 }
 
 /** Prueft, ob alle Ligaspiele der Saison absolviert sind. */
+/**
+ * Sind alle nationalen Ligaspiele der Saison absolviert? Nur Ligen zaehlen,
+ * damit die Relegation angesetzt wird, sobald die Ligen enden - unabhaengig
+ * davon, ob Pokale oder der internationale Wettbewerb noch laufen.
+ */
 export function leaguesFinished(state: GameState): boolean {
   return Object.values(state.matches).every(
-    (m) => m.season !== state.season || m.competitionId.includes('-relegation') || m.played,
+    (m) => m.season !== state.season
+      || state.competitions[m.competitionId]?.type !== 'league'
+      || m.played,
   );
 }
 

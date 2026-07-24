@@ -38,6 +38,7 @@ npm run typecheck
 | 4-6 Spielwelt, Ligensystem | Alle fuenf Laender: 15 Ligen, 300 Vereine, rund 7.500 Spieler, 5 Pokale. Das eigene Land wird voll detailliert simuliert, die uebrigen ergebnis-orientiert (Konzept Abschnitt 56) |
 | 7-8 Ligamodus, Auf- und Abstieg | 38 Spieltage, alle Tabellenkriterien, direkter Auf- und Abstieg, Relegation ueber Hin- und Rueckspiel |
 | 9 Nationaler Pokal | Alle 60 Vereine, Vorrunde bis Finale, Verlaengerung und Elfmeterschiessen |
+| 10 Continental Champions Cup | 24 Teilnehmer aus fuenf Laendern, Ligaphase (8 Spiele, gemeinsame Tabelle), K.-o.-Phase Achtelfinale bis Finale; eigene Teilnahme spielbar, Sieger in Chronik und Rekorden |
 | 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende |
 | 16-17 Attribute, Potenzial | 54 Attribute in fuenf Gruppen, positionsabhaengige Gesamtstaerke, veraenderliches Potenzial |
 | 18-19 Wochenablauf, Training | Wochentraining mit 17 Schwerpunkten und vier Intensitaetsstufen |
@@ -64,9 +65,9 @@ npm run typecheck
 
 Diese Punkte aus dem Konzept sind bewusst spaeteren Ausbauschritten vorbehalten:
 
-- **Abschnitt 10-13**: internationale Wettbewerbe. Alle fuenf Laender werden
-  jetzt mit Ligen simuliert, aber Continental Champions Cup, Continental Trophy,
-  Nationalmannschaften und World Nations Cup fehlen noch.
+- **Abschnitt 11-13**: Continental Trophy (zweiter Vereinswettbewerb),
+  Nationalmannschaften und World Nations Cup. Der Continental Champions Cup
+  (Abschnitt 10) ist umgesetzt.
 - **Abschnitt 40**: ein voll ausgebautes soziales Netzwerk mit Feed. (Fan- und
   Medienreaktionen laufen bislang ueber den Nachrichten-Feed.)
 - **Abschnitt 35**: Beratersystem.
