@@ -403,6 +403,32 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     return flight.crossing ? { x: flight.crossing.x, z: flight.crossing.z } : null;
   }, [step, aim, contactHover, lockedPower, challenge, player, isPass, isHeader]);
 
+  /**
+   * Grobe Zielhilfe schon waehrend des Zielens: wo kreuzt der Ball die Torlinie?
+   * Mit repraesentativer Kraft und mittigem Kontakt gerechnet - so sieht man
+   * sofort, ob man das schmale Tor ueberhaupt anvisiert, statt es erst nach dem
+   * Kontaktpunkt zu erfahren.
+   */
+  const aimGuide = useMemo(() => {
+    if (isPass) return null;
+    if (step !== 'aim' && step !== 'power') return null;
+    const dir = step === 'aim' ? (hover ?? aim) : aim;
+    if (!dir) return null;
+    const flight = simulateBallFlight({
+      startX: challenge.offset,
+      startY: challenge.distance,
+      aimX: dir.x,
+      aimY: dir.y,
+      power: 0.74,
+      contactX: 0,
+      contactY: 0,
+      shotPower: isHeader ? player.attrs.heading : player.attrs.shotPower,
+      curve: player.attrs.curve,
+    });
+    return flight.crossing ? { x: flight.crossing.x, z: flight.crossing.z } : null;
+  }, [step, hover, aim, challenge.offset, challenge.distance, isPass, isHeader,
+    player.attrs.heading, player.attrs.shotPower, player.attrs.curve]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -462,6 +488,26 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       ctx.fill();
     }
 
+    // Zielhilfe: Einschlagpunkt auf der Torlinie (gruen im Tor, rot daneben).
+    if (aimGuide && (step === 'aim' || step === 'power')) {
+      const onTarget = Math.abs(aimGuide.x) < GOAL_HALF_WIDTH && aimGuide.z < CROSSBAR;
+      const col = onTarget ? '#37d67a' : '#ff8a95';
+      const [gl, gy0] = t.toScreen(-GOAL_HALF_WIDTH, 0);
+      const gw = GOAL_HALF_WIDTH * 2 * t.scale;
+      // Tormund einfaerben, je nachdem ob der Schuss aufs Tor geht.
+      ctx.fillStyle = onTarget ? 'rgba(55,214,122,0.16)' : 'rgba(255,138,149,0.12)';
+      ctx.fillRect(gl, gy0 - 7, gw, 7);
+      // Marker auf der Linie.
+      const [mx, my] = t.toScreen(clamp(aimGuide.x, -21, 21), 0);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(mx, my, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
     // Flugbahn mit Spur
     if (flightRef.current) {
       const { flight, index } = flightRef.current;
@@ -490,7 +536,8 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       ctx.fillStyle = 'rgba(55,214,122,0.16)';
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
-  }, [t, defenders, wall, keeperPos, isPass, challenge, targetId, step, hover, aim, player.shirtNumber]);
+  }, [t, defenders, wall, keeperPos, isPass, challenge, targetId, step, hover, aim,
+    aimGuide, player.shirtNumber]);
 
   useEffect(() => { draw(); }, [draw]);
 
@@ -657,7 +704,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   const stepIndex = stepOrder.indexOf(step);
   const hints: Record<BallStep, string> = {
     target: 'Klicke den Mitspieler an, den du anspielen willst.',
-    aim: 'Bewege die Maus und klicke, um die Richtung festzulegen.',
+    aim: 'Bewege die Maus: der Marker auf der Torlinie zeigt, wo der Ball einschlaegt (gruen = im Tor). Klick legt die Richtung fest.',
     power: 'Halte die Maustaste oder die Leertaste gedrueckt und lasse bei der gewuenschten Kraft los.',
     contact: 'Waehle den Punkt am Ball. Die Vorschau rechts zeigt, wo der Ball ankaeme.',
     flight: '',
