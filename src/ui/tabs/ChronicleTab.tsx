@@ -75,6 +75,35 @@ export default function ChronicleTab() {
         </Panel>
       )}
 
+      {(game.nationalCaps > 0 || game.wncHistory.length > 0) && (
+        <Panel title="Nationalmannschaft">
+          <div className="grid two" style={{ marginBottom: game.wncHistory.length > 0 ? '0.8rem' : 0 }}>
+            <div className="stat"><div className="value">{game.nationalCaps}</div><div className="label">Laenderspiele</div></div>
+            <div className="stat"><div className="value">{game.nationalGoals}</div><div className="label">Laenderspieltore</div></div>
+          </div>
+          {game.wncHistory.length > 0 && (
+            <table>
+              <tbody>
+                {game.wncHistory.slice().reverse().map((w) => (
+                  <tr key={w.year}>
+                    <td className="mono tiny">{w.year}</td>
+                    <td>Weltmeister: <strong>{w.championName}</strong></td>
+                    <td className="tiny">
+                      {w.userNominated
+                        ? <span className={w.userNationReached === 'Sieg' ? 'pill good' : 'pill'}>
+                            {w.userNationReached === 'Sieg' ? 'Titel' : w.userNationReached}
+                            {w.userGoals > 0 ? ` · ${w.userGoals} Tore` : ''}
+                          </span>
+                        : <span className="dim">nicht dabei</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      )}
+
       <Panel title="Karrierechronik">
         {events.length === 0 && <Empty text="Noch keine Ereignisse verzeichnet." />}
         <div className="scroll">

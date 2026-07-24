@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { computeOverall } from '../engine/attributes';
+import { COUNTRY_BY_ID } from '../engine/countries';
 import { ageOn, formatDate, seasonLabel } from '../engine/date';
 import { nextUserMatch, userClub, userLeague } from '../engine/game';
 import type { SeasonReport } from '../engine/season';
 import type { TrainingOutcome } from '../engine/development';
 import type { LifeEvent, LifeOption } from '../engine/events';
+import type { WncResult } from '../engine/types';
 import { advanceCalendar, applyLifeEvent, backToMenu, saveCurrent } from '../state/actions';
 import { setState, useAppState, type CareerTab } from '../state/store';
 import { Bar, Meter, initials, money } from './components';
@@ -38,6 +40,7 @@ export default function CareerShell() {
   const [seasonReport, setSeasonReport] = useState<SeasonReport | null>(null);
   const [training, setTraining] = useState<TrainingOutcome | null>(null);
   const [lifeEvent, setLifeEvent] = useState<LifeEvent | null>(null);
+  const [wnc, setWnc] = useState<WncResult | null>(null);
 
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -52,6 +55,8 @@ export default function CareerShell() {
       setState({ screen: 'match' });
       return;
     }
+    // Der World Nations Cup faellt mit dem Saisonende zusammen: beide anzeigen.
+    if (result.wnc) setWnc(result.wnc);
     if (result.lifeEvent) setLifeEvent(result.lifeEvent);
     else if (result.seasonReport) setSeasonReport(result.seasonReport);
     else if (result.training) setTraining(result.training);
@@ -96,6 +101,17 @@ export default function CareerShell() {
           {user.suspension > 0 && (
             <div className="pill warn" style={{ marginTop: '0.4rem' }}>
               Gesperrt fuer {user.suspension} Spiele
+            </div>
+          )}
+          {(game.nationalNominated || game.nationalCaps > 0) && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <div className="tiny dim">Nationalmannschaft</div>
+              <div className="row" style={{ gap: '0.35rem', marginTop: 2 }}>
+                {game.nationalNominated && <span className="pill good">Nominiert</span>}
+                {game.nationalCaps > 0 && (
+                  <span className="pill">{game.nationalCaps} Spiele, {game.nationalGoals} Tore</span>
+                )}
+              </div>
             </div>
           )}
         </section>
@@ -151,9 +167,52 @@ export default function CareerShell() {
         {app.tab === 'chronicle' && <ChronicleTab />}
       </main>
 
+      {wnc && <WncModal result={wnc} nation={COUNTRY_BY_ID[user.nationality]?.name}
+        onClose={() => setWnc(null)} />}
       {lifeEvent && <LifeEventModal event={lifeEvent} onClose={() => setLifeEvent(null)} />}
       {training && <TrainingModal outcome={training} onClose={() => setTraining(null)} />}
       {seasonReport && <SeasonModal report={seasonReport} onClose={() => setSeasonReport(null)} />}
+    </div>
+  );
+}
+
+function WncModal(
+  { result, nation, onClose }:
+  { result: WncResult; nation?: string; onClose: () => void },
+) {
+  const won = result.userNominated && result.userNationReached === 'Sieg';
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <h2>World Nations Cup {result.year}</h2>
+        <p style={{ fontSize: '1.1rem' }}>
+          Weltmeister: <strong style={{ color: '#f5c542' }}>{result.championName}</strong>
+          <span className="muted"> (Finale gegen {result.runnerUpName})</span>
+        </p>
+        {result.userNominated ? (
+          <div style={{ marginTop: '0.6rem' }}>
+            {won ? (
+              <p style={{ color: '#37d67a', fontWeight: 680 }}>
+                Du bist Weltmeister mit {nation}! Der groesste Erfolg deiner Karriere.
+              </p>
+            ) : (
+              <p>
+                Mit {nation} bis zum <strong>{result.userNationReached}</strong> gekommen.
+              </p>
+            )}
+            <div className="row" style={{ gap: '0.35rem' }}>
+              <span className="pill">{result.userCaps} Laenderspiele</span>
+              {result.userGoals > 0 && <span className="pill good">{result.userGoals} Tore</span>}
+            </div>
+          </div>
+        ) : (
+          <p className="muted" style={{ marginTop: '0.6rem' }}>
+            Du warst diesmal nicht dabei. Mit starken Leistungen und guter Form
+            rueckst du in den Kader deiner Nation.
+          </p>
+        )}
+        <button className="primary" style={{ marginTop: '1rem' }} onClick={onClose}>Weiter</button>
+      </div>
     </div>
   );
 }

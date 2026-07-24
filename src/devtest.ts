@@ -148,6 +148,53 @@ function run() {
   check('Ligen behalten 20 Vereine nach Auf- und Abstieg',
     leagueSizes.every((n) => n === 20), leagueSizes.join(', '));
 
+  // --- Nationalmannschaft und World Nations Cup (Abschnitt 12-13) ------
+  {
+    // Eine eigene, laenger laufende Karriere, damit der erste WNC (2028)
+    // stattfindet - er wird am Ende der Saison 2028 gespielt.
+    const gN = createNewGame({
+      saveName: 'WNC-Test', seed: 33221, difficulty: 'einfach',
+      firstName: 'Natio', lastName: 'Spieler', age: 17, nationality: 'iberia',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 183, weight: 78,
+      shirtNumber: 9,
+      appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' },
+      background: 'wonderkid',
+    });
+    const uN = gN.players[gN.userPlayerId];
+    // Zu einem Topklub und starken Werten verhelfen, damit eine Nominierung faellt.
+    for (const k of Object.keys(uN.attrs) as (keyof typeof uN.attrs)[]) uN.attrs[k] = Math.max(uN.attrs[k], 82);
+    uN.potential = 95;
+    let guardN = 0; let wncSeen = 0;
+    while (gN.season < 2029 && guardN++ < 5000) {
+      const res = advanceDay(gN);
+      if (res.wnc) wncSeen++;
+      if (res.matchToPlay) {
+        const prepared = prepareUserMatch(gN, res.matchToPlay, false);
+        if (prepared) {
+          const r = new Rng(gN.rngState);
+          const e = new MatchEngine({ ...prepared.setup, rng: r });
+          e.runToEnd((c) => autoResolveChallenge(c, uN, DIFFICULTY_SETTINGS.einfach, r));
+          gN.rngState = r.state;
+          finishUserMatch(gN, res.matchToPlay, e.finish());
+        } else gN.pendingMatchId = null;
+      }
+    }
+    log(`\n--- Nationalmannschaft und WNC ---`);
+    log(`Saison ${gN.season}, WNC-Ereignisse: ${wncSeen}, Historie: ${gN.wncHistory.length}, `
+      + `nominiert: ${gN.nationalNominated}, Laenderspiele: ${gN.nationalCaps}, Tore: ${gN.nationalGoals}`);
+    check('Ein World Nations Cup wurde gespielt', gN.wncHistory.length >= 1, `${gN.wncHistory.length}`);
+    if (gN.wncHistory.length > 0) {
+      const w = gN.wncHistory[0];
+      log(`WNC ${w.year}: Weltmeister ${w.championName} gegen ${w.runnerUpName}`
+        + `${w.userNominated ? `, eigener Spieler: ${w.userNationReached} (${w.userCaps} Spiele)` : ''}`);
+      check('Der WNC hat einen Weltmeister', !!w.championName);
+      check('Champion und Finalist sind verschieden', w.championName !== w.runnerUpName,
+        `${w.championName} / ${w.runnerUpName}`);
+    }
+    check('Starker Spieler wird nominiert', gN.nationalNominated, `${gN.nationalNominated}`);
+    check('Nominierter Spieler sammelt Laenderspiele', gN.nationalCaps > 0, `${gN.nationalCaps}`);
+  }
+
   // --- Continental Champions Cup (Abschnitt 10) -----------------------
   const cc = game.competitions['cc'];
   check('Champions Cup existiert', !!cc, cc ? `${cc.clubIds.length} Teilnehmer` : 'fehlt');
@@ -298,18 +345,20 @@ function run() {
   const savedFreeKicks = user.attrs.freeKicks;
   user.attrs.freeKicks = 92;
   let specialistFreeKicks = 0;
-  for (const m of upcoming.slice(0, 20)) {
+  const fkPool = upcoming.slice(0, 40);
+  fkPool.forEach((m, k) => {
     const prepared = prepareUserMatch(game, m.id, true);
-    if (!prepared) continue;
-    const rng3 = new Rng((game.rngState + specialistFreeKicks * 104729 + 13) >>> 0);
+    if (!prepared) return;
+    // Fester, pro Spiel unterschiedlicher Seed - unabhaengig vom Hauptlauf.
+    const rng3 = new Rng(20000 + k * 911);
     const engine = new MatchEngine({ ...prepared.setup, rng: rng3 });
     engine.runToEnd((c) => {
       if (c.kind === 'freeKick') specialistFreeKicks++;
       return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rng3);
     });
-  }
+  });
   user.attrs.freeKicks = savedFreeKicks;
-  log(`Nach gezieltem Freistosstraining (Wert 92): ${specialistFreeKicks} Freistoesse in 20 Spielen`);
+  log(`Nach gezieltem Freistosstraining (Wert 92): ${specialistFreeKicks} Freistoesse in ${fkPool.length} Spielen`);
   check('Freistossspezialist tritt selbst an (Abschnitt 19 und 22)', specialistFreeKicks > 0,
     `${specialistFreeKicks}`);
   check('Nicht zu viele Unterbrechungen pro Spiel',

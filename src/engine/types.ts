@@ -454,6 +454,19 @@ export const DIFFICULTY_SETTINGS: Record<Difficulty, DifficultySettings> = {
   simulation: { targetSize: 0.72, meterSpeed: 1.3, injuryFactor: 1.45, growthFactor: 0.72, playtimeBonus: -10, inputWeight: 0.25, showPotential: false },
 };
 
+// --- Nationalmannschaft -------------------------------------------------
+
+export interface WncResult {
+  year: number;
+  championName: string;
+  runnerUpName: string;
+  /** Wie weit kam die Nation des eigenen Spielers? */
+  userNationReached?: string;
+  userNominated: boolean;
+  userCaps: number;
+  userGoals: number;
+}
+
 // --- Spielstand ---------------------------------------------------------
 
 export interface GameState {
@@ -520,6 +533,14 @@ export interface GameState {
 
   /** Titel und Erfolge fuer die Spielstandsuebersicht. */
   honours: { season: number; label: string }[];
+
+  /** Nationalmannschaft (Konzept Abschnitt 12 und 13). */
+  nationalCaps: number;
+  nationalGoals: number;
+  /** Ist der eigene Spieler aktuell nominiert? */
+  nationalNominated: boolean;
+  /** Historie des World Nations Cup. */
+  wncHistory: WncResult[];
 
   /** Zaehler fuer fortlaufende IDs. */
   nextId: number;

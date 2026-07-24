@@ -16,6 +16,8 @@ import { buildLifeEvent, type LifeEvent } from './events';
 import {
   CC_ID, CC_LEAGUE_ROUNDS, advanceChampionsCup, clearOldChampionsCup, startChampionsCup,
 } from './international';
+import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
+import type { WncResult } from './types';
 import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
 import { quickTeamRating, selectLineup, type Lineup } from './lineup';
@@ -125,6 +127,10 @@ export function createNewGame(opts: NewGameOptions): GameState {
     cupState: {},
     offers: [],
     honours: [],
+    nationalCaps: 0,
+    nationalGoals: 0,
+    nationalNominated: false,
+    wncHistory: [],
     nextId: counter.nextId,
   };
 
@@ -136,6 +142,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
   startChampionsCup(state, rng, null);
   createObjectives(state);
   seedRelationships(state, rng);
+  updateNationalStatus(state);
 
   const club = user.clubId ? state.clubs[user.clubId] : null;
   addCareerEvent(state, 'start', 'Karrierestart',
@@ -340,6 +347,7 @@ export interface DayResult {
   training: TrainingOutcome | null;
   seasonReport: SeasonReport | null;
   lifeEvent: LifeEvent | null;
+  wnc: WncResult | null;
   headlines: string[];
 }
 
@@ -357,7 +365,7 @@ export function advanceDay(state: GameState): DayResult {
   const rng = new Rng(state.rngState);
   const result: DayResult = {
     date: state.date, matchToPlay: null, training: null, seasonReport: null,
-    lifeEvent: null, headlines: [],
+    lifeEvent: null, wnc: null, headlines: [],
   };
 
   const today = matchesOn(state, state.date).filter((m) => !m.played);
@@ -450,6 +458,11 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
     // gerade beendeten Saison.
     clearOldChampionsCup(state);
     startChampionsCup(state, rng, report.season);
+    updateNationalStatus(state);
+    // World Nations Cup im Sommer eines Turnierjahres.
+    if (isWncYear(report.season)) {
+      result.wnc = playWorldNationsCup(state, rng);
+    }
     createObjectives(state);
     addNews(state, 'season', `Saison ${seasonLabel(report.season)} abgeschlossen`,
       'Die Auswertung der Saison liegt vor. Eine neue Spielzeit beginnt.', true);

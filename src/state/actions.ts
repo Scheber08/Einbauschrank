@@ -66,6 +66,7 @@ export interface AdvanceSummary {
   seasonReport: SeasonReport | null;
   training: DayResult['training'];
   lifeEvent: DayResult['lifeEvent'];
+  wnc: DayResult['wnc'];
 }
 
 /**
@@ -74,32 +75,34 @@ export interface AdvanceSummary {
  */
 export function advanceCalendar(maxDays = 60): AdvanceSummary {
   const game = getState().game;
-  if (!game) return { days: 0, matchToPlay: null, seasonReport: null, training: null, lifeEvent: null };
+  if (!game) return { days: 0, matchToPlay: null, seasonReport: null, training: null, lifeEvent: null, wnc: null };
 
   let days = 0;
   let seasonReport: SeasonReport | null = null;
   let training: DayResult['training'] = null;
+  let wnc: DayResult['wnc'] = null;
 
   for (let i = 0; i < maxDays; i++) {
     const result = advanceDay(game);
     if (result.seasonReport) seasonReport = result.seasonReport;
     if (result.training) training = result.training;
+    if (result.wnc) wnc = result.wnc;
     if (result.matchToPlay) {
       commit();
-      return { days, matchToPlay: result.matchToPlay, seasonReport, training, lifeEvent: null };
+      return { days, matchToPlay: result.matchToPlay, seasonReport, training, lifeEvent: null, wnc };
     }
     days++;
     if (result.lifeEvent) {
       commit();
       void saveCurrent(true);
-      return { days, matchToPlay: null, seasonReport, training, lifeEvent: result.lifeEvent };
+      return { days, matchToPlay: null, seasonReport, training, lifeEvent: result.lifeEvent, wnc };
     }
     if (result.training || result.seasonReport) break;
   }
 
   commit();
   void saveCurrent(true);
-  return { days, matchToPlay: null, seasonReport, training, lifeEvent: null };
+  return { days, matchToPlay: null, seasonReport, training, lifeEvent: null, wnc };
 }
 
 /** Einen einzelnen Tag weiterschalten. */

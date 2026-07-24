@@ -39,6 +39,7 @@ npm run typecheck
 | 7-8 Ligamodus, Auf- und Abstieg | 38 Spieltage, alle Tabellenkriterien, direkter Auf- und Abstieg, Relegation ueber Hin- und Rueckspiel |
 | 9 Nationaler Pokal | Alle 60 Vereine, Vorrunde bis Finale, Verlaengerung und Elfmeterschiessen |
 | 10 Continental Champions Cup | 24 Teilnehmer aus fuenf Laendern, Ligaphase (8 Spiele, gemeinsame Tabelle), K.-o.-Phase Achtelfinale bis Finale; eigene Teilnahme spielbar, Sieger in Chronik und Rekorden |
+| 12-13 Nationalmannschaft, World Nations Cup | Nominierung des eigenen Spielers nach Staerke, Form und Positionskonkurrenz; World Nations Cup alle vier Jahre (16 Nationen, Gruppen- und K.-o.-Phase) mit Laenderspielen, Toren und Titel in der Chronik |
 | 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende |
 | 16-17 Attribute, Potenzial | 54 Attribute in fuenf Gruppen, positionsabhaengige Gesamtstaerke, veraenderliches Potenzial |
 | 18-19 Wochenablauf, Training | Wochentraining mit 17 Schwerpunkten und vier Intensitaetsstufen |
@@ -65,9 +66,11 @@ npm run typecheck
 
 Diese Punkte aus dem Konzept sind bewusst spaeteren Ausbauschritten vorbehalten:
 
-- **Abschnitt 11-13**: Continental Trophy (zweiter Vereinswettbewerb),
-  Nationalmannschaften und World Nations Cup. Der Continental Champions Cup
-  (Abschnitt 10) ist umgesetzt.
+- **Abschnitt 11**: Continental Trophy (zweiter Vereinswettbewerb). Champions Cup
+  (10), Nationalmannschaften und World Nations Cup (12-13) sind umgesetzt.
+- Die Spiele des World Nations Cup werden derzeit simuliert; die Beteiligung des
+  eigenen Spielers (Laenderspiele, Tore, Turnierverlauf) fliesst in die Karriere
+  ein, ist aber noch nicht interaktiv spielbar.
 - **Abschnitt 40**: ein voll ausgebautes soziales Netzwerk mit Feed. (Fan- und
   Medienreaktionen laufen bislang ueber den Nachrichten-Feed.)
 - **Abschnitt 35**: Beratersystem.
