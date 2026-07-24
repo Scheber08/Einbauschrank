@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Figuren-Vorschau</title>
+    <style>
+      body { background: #0b1220; color: #e8eefb; font: 14px system-ui, sans-serif; margin: 0; padding: 1.2rem; }
+      h1 { font-size: 1.2rem; }
+      h2 { font-size: 0.95rem; color: #8ea3c4; margin: 1.2rem 0 0.4rem; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; }
+      .cell { background: #0d3a20; border: 1px solid #1a2942; border-radius: 8px; padding: 0.4rem; }
+      .cell .cap { font-size: 0.72rem; color: #8ea3c4; text-align: center; margin-top: 0.2rem; }
+      canvas { display: block; background: #0f4d29; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Road to Glory — Figuren-Vorschau</h1>
+    <p style="color:#8ea3c4">Menschlicher Torhueter (Frontansicht) und Feldspieler (Vogelperspektive).</p>
+    <div id="root"></div>
+    <script type="module" src="/src/figuren.tsx"></script>
+  </body>
+</html>

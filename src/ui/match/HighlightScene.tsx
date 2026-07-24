@@ -11,6 +11,7 @@ import {
 import type { Challenge, ChallengeResult } from '../../engine/matchTypes';
 import { Rng, clamp } from '../../engine/rng';
 import type { DifficultySettings, Player } from '../../engine/types';
+import { KeeperFigure, drawHumanKeeper, drawHumanPlayer } from './figures';
 
 const VIEW_W = 880;
 const VIEW_H = 440;
@@ -76,7 +77,7 @@ function Frame(
  * Dient sowohl als Vorschau waehrend der Eingabe als auch als Auswertung.
  */
 function GoalView(
-  { crossing, keeper, preview, outcome, label, note }:
+  { crossing, keeper, preview, outcome, label, note, animate }:
   {
     crossing?: { x: number; z: number } | null;
     keeper?: { diveX: number; diveZ: number } | null;
@@ -84,10 +85,38 @@ function GoalView(
     outcome?: string;
     label?: string;
     note?: string;
+    /** Beim Ergebnis: Ball einfliegen und Torwart hechten lassen. */
+    animate?: boolean;
   },
 ) {
   const inFrame = (p: { x: number; z: number }) =>
     Math.abs(p.x) < GOAL_HALF_WIDTH && p.z >= 0 && p.z < CROSSBAR;
+
+  // Fortschritt 0..1 fuer die Ergebnis-Animation.
+  const [t, setT] = useState(animate ? 0 : 1);
+  useEffect(() => {
+    if (!animate) { setT(1); return; }
+    setT(0);
+    const start = performance.now();
+    let raf = 0;
+    const loop = (now: number) => {
+      const p = Math.min(1, (now - start) / 480);
+      setT(p);
+      if (p < 1) raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [animate, crossing?.x, crossing?.z]);
+
+  const ease = t * (2 - t); // easeOutQuad
+  // Torwart hechtet aus der Grundstellung in die Ecke.
+  const kx = keeper ? keeper.diveX * ease : 0;
+  const kz = keeper ? 0.95 + (keeper.diveZ - 0.95) * ease : 0.95;
+  // Ball fliegt aus der Ferne (klein) zum Auftreffpunkt.
+  const ballT = animate ? Math.min(1, t * 1.15) : 1;
+  const bx = crossing ? crossing.x * (0.25 + 0.75 * ballT) : 0;
+  const bz = crossing ? 0.7 + (crossing.z - 0.7) * ballT : 0;
+  const isGoal = outcome === 'goal';
 
   return (
     <div style={{ flex: '1 1 320px', minWidth: 260 }}>
@@ -98,6 +127,12 @@ function GoalView(
         <rect x={-6} y={-3.2} width={12} height={3.9} fill="#0d3a20" />
         <rect x={-6} y={0} width={12} height={0.7} fill="#0f4d29" />
         <line x1={-6} y1={0} x2={6} y2={0} stroke="rgba(255,255,255,0.5)" strokeWidth={0.04} />
+
+        {/* Tor-Aufleuchten bei einem Treffer */}
+        {isGoal && t > 0.7 && (
+          <rect x={-GOAL_HALF_WIDTH} y={-CROSSBAR} width={GOAL_HALF_WIDTH * 2} height={CROSSBAR}
+            fill="rgba(55,214,122,0.18)" />
+        )}
 
         {/* Netz */}
         <rect x={-GOAL_HALF_WIDTH} y={-CROSSBAR} width={GOAL_HALF_WIDTH * 2} height={CROSSBAR}
@@ -119,17 +154,11 @@ function GoalView(
         <path d={`M ${-GOAL_HALF_WIDTH} 0 L ${-GOAL_HALF_WIDTH} ${-CROSSBAR} L ${GOAL_HALF_WIDTH} ${-CROSSBAR} L ${GOAL_HALF_WIDTH} 0`}
           fill="none" stroke="#ffffff" strokeWidth={0.14} strokeLinecap="square" />
 
-        {/* Torwart */}
-        {keeper && (
-          <g opacity={0.92}>
-            <ellipse cx={keeper.diveX * 0.9} cy={-Math.max(0.45, keeper.diveZ * 0.8)}
-              rx={0.62} ry={0.42}
-              fill="#f5c542"
-              transform={`rotate(${keeper.diveX * 7} ${keeper.diveX * 0.9} ${-Math.max(0.45, keeper.diveZ * 0.8)})`} />
-            <circle cx={keeper.diveX * 1.35} cy={-Math.max(0.4, keeper.diveZ * 0.85)} r={0.2}
-              fill="#ffe9a3" />
-          </g>
-        )}
+        {/* Torwart: menschliche Figur - beim Ergebnis im Sprung, sonst in
+            Grundstellung, damit man sieht, wen man ueberwinden muss. */}
+        {keeper
+          ? <KeeperFigure diveX={kx} diveZ={kz} />
+          : <KeeperFigure diveX={0} diveZ={0.95} />}
 
         {/* Vorschau des voraussichtlichen Auftreffpunkts */}
         {preview && (
@@ -142,15 +171,15 @@ function GoalView(
           </g>
         )}
 
-        {/* Tatsaechlicher Auftreffpunkt */}
+        {/* Ball (fliegt ein) und Netzjubel */}
         {crossing && (
           <g>
-            <circle cx={crossing.x} cy={-crossing.z} r={0.24} fill="#ffffff"
-              stroke="#20303f" strokeWidth={0.05} />
-            {outcome === 'goal' && (
+            {isGoal && t >= 1 && (
               <circle cx={crossing.x} cy={-crossing.z} r={0.5} fill="none"
                 stroke="#37d67a" strokeWidth={0.09} opacity={0.9} />
             )}
+            <circle cx={bx} cy={-bz} r={0.22 + 0.06 * ballT} fill="#ffffff"
+              stroke="#20303f" strokeWidth={0.05} />
           </g>
         )}
 
@@ -239,43 +268,55 @@ function drawPitch(ctx: CanvasRenderingContext2D, t: Transform) {
 
 function drawPlayer(
   ctx: CanvasRenderingContext2D, t: Transform,
-  x: number, y: number, color: string, label?: string, radius = 9,
+  x: number, y: number, color: string, label?: string, radius = 9, facing = 0,
 ) {
   const [sx, sy] = t.toScreen(x, y);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath();
-  ctx.ellipse(sx + 2, sy + 4, radius * 0.9, radius * 0.45, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  if (label) {
-    ctx.fillStyle = '#04220f';
-    ctx.font = 'bold 10px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, sx, sy);
-  }
+  drawHumanPlayer(ctx, sx, sy, color, { label, radius: radius * 1.05, facing });
 }
 
 function drawBall(ctx: CanvasRenderingContext2D, t: Transform, x: number, y: number, z: number) {
   const [sx, sy] = t.toScreen(x, y);
   const lift = z * t.scale * 0.55;
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  // Schatten schrumpft und verblasst mit der Flughoehe.
+  ctx.fillStyle = `rgba(0,0,0,${clamp(0.42 - z * 0.05, 0.12, 0.42)})`;
   ctx.beginPath();
-  ctx.ellipse(sx, sy, 5 + z * 0.5, 2.6 + z * 0.25, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx, sy, (5 + z * 0.5) * clamp(1 - z * 0.05, 0.5, 1), 2.6 + z * 0.2, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  const cx = sx;
+  const cy = sy - lift;
   const r = 5.5 + z * 0.55;
-  ctx.fillStyle = '#ffffff';
+  // Kugeliger Ball mit leichtem Licht von oben links.
+  const grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.2, cx, cy, r);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(1, '#c9d2dc');
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(sx, sy - lift, r, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#20303f';
+
+  // Rotierendes Fuenfeck als Muster - der Ball scheint zu rollen.
+  const spin = x * 0.9 + y * 0.5;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(spin);
+  ctx.fillStyle = 'rgba(30,42,58,0.9)';
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+    const rr = r * 0.42;
+    const px = Math.cos(a) * rr;
+    const py = Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(20,30,45,0.6)';
   ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
 }
 
@@ -683,6 +724,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
                 keeper={shotRef.current.keeper}
                 outcome={finalRef.current?.outcome}
                 label="Torblick"
+                animate
               />
             </div>
           )}
@@ -1025,11 +1067,8 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       ctx.fill();
     }
 
-    const [kx, ky] = toScreen(dive ? dive.x * 0.85 : 0, dive ? dive.z * 0.7 : 0.9);
-    ctx.fillStyle = '#f5c542';
-    ctx.beginPath();
-    ctx.ellipse(kx, ky, 22, 30, dive ? (dive.x > 0 ? 0.5 : -0.5) : 0, 0, Math.PI * 2);
-    ctx.fill();
+    // Menschlicher Torhueter: in Grundstellung, oder im Sprung zur gewaehlten Ecke.
+    drawHumanKeeper(ctx, toScreen, dive ? dive.x : 0, dive ? dive.z : 0.95);
 
     if (crossingRef.current && step === 'result') {
       const [bx, by] = toScreen(crossingRef.current.x, crossingRef.current.z);
