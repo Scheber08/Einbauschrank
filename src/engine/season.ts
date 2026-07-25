@@ -13,8 +13,9 @@ import { calcMarketValue, calcSalary, createPlayer } from './playerGen';
 import { Rng, clamp } from './rng';
 import { averageRating, tryRecord } from './stats';
 import { buildTable, sortTable } from './table';
+import { SQUAD_ROLE_ORDER } from './types';
 import type {
-  Award, Club, Competition, GameState, Id, Match, Player, SeasonStats, TransferOffer,
+  Award, Club, Competition, GameState, Id, Match, Player, SeasonStats, SquadRole, TransferOffer,
 } from './types';
 
 // --- Saisonstart -------------------------------------------------------
@@ -282,6 +283,7 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
 
   report.userSummary = summariseUserSeason(state);
   updateRecords(state);
+  updateUserSquadRole(state);
   ageAndDevelop(state, rng);
   runTransferWindow(state, rng);
   resetForNewSeason(state, rng);
@@ -460,6 +462,69 @@ function summariseUserSeason(state: GameState): SeasonReport['userSummary'] {
     objectivesMet: state.objectives.filter((o) => o.done).length,
     objectivesTotal: state.objectives.length,
   };
+}
+
+/**
+ * Kaderrolle des eigenen Spielers zum Saisonende anpassen (Konzept Abschnitt 29).
+ * Ohne das bliebe man dauerhaft "Nachwuchsspieler" und damit bei der Aufstellung
+ * ohne Rollenbonus - egal wie gut die Saison lief. Massstab sind Einsatzzeit,
+ * Durchschnittsnote und die eigene Staerke im Vergleich zum Kader.
+ */
+function updateUserSquadRole(state: GameState) {
+  const user = state.players[state.userPlayerId];
+  if (!user?.contract || !user.clubId) return;
+
+  const entries = Object.values(state.seasonStats).filter(
+    (s) => s.playerId === state.userPlayerId && s.season === state.season,
+  );
+  const appearances = entries.reduce((a, s) => a + s.appearances, 0);
+  const ratingSum = entries.reduce((a, s) => a + s.ratingSum, 0);
+  const avgRating = appearances > 0 ? ratingSum / appearances : 0;
+
+  // Rang des Spielers im eigenen Kader (0 = bester Feldspieler).
+  const ability = computeOverall(user.attrs, user.position);
+  const squad = Object.values(state.players)
+    .filter((p) => p.clubId === user.clubId && p.id !== user.id && p.position !== 'TW');
+  const better = squad.filter(
+    (p) => computeOverall(p.attrs, p.position) > ability,
+  ).length;
+
+  // Zielrolle aus Einsatzzeit und Leistung. Wer kaum spielt, rutscht zurueck.
+  let target: SquadRole;
+  if (appearances >= 25 && avgRating >= 7.0 && better <= 2) target = 'Schluesselspieler';
+  else if (appearances >= 20 && avgRating >= 6.6) target = 'Stammspieler';
+  else if (appearances >= 12) target = 'Rotationsspieler';
+  else if (appearances >= 4) target = 'Ergaenzungsspieler';
+  else target = 'Nachwuchsspieler';
+
+  const current = user.contract.role;
+  // Der Mannschaftsfuehrer wird nicht automatisch degradiert.
+  if (current === 'Mannschaftsfuehrer') return;
+
+  const currentIdx = SQUAD_ROLE_ORDER.indexOf(current);
+  const targetIdx = SQUAD_ROLE_ORDER.indexOf(target);
+  // Hoechstens eine Stufe pro Saison, in beide Richtungen.
+  const nextIdx = clamp(
+    targetIdx > currentIdx ? currentIdx + 1 : targetIdx < currentIdx ? currentIdx - 1 : currentIdx,
+    0, SQUAD_ROLE_ORDER.length - 1);
+  if (nextIdx === currentIdx) return;
+
+  const next = SQUAD_ROLE_ORDER[nextIdx];
+  user.contract.role = next;
+  const club = state.clubs[user.clubId];
+  const up = nextIdx > currentIdx;
+  addNews(state, 'coach',
+    up ? 'Neue Rolle im Kader' : 'Rolle im Kader angepasst',
+    up
+      ? `Nach ${appearances} Einsaetzen plant ${club?.name ?? 'der Verein'} `
+        + `kommende Saison als ${next} mit dir.`
+      : `${club?.name ?? 'Der Verein'} sieht dich kommende Saison als ${next}. `
+        + 'Mehr Einsatzzeit bringt dich zurueck.',
+    true);
+  if (up) {
+    addCareerEvent(state, 'other', `Neue Kaderrolle: ${next}`,
+      `${club?.name ?? 'Der Verein'} befoerdert dich zum ${next}.`);
+  }
 }
 
 // --- Rekorde -----------------------------------------------------------
