@@ -407,9 +407,13 @@ export function advanceDay(state: GameState): DayResult {
     }
   }
 
-  // Taegliche Regeneration und Formentwicklung
+  // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
+  // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.
+  // Sonst wuerde in der Saison (taeglich Spiele) niemand je regenerieren.
+  const playedClubs = new Set<Id>();
+  for (const m of today) { playedClubs.add(m.homeClubId); playedClubs.add(m.awayClubId); }
   for (const player of Object.values(state.players)) {
-    advancePlayerDay(rng, player, today.length > 0);
+    advancePlayerDay(rng, player, player.clubId ? playedClubs.has(player.clubId) : false);
     if (weekday(state.date) === 1) driftForm(player);
   }
   // Montags wirkt das Beziehungsumfeld leicht auf die Moral des Spielers.
