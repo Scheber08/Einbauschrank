@@ -895,36 +895,43 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     ctx.lineWidth = 2;
     ctx.strokeRect(zoneCentre - zoneHalf, laneY - 60, zoneHalf * 2, 120);
 
-    const drawDisc = (cx: number, cy: number, color: string, label: string, r = 20) => {
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath();
-      ctx.ellipse(cx + 3, cy + 8, r, r * 0.4, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#04220f';
-      ctx.font = 'bold 12px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, cx, cy);
+    // Bewegungsstreifen hinter der laufenden Figur - laesst Tempo spueren.
+    const streak = (cx: number, cy: number, dir: number) => {
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 3; k++) {
+        const yy = cy - 6 + k * 7;
+        ctx.beginPath();
+        ctx.moveTo(cx - dir * (18 + k * 8), yy);
+        ctx.lineTo(cx - dir * (40 + k * 8), yy);
+        ctx.stroke();
+      }
     };
 
+    // Kleiner, kugeliger Ball am Fuss.
+    const miniBall = (bx: number, by: number) => {
+      const r = 7;
+      const g = ctx.createRadialGradient(bx - 2, by - 2, 1, bx, by, r);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(1, '#c9d2dc');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(20,30,45,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+    };
+
+    const figR = 16;
+    const num = String(player.shirtNumber);
+    // Figuren blicken in Laufrichtung (facing = +/- PI/2 dreht sie seitlich).
     if (isDribble) {
-      drawDisc(x, laneY, '#37d67a', String(player.shirtNumber));
-      drawDisc(endX + 40, laneY, '#d84b5a', 'GS');
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(x + 24, laneY + 8, 7, 0, Math.PI * 2);
-      ctx.fill();
+      streak(x, laneY, 1);
+      drawHumanPlayer(ctx, endX + 40, laneY, '#d84b5a', { label: 'GS', radius: figR, facing: -Math.PI / 2 });
+      drawHumanPlayer(ctx, x, laneY, '#37d67a', { label: num, radius: figR, facing: Math.PI / 2 });
+      miniBall(x + 24, laneY + 10);
     } else {
-      drawDisc(x, laneY, '#d84b5a', 'GS');
-      drawDisc(startX - 40, laneY, '#37d67a', String(player.shirtNumber));
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(x + 22, laneY + 8, 7, 0, Math.PI * 2);
-      ctx.fill();
+      streak(x, laneY, -1);
+      drawHumanPlayer(ctx, startX - 40, laneY, '#37d67a', { label: num, radius: figR, facing: Math.PI / 2 });
+      drawHumanPlayer(ctx, x, laneY, '#d84b5a', { label: 'GS', radius: figR, facing: -Math.PI / 2 });
+      miniBall(x - 24, laneY + 10);
     }
 
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
