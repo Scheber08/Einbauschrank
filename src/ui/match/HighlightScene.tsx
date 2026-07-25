@@ -327,9 +327,13 @@ type BallStep = 'target' | 'aim' | 'power' | 'contact' | 'flight' | 'result';
 function BallChallenge({ challenge, player, difficulty, seed, onDone }: SceneProps) {
   const passLike = challenge.kind === 'pass' || challenge.kind === 'cross' || challenge.kind === 'throughBall';
   const isHeader = challenge.kind === 'header';
+  // Steht der Spieler in einer Vorlagen-Szene selbst gut zum Abschluss (kurze,
+  // einigermassen zentrale Distanz), ist der Schuss die Standardaktion - der Pass
+  // bleibt per Knopf moeglich. In tiefen/breiten Positionen bleibt der Pass Standard.
+  const goodShotPosition = passLike && challenge.distance <= 18 && Math.abs(challenge.offset) <= 12;
   // In einer Vorlagen-Szene darf der Nutzer selbst abschliessen, statt zu passen -
   // sonst wuerde ein gewollter Schuss als Fehlpass gewertet.
-  const [selfShoot, setSelfShoot] = useState(false);
+  const [selfShoot, setSelfShoot] = useState(goodShotPosition);
   const isPass = passLike && !selfShoot;
   const stepOrder: BallStep[] = isPass
     ? ['target', 'aim', 'power', 'contact', 'flight', 'result']
@@ -339,7 +343,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     : ['Richtung', isHeader ? 'Wucht' : 'Kraft', 'Ballkontakt', '', ''];
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [step, setStep] = useState<BallStep>(passLike ? 'target' : 'aim');
+  const [step, setStep] = useState<BallStep>(passLike && !goodShotPosition ? 'target' : 'aim');
   const [targetId, setTargetId] = useState<string | null>(challenge.targets?.[0]?.id ?? null);
   const [aim, setAim] = useState<{ x: number; y: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
@@ -718,13 +722,19 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   const isGoal = finalRef.current?.outcome === 'goal' || finalRef.current?.outcome === 'passCompleted';
 
   return (
-    <Frame challenge={challenge} step={stepIndex} steps={stepLabels}
+    <Frame challenge={passLike && selfShoot ? { ...challenge, title: 'Abschluss' } : challenge}
+      step={stepIndex} steps={stepLabels}
       hint={step === 'flight' ? challenge.hint : hints[step]}
       footer={
         <>
           {step === 'target' && (
             <button className="primary" onClick={() => { setSelfShoot(true); setStep('aim'); }}>
               Selbst abschliessen
+            </button>
+          )}
+          {passLike && selfShoot && step === 'aim' && (
+            <button onClick={() => { setSelfShoot(false); setStep('target'); }}>
+              Lieber abspielen
             </button>
           )}
           {step === 'power' && (
