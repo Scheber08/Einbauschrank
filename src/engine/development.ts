@@ -196,9 +196,17 @@ export function developAiPlayer(rng: Rng, player: Player, currentDate: GameDate,
   const rounded = Math.round(delta);
   if (rounded === 0) return;
 
+  // Entwickelt werden bevorzugt die Werte, die auf der eigenen Position zaehlen.
+  // Frueher wurden 14 zufaellige Attribute angehoben - bei einem Stuermer traf
+  // das ebenso oft das Grätschen wie den Abschluss, sodass die Gesamtstaerke
+  // kaum stieg und Mitspieler ihr Potenzial nie erreichten.
+  const programme = positionProgramme(player.position);
   const keys = Object.keys(player.attrs) as AttrKey[];
-  const relevant = keys.filter((k) => player.attrs[k] > 12);
-  for (const k of rng.sample(relevant, Math.min(relevant.length, 14))) {
+  for (const k of keys) {
+    if (player.attrs[k] <= 12) continue;
+    // Nebenwerte entwickeln sich mit, nur langsamer.
+    const weight = clamp((programme[k] ?? 0) * 0.85 + 0.2, 0.2, 1);
+    if (rng.next() > weight) continue;
     player.attrs[k] = clamp(player.attrs[k] + rounded + rng.int(-1, 1), 1, 99);
   }
 
