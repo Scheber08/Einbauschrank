@@ -325,8 +325,12 @@ function drawBall(ctx: CanvasRenderingContext2D, t: Transform, x: number, y: num
 type BallStep = 'target' | 'aim' | 'power' | 'contact' | 'flight' | 'result';
 
 function BallChallenge({ challenge, player, difficulty, seed, onDone }: SceneProps) {
-  const isPass = challenge.kind === 'pass' || challenge.kind === 'cross' || challenge.kind === 'throughBall';
+  const passLike = challenge.kind === 'pass' || challenge.kind === 'cross' || challenge.kind === 'throughBall';
   const isHeader = challenge.kind === 'header';
+  // In einer Vorlagen-Szene darf der Nutzer selbst abschliessen, statt zu passen -
+  // sonst wuerde ein gewollter Schuss als Fehlpass gewertet.
+  const [selfShoot, setSelfShoot] = useState(false);
+  const isPass = passLike && !selfShoot;
   const stepOrder: BallStep[] = isPass
     ? ['target', 'aim', 'power', 'contact', 'flight', 'result']
     : ['aim', 'power', 'contact', 'flight', 'result'];
@@ -335,7 +339,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     : ['Richtung', isHeader ? 'Wucht' : 'Kraft', 'Ballkontakt', '', ''];
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [step, setStep] = useState<BallStep>(stepOrder[0]);
+  const [step, setStep] = useState<BallStep>(passLike ? 'target' : 'aim');
   const [targetId, setTargetId] = useState<string | null>(challenge.targets?.[0]?.id ?? null);
   const [aim, setAim] = useState<{ x: number; y: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
@@ -703,7 +707,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   const stepIndex = stepOrder.indexOf(step);
   const hints: Record<BallStep, string> = {
-    target: 'Klicke den Mitspieler an, den du anspielen willst.',
+    target: 'Klicke einen Mitspieler an fuer den Pass - oder schliesse mit dem Knopf rechts selbst ab.',
     aim: 'Bewege die Maus: der Marker auf der Torlinie zeigt, wo der Ball einschlaegt (gruen = im Tor). Klick legt die Richtung fest.',
     power: 'Halte die Maustaste oder die Leertaste gedrueckt und lasse bei der gewuenschten Kraft los.',
     contact: 'Waehle den Punkt am Ball. Die Vorschau rechts zeigt, wo der Ball ankaeme.',
@@ -718,6 +722,11 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       hint={step === 'flight' ? challenge.hint : hints[step]}
       footer={
         <>
+          {step === 'target' && (
+            <button className="primary" onClick={() => { setSelfShoot(true); setStep('aim'); }}>
+              Selbst abschliessen
+            </button>
+          )}
           {step === 'power' && (
             <>
               <div className="power-meter"><span style={{ width: `${powerDisplay * 100}%` }} /></div>

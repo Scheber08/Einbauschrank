@@ -1306,7 +1306,14 @@ export class MatchEngine {
         this.applyFreeKickResult(result, ctx, user, st, evts);
         break;
       case 'pass':
-        this.applyPassResult(result, ctx, user, st, evts, side);
+        // In der Vorlagen-Szene darf der Nutzer auch selbst abschliessen. Dann
+        // liefert die Szene einen Schuss-Ausgang (goal/saved/...) statt eines
+        // Pass-Ausgangs und wird als eigener Abschluss verbucht.
+        if (result.outcome === 'passCompleted' || result.outcome === 'passLost') {
+          this.applyPassResult(result, ctx, user, st, evts, side);
+        } else {
+          this.applyShotResult(result, ctx, user, st, evts);
+        }
         break;
       case 'duel':
         this.applyDuelResult(result, ctx, user, st, evts);
