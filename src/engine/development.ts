@@ -136,8 +136,14 @@ export function applyTraining(
     const current = player.attrs[attr];
     // Hohe Werte wachsen langsamer.
     const ceiling = clamp((player.potential + 8 - current) / 22, 0.05, 1.4);
-    const amountRaw = rate * weight * ceiling * rng.float(0.35, 1.35) * 0.9;
-    const amount = amountRaw > rng.next() ? Math.max(1, Math.round(amountRaw)) : 0;
+    // amountRaw ist der Erwartungswert eines Trainingstages; der Nachkommaanteil
+    // entscheidet per Zufall ueber den naechsten ganzen Punkt. Frueher wurde
+    // jeder Treffer auf mindestens +1 aufgerundet und war ab Rate 1 sogar
+    // sicher - bei woechentlichem Training summierte sich das so stark, dass
+    // ein Talent schon mit 19 sein Potenzial erreichte.
+    const amountRaw = rate * weight * ceiling * rng.float(0.35, 1.35) * 0.14;
+    const whole = Math.floor(amountRaw);
+    const amount = whole + (rng.next() < amountRaw - whole ? 1 : 0);
     if (amount > 0 && current < 99) {
       player.attrs[attr] = clamp(current + amount, 1, 99);
       gains.push({ attr, label: ATTR_LABELS[attr], amount });
