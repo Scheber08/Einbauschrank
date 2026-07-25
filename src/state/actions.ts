@@ -146,6 +146,31 @@ export function acceptOffer(offerId: string) {
   const club = offer ? game.clubs[offer.clubId] : null;
   if (!offer || !user || !club) return;
 
+  // Verlaengerung beim eigenen Verein: nur der Vertrag wird neu, das Umfeld
+  // (Beziehungen, Trainer, Fans) bleibt bestehen.
+  if (offer.renewal || offer.clubId === user.clubId) {
+    user.contract = {
+      clubId: club.id,
+      salary: offer.salary,
+      until: makeDate(game.season + offer.years, 6, 30),
+      role: offer.role,
+      goalBonus: offer.goalBonus,
+      appearanceBonus: Math.round(offer.salary * 0.1),
+      releaseClause: offer.releaseClause,
+    };
+    game.offers = [];
+    addCareerEvent(game, 'contract', `Vertrag bei ${club.name} verlaengert`,
+      `Neuer Vertrag bis ${game.season + offer.years}. Rolle: ${offer.role}, `
+      + `Gehalt ${offer.salary.toLocaleString('de-DE')} Euro pro Woche.`,
+      { clubId: club.id });
+    addNews(game, 'contract', `${user.lastName} verlaengert bei ${club.name}`,
+      `Die Zukunft ist geklaert: neuer Vertrag bis ${game.season + offer.years}.`, true);
+    commit();
+    void saveCurrent(true);
+    showToast(`Vertrag bei ${club.name} verlaengert.`, 'good');
+    return;
+  }
+
   const oldClub = userClub(game);
   user.clubId = club.id;
   user.contract = {

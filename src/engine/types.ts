@@ -428,6 +428,8 @@ export interface TransferOffer {
   pitch: string;
   expiresOn: GameDate;
   leagueLevel: number;
+  /** Verlaengerung beim eigenen Verein statt Wechsel. */
+  renewal?: boolean;
 }
 
 // --- Schwierigkeitsgrad (Konzept Abschnitt 59) --------------------------

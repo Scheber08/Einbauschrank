@@ -49,14 +49,17 @@ export default function TransfersTab() {
                     <div style={{ fontWeight: 680 }}>{offerClub.name}</div>
                     <div className="tiny dim">{league?.name}</div>
                   </div>
-                  {better && <Pill tone="good">Hoehere Liga</Pill>}
+                  {offer.renewal && <Pill tone="good">Verlaengerung</Pill>}
+                  {better && !offer.renewal && <Pill tone="good">Hoehere Liga</Pill>}
                 </div>
 
                 <div className="small" style={{ margin: '0.6rem 0' }}>
                   <div className="row between"><span className="muted">Rolle</span><span>{offer.role}</span></div>
                   <div className="row between"><span className="muted">Gehalt</span><span>{salary(offer.salary)}</span></div>
                   <div className="row between"><span className="muted">Laufzeit</span><span>{offer.years} Jahre</span></div>
-                  <div className="row between"><span className="muted">Ablöse</span><span>{money(offer.fee)}</span></div>
+                  {!offer.renewal && (
+                    <div className="row between"><span className="muted">Ablöse</span><span>{money(offer.fee)}</span></div>
+                  )}
                   <div className="row between"><span className="muted">Torpraemie</span>
                     <span>{offer.goalBonus.toLocaleString('de-DE')} EUR</span></div>
                   <div className="row between"><span className="muted">Reputation</span>
@@ -68,7 +71,7 @@ export default function TransfersTab() {
                 <p className="tiny dim">{offer.pitch}</p>
                 <button className="primary small" style={{ width: '100%' }}
                   onClick={() => acceptOffer(offer.id)}>
-                  Angebot annehmen
+                  {offer.renewal ? 'Verlaengern' : 'Angebot annehmen'}
                 </button>
               </div>
             );

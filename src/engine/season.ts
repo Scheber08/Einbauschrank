@@ -688,6 +688,66 @@ function runTransferWindow(state: GameState, rng: Rng) {
   }
 
   generateUserOffers(state, rng);
+  offerUserRenewal(state, rng);
+}
+
+/**
+ * Verlaengerungsangebot des eigenen Vereins (Konzept Abschnitt 33).
+ * Ohne das liefe der Vertrag des Spielers stillschweigend ab und er spielte
+ * dauerhaft zum Anfangsgehalt weiter. Das Angebot kommt, sobald der Vertrag
+ * in der kommenden Saison endet - und richtet sich nach Leistung und Staerke.
+ */
+export function offerUserRenewal(state: GameState, rng: Rng) {
+  const user = state.players[state.userPlayerId];
+  const club = user?.clubId ? state.clubs[user.clubId] : null;
+  if (!user?.contract || !club) return;
+
+  // Nur wenn der Vertrag im kommenden Jahr auslaeuft (Datum ist YYYY-MM-DD).
+  const endYear = Number(user.contract.until.slice(0, 4));
+  if (endYear > state.season + 1) return;
+
+  const ability = computeOverall(user.attrs, user.position);
+  const age = ageOn(user.birthDate, state.date);
+  const level = state.competitions[club.leagueId]?.level ?? 3;
+  const country = COUNTRY_BY_ID[club.countryId];
+
+  const entries = Object.values(state.seasonStats).filter(
+    (s) => s.playerId === user.id && s.season === state.season,
+  );
+  const apps = entries.reduce((a, s) => a + s.appearances, 0);
+  const ratingSum = entries.reduce((a, s) => a + s.ratingSum, 0);
+  const avgRating = apps > 0 ? ratingSum / apps : 0;
+
+  // Wer gar nicht spielt, bekommt kein neues Angebot - dann muss ein Wechsel her.
+  if (apps < 5 && ability < club.reputation * 0.6) return;
+
+  const base = calcSalary(ability, age, level, club.reputation, country?.wealth ?? 1);
+  const performanceBonus = clamp(1 + (avgRating - 6.4) * 0.12 + apps / 260, 0.9, 1.5);
+  const salary = Math.round(base * performanceBonus * rng.float(1.0, 1.2));
+  // Die angebotene Rolle folgt der aktuellen Rolle, mindestens nach Staerke.
+  const byAbility: SquadRole = ability >= club.reputation * 0.95 ? 'Schluesselspieler'
+    : ability >= club.reputation * 0.72 ? 'Stammspieler'
+    : ability >= club.reputation * 0.55 ? 'Rotationsspieler' : 'Ergaenzungsspieler';
+  const role = SQUAD_ROLE_ORDER.indexOf(byAbility) > SQUAD_ROLE_ORDER.indexOf(user.contract.role)
+    ? byAbility : user.contract.role;
+
+  state.offers.push({
+    id: makeId(state, 'o'),
+    clubId: club.id,
+    fee: 0,
+    salary,
+    years: age <= 23 ? rng.int(3, 5) : rng.int(2, 4),
+    role,
+    goalBonus: Math.round(salary * rng.float(0.15, 0.45)),
+    pitch: `${club.name} moechte mit dir verlaengern und plant dich als ${role} ein. `
+      + `Bisheriges Gehalt ${user.contract.salary.toLocaleString('de-DE')} Euro pro Woche.`,
+    expiresOn: addDays(state.date, 21),
+    leagueLevel: level,
+    renewal: true,
+  });
+  addNews(state, 'contract', `${club.name} bietet dir einen neuen Vertrag`,
+    `Dein Vertrag laeuft aus. Der Verein legt ein Angebot ueber `
+    + `${salary.toLocaleString('de-DE')} Euro pro Woche als ${role} vor.`, true);
 }
 
 /** Angebote an den eigenen Spieler nach der Saison (Konzept Abschnitt 34). */
