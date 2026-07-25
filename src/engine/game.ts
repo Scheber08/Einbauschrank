@@ -853,10 +853,19 @@ function handleUserMatchAftermath(
   const opponent = state.clubs[opponentId];
   const scoreText = `${input.homeScore}:${input.awayScore}`;
 
-  // Trainerbeziehung (Konzept Abschnitt 29)
-  const relationDelta = (s.rating - 6.5) * 2.2 + (s.motm ? 2 : 0);
-  state.coachRelation = clamp(state.coachRelation + relationDelta, 0, 100);
-  state.fanRelation = clamp(state.fanRelation + (s.rating - 6.4) * 1.6 + s.goals * 2.2, 0, 100);
+  // Trainerbeziehung und Fansympathie (Konzept Abschnitt 29).
+  // Bezugspunkt ist eine durchschnittliche Partie (Note 6,2). Frueher lag die
+  // Messlatte bei 6,5 und damit ueber dem, was ein normaler Spieler erreicht -
+  // die Beziehung sank dadurch selbst bei solider Leistung jedes Spiel weiter.
+  const AVERAGE_RATING = 6.2;
+  const coachPerf = (s.rating - AVERAGE_RATING) * 2.4 + (s.motm ? 1.5 : 0);
+  const fanPerf = (s.rating - AVERAGE_RATING) * 1.6 + s.goals * 2.2;
+  // Je naeher die Beziehung schon am Rand liegt, desto zaeher wird der naechste
+  // Schritt in dieselbe Richtung. So pendelt sie sich ein, statt zu driften.
+  const damp = (value: number, delta: number) =>
+    delta * clamp((delta >= 0 ? 100 - value : value) / 45, 0.3, 1);
+  state.coachRelation = clamp(state.coachRelation + damp(state.coachRelation, coachPerf), 0, 100);
+  state.fanRelation = clamp(state.fanRelation + damp(state.fanRelation, fanPerf), 0, 100);
 
   // Nachwirkung der Halbzeitentscheidung auf Moral und Trainerbeziehung.
   if (input.moraleDelta) {
