@@ -280,6 +280,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   background: linear-gradient(90deg, #2bb7ff, #37d67a 45%, #ffb020 75%, #ff5c6c);
 }
 
+/* --- Mannschaftsvergleich --------------------------------------------- */
+
+.stat-cmp { margin-bottom: 0.5rem; }
+.stat-cmp:last-child { margin-bottom: 0; }
+.stat-cmp-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 0.2rem;
+}
+.stat-cmp-head .mono { font-variant-numeric: tabular-nums; }
+.cmp-bar {
+  display: flex; height: 7px; border-radius: 99px; overflow: hidden;
+  background: #0a1424; gap: 2px;
+}
+.cmp-bar .h { background: var(--accent); border-radius: 99px 0 0 99px; }
+.cmp-bar .a { background: var(--accent-2); border-radius: 0 99px 99px 0; }
+.cmp-bar .h:only-child, .cmp-bar .a:only-child { border-radius: 99px; }
+
 /* --- Dialoge ---------------------------------------------------------- */
 
 .modal-overlay {

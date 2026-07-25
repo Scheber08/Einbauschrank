@@ -63,6 +63,16 @@ export interface MatchOutcome {
   halftimeMoraleDelta: number;
 }
 
+/** Aufsummierte Mannschaftswerte fuer den Team-Vergleich im Spielbericht. */
+export interface TeamStatTotals {
+  shots: number;
+  shotsOnTarget: number;
+  passes: number;
+  passesCompleted: number;
+  fouls: number;
+  cards: number;
+}
+
 interface PendingContext {
   type: 'shot' | 'longShot' | 'header' | 'oneOnOne' | 'pass' | 'duel' | 'save'
     | 'penalty' | 'freeKick' | 'dribble' | 'block';
@@ -280,6 +290,29 @@ export class MatchEngine {
 
   get score(): [number, number] {
     return [this.homeScore, this.awayScore];
+  }
+
+  /**
+   * Mannschaftswerte beider Teams, aufsummiert aus den Spielerstatistiken.
+   * Schuesse/Schuesse aufs Tor sind bereits waehrend des Spiels vollstaendig;
+   * das Passvolumen (Ballbesitz) wird erst bei finish() aufgefuellt.
+   */
+  get teamStats(): { home: TeamStatTotals; away: TeamStatTotals } {
+    const empty = (): TeamStatTotals =>
+      ({ shots: 0, shotsOnTarget: 0, passes: 0, passesCompleted: 0, fouls: 0, cards: 0 });
+    const home = empty();
+    const away = empty();
+    const homeId = this.setup.homeClub.id;
+    for (const s of this.stats.values()) {
+      const t = s.clubId === homeId ? home : away;
+      t.shots += s.shots;
+      t.shotsOnTarget += s.shotsOnTarget;
+      t.passes += s.passes;
+      t.passesCompleted += s.passesCompleted;
+      t.fouls += s.fouls;
+      t.cards += s.yellowCards + s.redCards;
+    }
+    return { home, away };
   }
 
   private clubId(side: Side): Id {

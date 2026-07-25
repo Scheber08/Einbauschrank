@@ -9,6 +9,7 @@ import {
 import {
   MatchEngine, MENTALITY_LABELS,
   type HalftimeDecision, type InjuryDecision, type Mentality, type MatchOutcome,
+  type TeamStatTotals,
 } from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { Rng } from '../../engine/rng';
@@ -318,6 +319,12 @@ export default function MatchScreen() {
         </Panel>
       )}
 
+      {phase !== 'setup' && engine && (
+        <TeamStatsPanel
+          home={engine.teamStats.home} away={engine.teamStats.away}
+          homeShort={homeClub.short} awayShort={awayClub.short} full={phase === 'done'} />
+      )}
+
       {phase !== 'setup' && (
         <div className="grid two">
           <Panel title="Spielverlauf">
@@ -594,6 +601,57 @@ function StatLine({ label, value }: { label: string; value: string | number }) {
     <div className="row between" style={{ padding: '0.1rem 0' }}>
       <span className="muted">{label}</span>
       <span className="mono">{value}</span>
+    </div>
+  );
+}
+
+/** Direkter Mannschaftsvergleich (Heim gruen, Auswaerts blau). */
+function TeamStatsPanel(
+  { home, away, homeShort, awayShort, full }:
+  {
+    home: TeamStatTotals; away: TeamStatTotals;
+    homeShort: string; awayShort: string; full: boolean;
+  },
+) {
+  const rows: { label: string; h: number; a: number; pct?: boolean }[] = [
+    { label: 'Schuesse', h: home.shots, a: away.shots },
+    { label: 'aufs Tor', h: home.shotsOnTarget, a: away.shotsOnTarget },
+  ];
+  if (full) {
+    // Ballbesitz aus dem Passvolumen - erst nach Abpfiff vollstaendig.
+    const totalPass = home.passes + away.passes;
+    if (totalPass > 0) {
+      const hp = Math.round((home.passes / totalPass) * 100);
+      rows.push({ label: 'Ballbesitz', h: hp, a: 100 - hp, pct: true });
+    }
+    if (home.fouls + away.fouls > 0) rows.push({ label: 'Fouls', h: home.fouls, a: away.fouls });
+    if (home.cards + away.cards > 0) rows.push({ label: 'Karten', h: home.cards, a: away.cards });
+  }
+  return (
+    <Panel title="Spielstatistik">
+      <div className="row between" style={{ marginBottom: '0.55rem' }}>
+        <span className="tiny" style={{ color: 'var(--accent)', fontWeight: 700 }}>{homeShort}</span>
+        <span className="tiny dim">{full ? 'Endstand' : 'live'}</span>
+        <span className="tiny" style={{ color: 'var(--accent-2)', fontWeight: 700 }}>{awayShort}</span>
+      </div>
+      {rows.map((r) => <StatCompare key={r.label} {...r} />)}
+    </Panel>
+  );
+}
+
+function StatCompare({ label, h, a, pct }: { label: string; h: number; a: number; pct?: boolean }) {
+  const hp = pct ? h : (h + a > 0 ? (h / (h + a)) * 100 : 50);
+  return (
+    <div className="stat-cmp">
+      <div className="stat-cmp-head">
+        <span className="mono" style={{ fontWeight: 600 }}>{pct ? `${h}%` : h}</span>
+        <span className="tiny dim">{label}</span>
+        <span className="mono" style={{ fontWeight: 600 }}>{pct ? `${a}%` : a}</span>
+      </div>
+      <div className="cmp-bar">
+        <span className="h" style={{ width: `${hp}%` }} />
+        <span className="a" style={{ width: `${100 - hp}%` }} />
+      </div>
     </div>
   );
 }
