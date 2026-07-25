@@ -16,7 +16,7 @@ import { Rng } from '../../engine/rng';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { advanceCalendar, saveCurrent } from '../../state/actions';
 import { commit, setState, useAppState } from '../../state/store';
-import { Empty, Panel, Pill, rating, ratingColor, shortName } from '../components';
+import { Empty, Meter, Panel, Pill, rating, ratingColor, shortName } from '../components';
 import HighlightScene from './HighlightScene';
 
 type Mode = 'simulate' | 'ownHighlights' | 'allHighlights';
@@ -266,6 +266,29 @@ export default function MatchScreen() {
               Werten, halte die Fitness hoch und verbessere die Trainerbeziehung -
               dann rueckst du in den Kader. Das Spiel kannst du simulieren lassen.
             </p>
+          )}
+
+          {(prepared.userInLineup || prepared.userOnBench) && (
+            <div style={{ marginBottom: '0.9rem' }}>
+              <label>Deine Verfassung</label>
+              <div className="grid three">
+                <Meter label="Fitness" value={user.fitness} />
+                <Meter label="Form" value={user.form} />
+                <Meter label="Spielpraxis" value={user.sharpness} />
+              </div>
+              {user.fitness < 65 && (
+                <p className="tiny" style={{ color: 'var(--warn)', margin: '0.1rem 0 0' }}>
+                  Wenig Fitness - mit „Kraefte schonen" haelst du laenger durch, sonst
+                  laesst die Leistung gegen Spielende nach.
+                </p>
+              )}
+              {user.sharpness < 55 && user.fitness >= 65 && (
+                <p className="tiny dim" style={{ margin: '0.1rem 0 0' }}>
+                  Wenig Spielpraxis - nach wenig Einsatzzeit brauchst du etwas, um in den
+                  Rhythmus zu kommen.
+                </p>
+              )}
+            </div>
           )}
 
           {(prepared.userInLineup || prepared.userOnBench) && (
