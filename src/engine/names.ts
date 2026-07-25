@@ -146,3 +146,15 @@ export const NAME_POOLS: Record<string, NamePool> = {
 export const STADIUM_WORDS = [
   'Arena', 'Stadion', 'Park', 'Sportpark', 'Kampfbahn', 'Waldstadion', 'Stadion am Ring',
 ];
+
+/** Orte, nach denen traditionsreiche Stadien benannt sind ("Stadion an der ..."). */
+export const STADIUM_PLACES = [
+  'Bergstrasse', 'Alten Foersterei', 'Hafenmole', 'Muehlenaue', 'Kastanienallee',
+  'Alten Ziegelei', 'Talbruecke', 'Weinsteige', 'Nordkurve', 'Schleuse',
+];
+
+/** Eigenstaendige Stadionnamen ohne Stadtbezug. */
+export const STADIUM_STANDALONE = [
+  'Waldstadion', 'Stadion am Hohen Wall', 'Gruenwaldstadion', 'Sportpark Suedhang',
+  'Rheinauepark', 'Stadion Rote Erde', 'Weserkampfbahn', 'Stadion Alte Foersterei',
+];

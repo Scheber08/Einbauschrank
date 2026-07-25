@@ -6,6 +6,7 @@ import { leaguesOfCountry, cupOfCountry } from '../../engine/season';
 import { topAssists, topScorers } from '../../engine/stats';
 import { CUP_ROUNDS } from '../../engine/cup';
 import { useAppState } from '../../state/store';
+import ClubCrest from '../ClubCrest';
 import { Empty, FormDots, Panel, shortName } from '../components';
 
 export default function TableTab() {
@@ -134,7 +135,14 @@ export default function TableTab() {
                         borderLeft: `3px solid ${promo ? '#2fae63' : releg ? '#b8404d'
                           : playoff ? '#c98a1c' : 'transparent'}`,
                       }}>{pos}</td>
-                      <td>{game.clubs[row.clubId]?.name}</td>
+                      <td>
+                        <span className="row" style={{ gap: '0.45rem', alignItems: 'center' }}>
+                          {game.clubs[row.clubId] && (
+                            <ClubCrest club={game.clubs[row.clubId]} size={20} />
+                          )}
+                          {game.clubs[row.clubId]?.name}
+                        </span>
+                      </td>
                       <td className="num mono">{row.played}</td>
                       <td className="num mono">{row.won}</td>
                       <td className="num mono">{row.drawn}</td>

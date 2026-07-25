@@ -4,6 +4,7 @@ import {
 } from '../../engine/game';
 import { TRAINING_LABELS } from '../../engine/development';
 import { setState, useAppState } from '../../state/store';
+import ClubCrest from '../ClubCrest';
 import { Empty, FormDots, Panel, Pill, rating, ratingColor } from '../components';
 
 export default function OverviewTab() {
@@ -32,15 +33,22 @@ export default function OverviewTab() {
           {next && opponent && (
             <>
               <div className="row between">
-                <div>
-                  <div style={{ fontSize: '1.15rem', fontWeight: 680 }}>
-                    {isHome ? 'gegen' : 'bei'} {opponent.name}
+                <div className="row" style={{ gap: '0.7rem', alignItems: 'center' }}>
+                  <ClubCrest club={opponent} size={52} />
+                  <div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 680 }}>
+                      {isHome ? 'gegen' : 'bei'} {opponent.name}
+                    </div>
+                    <div className="small muted">
+                      {game.competitions[next.competitionId]?.name}
+                      {next.roundName ? ` - ${next.roundName}` : ` - ${next.matchday}. Spieltag`}
+                    </div>
+                    <div className="tiny dim">{formatDate(next.date)}</div>
+                    <div className="tiny dim">
+                      {isHome ? club?.stadiumName : opponent.stadiumName}
+                      {' - Trainer '}{opponent.managerName}
+                    </div>
                   </div>
-                  <div className="small muted">
-                    {game.competitions[next.competitionId]?.name}
-                    {next.roundName ? ` - ${next.roundName}` : ` - ${next.matchday}. Spieltag`}
-                  </div>
-                  <div className="tiny dim">{formatDate(next.date)}</div>
                 </div>
                 <div className="center">
                   <div className="tiny dim">Reputation</div>

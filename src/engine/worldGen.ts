@@ -2,7 +2,8 @@
 import { computeOverall, type PositionCode } from './attributes';
 import { COUNTRIES, COUNTRY_BY_ID, type CountryDef } from './countries';
 import { ageOn, type GameDate } from './date';
-import { NAME_POOLS, STADIUM_WORDS } from './names';
+import { sponsorsFor } from './identity';
+import { NAME_POOLS, STADIUM_PLACES, STADIUM_STANDALONE, STADIUM_WORDS } from './names';
 import { SQUAD_TEMPLATE, createPlayer, makeContract } from './playerGen';
 import { Rng, clamp } from './rng';
 import type {
@@ -57,11 +58,30 @@ function makeClubName(rng: Rng, country: CountryDef, city: string): { name: stri
   return { name, short };
 }
 
-function makeStadium(rng: Rng, city: string, reputation: number): { name: string; capacity: number } {
-  const word = rng.pick(STADIUM_WORDS);
+/**
+ * Stadionname und Fassungsvermoegen. Grosse Vereine spielen haeufiger in einer
+ * nach dem Sponsor benannten Arena, kleinere in traditionellen Spielstaetten -
+ * das macht den Unterschied zwischen den Ligen greifbar.
+ */
+function makeStadium(
+  rng: Rng, city: string, reputation: number, clubId: Id,
+): { name: string; capacity: number } {
   const base = 2500 + Math.pow(reputation, 2.05) * 8;
   const capacity = Math.round((base * rng.float(0.8, 1.25)) / 500) * 500;
-  return { name: `${city} ${word}`, capacity: clamp(capacity, 2000, 78000) };
+
+  const roll = rng.next();
+  const sponsorChance = clamp((reputation - 40) / 90, 0, 0.45);
+  let name: string;
+  if (roll < sponsorChance) {
+    name = `${sponsorsFor(clubId, reputation).shirt} Arena`;
+  } else if (roll < sponsorChance + 0.2) {
+    name = `Stadion an der ${rng.pick(STADIUM_PLACES)}`;
+  } else if (roll < sponsorChance + 0.32) {
+    name = rng.pick(STADIUM_STANDALONE);
+  } else {
+    name = `${city} ${rng.pick(STADIUM_WORDS)}`;
+  }
+  return { name, capacity: clamp(capacity, 2000, 78000) };
 }
 
 /** Erzeugt einen kompletten Kader fuer einen Verein. */
@@ -180,8 +200,8 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
         usedNames.add(naming.name);
 
         const reputation = reputationBand(rng, level, rank);
-        const stadium = makeStadium(rng, city, reputation);
         const clubId = opts.makeId('c');
+        const stadium = makeStadium(rng, city, reputation, clubId);
 
         const club: Club = {
           id: clubId,

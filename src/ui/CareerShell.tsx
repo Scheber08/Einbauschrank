@@ -7,8 +7,10 @@ import type { SeasonReport } from '../engine/season';
 import type { TrainingOutcome } from '../engine/development';
 import type { LifeEvent, LifeOption } from '../engine/events';
 import type { WncResult } from '../engine/types';
+import { clubSponsors } from '../engine/identity';
 import { advanceCalendar, applyLifeEvent, backToMenu, saveCurrent } from '../state/actions';
 import { setState, useAppState, type CareerTab } from '../state/store';
+import ClubCrest from './ClubCrest';
 import { Bar, Meter, initials, money } from './components';
 import CalendarTab from './tabs/CalendarTab';
 import ChronicleTab from './tabs/ChronicleTab';
@@ -73,8 +75,16 @@ export default function CareerShell() {
           <div className="small muted">
             {user.position} - {ageOn(user.birthDate, game.date)} Jahre
           </div>
-          <div className="small" style={{ color: club?.colors[0] }}>{club?.name ?? 'Vereinslos'}</div>
+          <div className="row" style={{ gap: '0.45rem', alignItems: 'center', justifyContent: 'center' }}>
+            {club && <ClubCrest club={club} size={26} />}
+            <div className="small" style={{ color: club?.colors[0] }}>{club?.name ?? 'Vereinslos'}</div>
+          </div>
           <div className="tiny dim">{league?.name}</div>
+          {club && (
+            <div className="tiny dim" style={{ marginTop: 2 }}>
+              {club.stadiumName} - Sponsor {clubSponsors(club).shirt}
+            </div>
+          )}
 
           <div className="row between" style={{ marginTop: '0.7rem', marginBottom: '0.3rem' }}>
             <span className="tiny dim">Gesamtstaerke</span>

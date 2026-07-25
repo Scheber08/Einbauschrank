@@ -220,8 +220,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   background: linear-gradient(180deg, #16253d, #0c1729);
   border: 1px solid var(--border); border-radius: var(--radius);
 }
-.scoreboard .team { font-size: 1.05rem; font-weight: 640; }
-.scoreboard .team.away { text-align: right; }
+.scoreboard .team {
+  font-size: 1.05rem; font-weight: 640;
+  display: flex; align-items: center; gap: 0.6rem; min-width: 0;
+}
+.scoreboard .team > span { min-width: 0; overflow-wrap: anywhere; }
+.scoreboard .team.away { justify-content: flex-end; text-align: right; }
 .scoreboard .score {
   font-size: 2.1rem; font-weight: 800; font-variant-numeric: tabular-nums;
   padding: 0 0.8rem; letter-spacing: 0.02em;
@@ -279,6 +283,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   display: block; height: 100%;
   background: linear-gradient(90deg, #2bb7ff, #37d67a 45%, #ffb020 75%, #ff5c6c);
 }
+
+/* --- Vertragsangebote -------------------------------------------------- */
+
+.offer-card { display: flex; flex-direction: column; }
+.offer-card .pos { color: var(--accent); font-weight: 650; }
+.offer-card .neg { color: var(--bad); font-weight: 650; }
 
 /* --- Mannschaftsvergleich --------------------------------------------- */
 

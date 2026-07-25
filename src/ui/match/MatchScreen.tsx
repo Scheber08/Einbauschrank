@@ -16,6 +16,7 @@ import { Rng } from '../../engine/rng';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { advanceCalendar, saveCurrent } from '../../state/actions';
 import { commit, setState, useAppState } from '../../state/store';
+import ClubCrest from '../ClubCrest';
 import { Empty, Meter, Panel, Pill, rating, ratingColor, shortName } from '../components';
 import HighlightScene from './HighlightScene';
 
@@ -205,7 +206,10 @@ export default function MatchScreen() {
   return (
     <div className="match-screen">
       <div className="scoreboard">
-        <div className="team">{homeClub.name}</div>
+        <div className="team">
+          <ClubCrest club={homeClub} size={38} />
+          <span>{homeClub.name}</span>
+        </div>
         <div className="center">
           <div className="score">{score[0]}:{score[1]}</div>
           <div className="clock">
@@ -214,7 +218,10 @@ export default function MatchScreen() {
               : `${engine?.minute ?? 0}. Minute`}
           </div>
         </div>
-        <div className="team away">{awayClub.name}</div>
+        <div className="team away">
+          <span>{awayClub.name}</span>
+          <ClubCrest club={awayClub} size={38} />
+        </div>
       </div>
 
       <div className="row between" style={{ margin: '0.7rem 0' }}>

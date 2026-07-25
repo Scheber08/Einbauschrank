@@ -1,7 +1,9 @@
 import { formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
+import { clubSponsors } from '../../engine/identity';
 import { acceptOffer, declineAllOffers } from '../../state/actions';
 import { useAppState } from '../../state/store';
+import ClubCrest from '../ClubCrest';
 import { Empty, Meter, Panel, Pill, money, salary } from '../components';
 
 export default function TransfersTab() {
@@ -42,30 +44,56 @@ export default function TransfersTab() {
             if (!offerClub) return null;
             const better = offer.leagueLevel < (club
               ? game.competitions[club.leagueId]?.level ?? 3 : 3);
+            const sponsors = clubSponsors(offerClub);
+            const raise = user.contract
+              ? Math.round((offer.salary / Math.max(1, user.contract.salary) - 1) * 100)
+              : 0;
+            // Letzte bekannte Platzierung des Vereins fuer den Eindruck vom Niveau.
+            const lastSeason = offerClub.history[offerClub.history.length - 1];
             return (
-              <div className="panel" key={offer.id} style={{ margin: 0 }}>
-                <div className="row between">
-                  <div>
+              <div className="panel offer-card" key={offer.id} style={{ margin: 0 }}>
+                <div className="row" style={{ gap: '0.6rem', alignItems: 'center' }}>
+                  <ClubCrest club={offerClub} size={44} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 680 }}>{offerClub.name}</div>
-                    <div className="tiny dim">{league?.name}</div>
+                    <div className="tiny dim">{league?.name} - {offerClub.city}</div>
                   </div>
                   {offer.renewal && <Pill tone="good">Verlaengerung</Pill>}
                   {better && !offer.renewal && <Pill tone="good">Hoehere Liga</Pill>}
                 </div>
 
+                <div className="tiny dim" style={{ margin: '0.5rem 0 0.1rem' }}>
+                  {offerClub.stadiumName} - {offerClub.stadiumCapacity.toLocaleString('de-DE')} Plaetze
+                </div>
+                <div className="tiny dim" style={{ marginBottom: '0.5rem' }}>
+                  Trainer {offerClub.managerName} - Sponsor {sponsors.shirt}
+                  {lastSeason?.position ? ` - Vorsaison ${lastSeason.position}.` : ''}
+                </div>
+
                 <div className="small" style={{ margin: '0.6rem 0' }}>
                   <div className="row between"><span className="muted">Rolle</span><span>{offer.role}</span></div>
-                  <div className="row between"><span className="muted">Gehalt</span><span>{salary(offer.salary)}</span></div>
+                  <div className="row between">
+                    <span className="muted">Gehalt</span>
+                    <span>
+                      {salary(offer.salary)}
+                      {raise !== 0 && (
+                        <span className={raise > 0 ? 'pos' : 'neg'} style={{ marginLeft: 6 }}>
+                          {raise > 0 ? `+${raise}%` : `${raise}%`}
+                        </span>
+                      )}
+                    </span>
+                  </div>
                   <div className="row between"><span className="muted">Laufzeit</span><span>{offer.years} Jahre</span></div>
                   {!offer.renewal && (
                     <div className="row between"><span className="muted">Ablöse</span><span>{money(offer.fee)}</span></div>
                   )}
                   <div className="row between"><span className="muted">Torpraemie</span>
                     <span>{offer.goalBonus.toLocaleString('de-DE')} EUR</span></div>
-                  <div className="row between"><span className="muted">Reputation</span>
-                    <span>{offerClub.reputation}</span></div>
-                  <div className="row between"><span className="muted">Training</span>
-                    <span>{offerClub.training}</span></div>
+                </div>
+
+                <div className="grid two" style={{ gap: '0.5rem' }}>
+                  <Meter label="Reputation" value={offerClub.reputation} />
+                  <Meter label="Training" value={offerClub.training} />
                 </div>
 
                 <p className="tiny dim">{offer.pitch}</p>
