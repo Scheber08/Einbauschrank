@@ -446,6 +446,8 @@ export interface PassResolution {
   targetId: string;
   /** Abweichung vom Mitspieler in Metern. */
   error: number;
+  /** Woran der Pass scheiterte - fuer die Rueckmeldung an den Spieler. */
+  reason?: string;
 }
 
 export function resolvePass(
@@ -480,9 +482,11 @@ export function resolvePass(
     maxTime: 2.6,
   });
 
-  // Wo kommt der Ball ungefaehr an?
-  const landing = findLanding(flight, target ? Math.hypot(target.x, target.y) : passDistance);
-  const error = target ? Math.hypot(landing.x - target.x, landing.y - target.y) : 99;
+  // Wie nah kommt der Ball am Mitspieler vorbei? Frueher wurde der erste
+  // Bodenkontakt gemessen - der liegt bei einem flachen Pass aber hinter dem
+  // Mitspieler, sodass schon eine perfekte Eingabe drei Meter Fehler ergab und
+  // die tatsaechliche Zielabweichung darin unterging.
+  const error = target ? closestApproach(flight, target.x, target.y) : 99;
 
   // Eingabequalitaet: wie genau war die Richtung und wie passend die Kraft?
   const aimError = target ? Math.hypot(input.aimX - target.x, input.aimY - target.y) : 20;
@@ -493,33 +497,47 @@ export function resolvePass(
     0, 1,
   );
 
+  // Die Kraft entscheidet mit: Ein zu hart geschlagener Ball ist nicht zu
+  // kontrollieren, ein zu weicher kommt gar nicht erst an. Die reine Bahnnaehe
+  // erfasst das nicht - die Flugbahn fuehrt auch bei falscher Dosierung am
+  // Mitspieler vorbei, weil die Reichweite in der Simulation nur schwach von
+  // der Kraft abhaengt (selbst der schwaechste Pass traegt ueber fuenfzehn
+  // Meter). Die Dosierung wird deshalb hier bewertet.
+  const powerError = Math.abs(input.power - idealPower);
+  const POWER_TOLERANCE = 0.25;
+
   // Abfangen durch die Deckung
   const marked = target?.marked ?? 0.5;
   const interceptChance = clamp(
-    marked * 0.42 + clamp(error / 9, 0, 1) * 0.4 + challenge.pressure * 0.1
-    - player.attrs.vision / 400,
+    marked * 0.42 + clamp(error / 7, 0, 1) * 0.28 + (1 - quality) * 0.34
+    + challenge.pressure * 0.1 - player.attrs.vision / 400,
     0.02, 0.93,
   );
 
-  if (error > 6.5 || rng.chance(interceptChance)) {
-    return { outcome: 'passLost', flight, quality, targetId: target?.id ?? '', error };
+  const reason = error > 6.5 ? 'zielte am Mitspieler vorbei'
+    : powerError > POWER_TOLERANCE
+      ? (input.power > idealPower ? 'schlug den Ball zu hart' : 'spielte zu kurz an')
+    : 'wurde abgefangen';
+
+  if (error > 6.5 || powerError > POWER_TOLERANCE || rng.chance(interceptChance)) {
+    return { outcome: 'passLost', flight, quality, targetId: target?.id ?? '', error, reason };
   }
   return { outcome: 'passCompleted', flight, quality, targetId: target?.id ?? '', error };
 }
 
-function findLanding(flight: Flight, expectedRange: number): { x: number; y: number } {
-  // Erster Bodenkontakt nach dem Abspiel, sonst der Punkt in Zielentfernung.
-  for (let i = 3; i < flight.points.length; i++) {
-    const p = flight.points[i];
-    if (p.z <= 0.05) return { x: p.x, y: p.y };
-  }
-  let best = flight.points[flight.points.length - 1];
-  let bestDiff = Infinity;
+/**
+ * Geringster Abstand der Flugbahn zum Mitspieler. Punkte oberhalb von Kopfhoehe
+ * zaehlen nicht - ein zu hart geschlagener Ball fliegt ueber ihn hinweg, auch
+ * wenn die Bahn von oben betrachtet genau passt.
+ */
+function closestApproach(flight: Flight, targetX: number, targetY: number): number {
+  let best = Infinity;
   for (const p of flight.points) {
-    const d = Math.abs(Math.hypot(p.x, p.y) - expectedRange);
-    if (d < bestDiff) { bestDiff = d; best = p; }
+    if (p.z > 2.4) continue;
+    const d = Math.hypot(p.x - targetX, p.y - targetY);
+    if (d < best) best = d;
   }
-  return { x: best.x, y: best.y };
+  return best === Infinity ? 99 : best;
 }
 
 // --- Zweikampf und Dribbling ------------------------------------------

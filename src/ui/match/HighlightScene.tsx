@@ -670,12 +670,21 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         quality: resolution.quality,
         targetId: resolution.targetId,
       };
-      setResultText(resolution.outcome === 'passCompleted' ? 'Pass kommt an!' : 'Der Pass wird abgefangen.');
+      setResultText(resolution.outcome === 'passCompleted'
+        ? 'Pass kommt an!'
+        : resolution.reason === 'schlug den Ball zu hart' ? 'Zu hart gespielt.'
+        : resolution.reason === 'spielte zu kurz an' ? 'Zu kurz gespielt.'
+        : resolution.reason === 'zielte am Mitspieler vorbei' ? 'Am Mitspieler vorbei.'
+        : 'Der Pass wird abgefangen.');
       setReason(resolution.outcome === 'passCompleted'
         ? `Abweichung nur ${resolution.error.toFixed(1)} Meter.`
-        : resolution.error > 6
-          ? `Der Ball landet ${resolution.error.toFixed(1)} Meter neben dem Mitspieler.`
-          : 'Der Gegner steht im Passweg. Ein anderer Winkel oder mehr Tempo haette geholfen.');
+        : resolution.reason === 'schlug den Ball zu hart'
+          ? 'Mit so viel Tempo ist der Ball nicht zu kontrollieren. Weniger Kraft waehlen.'
+        : resolution.reason === 'spielte zu kurz an'
+          ? 'Der Ball kommt gar nicht erst an. Mehr Kraft waehlen.'
+        : resolution.reason === 'zielte am Mitspieler vorbei'
+          ? `Der Ball geht ${resolution.error.toFixed(1)} Meter am Mitspieler vorbei.`
+          : 'Der Gegner steht im Passweg. Ein freierer Mitspieler waere die bessere Wahl.');
     } else {
       const resolution = resolveShot(input, challenge, player, difficulty, rng);
       shotRef.current = resolution;
