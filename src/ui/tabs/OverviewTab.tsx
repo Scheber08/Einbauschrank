@@ -3,6 +3,7 @@ import {
   nextUserMatch, recentUserMatches, sortedTable, userClub, userLeague, userSeasonSummary,
 } from '../../engine/game';
 import { TRAINING_LABELS } from '../../engine/development';
+import { matchImportance } from '../../engine/rivalry';
 import { setState, useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import { Empty, FormDots, Panel, Pill, rating, ratingColor } from '../components';
@@ -24,6 +25,7 @@ export default function OverviewTab() {
     ? game.clubs[next.homeClubId === club?.id ? next.awayClubId : next.homeClubId]
     : null;
   const isHome = next?.homeClubId === club?.id;
+  const nextImportance = next ? matchImportance(game, next) : null;
 
   return (
     <>
@@ -57,6 +59,7 @@ export default function OverviewTab() {
               </div>
               <div className="row" style={{ marginTop: '0.7rem' }}>
                 <Pill>{isHome ? 'Heimspiel' : 'Auswaertsspiel'}</Pill>
+                {nextImportance?.label && <Pill tone="warn">{nextImportance.label}</Pill>}
                 <Pill>{opponent.city}</Pill>
                 <Pill>{opponent.formation}</Pill>
                 {user.injury && <Pill tone="bad">Verletzt</Pill>}

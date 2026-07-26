@@ -24,6 +24,7 @@ import { quickTeamRating, selectLineup, type Lineup } from './lineup';
 import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
 import { simulateLight } from './matchSim';
 import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
+import { expectedAttendance, matchImportance } from './rivalry';
 import { Rng, clamp, randomSeed } from './rng';
 import {
   advanceCup, cupOfCountry, endSeason, leaguesFinished, leaguesOfCountry,
@@ -667,6 +668,8 @@ export function prepareUserMatch(
       neutral: match.neutralVenue,
       knockout: isKnockout(state, match),
       relationships: state.relationships,
+      importance: matchImportance(state, match),
+      attendance: expectedAttendance(state, match, 0.5),
     },
     homeLineup, awayLineup, userInLineup, userOnBench,
   };
@@ -754,9 +757,8 @@ function commitMatch(
   match.extraTime = input.extraTime;
   match.events = input.events;
 
-  const homeClub = state.clubs[match.homeClubId];
-  const stadium = homeClub?.stadiumCapacity ?? 10000;
-  match.attendance = Math.round(stadium * clamp(0.45 + rng.float(0, 0.5), 0.3, 1));
+  // Zuschauerzahl aus Stadion, Zugkraft des Gegners und Bedeutung der Partie.
+  match.attendance = expectedAttendance(state, match, rng.next());
 
   const comp = state.competitions[match.competitionId];
   const isLeague = comp?.type === 'league';

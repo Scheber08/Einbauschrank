@@ -12,6 +12,7 @@ import {
   type TeamStatTotals,
 } from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
+import { expectedAttendance, matchImportance } from '../../engine/rivalry';
 import { Rng } from '../../engine/rng';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { advanceCalendar, saveCurrent } from '../../state/actions';
@@ -63,6 +64,11 @@ export default function MatchScreen() {
   const homeClub = match ? game.clubs[match.homeClubId] : null;
   const awayClub = match ? game.clubs[match.awayClubId] : null;
   const competition = match ? game.competitions[match.competitionId] : null;
+  // Bedeutung und erwartete Kulisse - macht Derbys und grosse Spiele spuerbar.
+  const importance = match ? matchImportance(game, match)
+    : { derby: null, label: null, pressure: 0, crowd: 1 };
+  const attendance = match
+    ? (match.attendance || expectedAttendance(game, match, 0.5)) : 0;
 
   const finalise = useCallback(() => {
     const engine = engineRef.current;
@@ -229,6 +235,8 @@ export default function MatchScreen() {
           <Pill>{competition?.name}</Pill>
           <Pill>{match.roundName ?? `${match.matchday}. Spieltag`}</Pill>
           <Pill>{homeClub.stadiumName}</Pill>
+          <Pill>{attendance.toLocaleString('de-DE')} Zuschauer</Pill>
+          {importance.label && <Pill tone="warn">{importance.label}</Pill>}
         </div>
         {phase === 'running' && mode !== 'simulate' && (
           <div className="row">

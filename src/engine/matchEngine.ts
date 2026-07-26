@@ -12,6 +12,7 @@ import {
 import type {
   Challenge, ChallengeResult, ChallengeTarget, LiveEvent, StepResult,
 } from './matchTypes';
+import type { MatchImportance } from './rivalry';
 import { Rng, clamp } from './rng';
 import {
   emptyMatchStats, type Club, type DifficultySettings, type Id, type Player,
@@ -45,6 +46,10 @@ export interface MatchEngineSetup {
   knockout?: boolean;
   /** Beziehungen des eigenen Spielers: gute Freunde werden oefter angespielt. */
   relationships?: Record<Id, number>;
+  /** Bedeutung der Partie: Derby, Spitzenspiel, Pokal (Konzept Abschnitt 26). */
+  importance?: MatchImportance;
+  /** Erwartete Zuschauerzahl - fuer die Atmosphaere in den Szenen. */
+  attendance?: number;
 }
 
 export interface MatchOutcome {
@@ -1001,7 +1006,7 @@ export class MatchEngine {
       hint: 'Setze die Finte im richtigen Moment an. Zu frueh reagiert der Gegner, zu spaet ist der Weg zu.',
       distance,
       offset,
-      pressure: clamp(0.35 + opponent.rating / 180, 0.2, 0.95),
+      pressure: this.withImportance(clamp(0.35 + opponent.rating / 180, 0.2, 0.95)),
       opponent: opponent.rating,
       xg: 0,
       bigChance: false,
@@ -1146,6 +1151,14 @@ export class MatchEngine {
     this.userChallenges++;
   }
 
+  /**
+   * Erhoeht den Gegnerdruck in bedeutenden Partien: Ein Derby oder ein
+   * Spitzenspiel wird auch in den Szenen spuerbar (Konzept Abschnitt 26).
+   */
+  private withImportance(base: number): number {
+    return clamp(base + (this.setup.importance?.pressure ?? 0), 0.1, 0.97);
+  }
+
   private baseChallenge(side: Side, kind: Challenge['kind']): Omit<Challenge, 'title' | 'hint' | 'distance' | 'offset' | 'xg' | 'bigChance' | 'pressure' | 'opponent'> {
     return {
       id: `ch-${this.minute}-${kind}-${this.userChallenges}`,
@@ -1185,7 +1198,8 @@ export class MatchEngine {
       hint: hints[kind],
       distance: chance.distance,
       offset: chance.offset,
-      pressure: clamp(this.strengthOf(this.other(side)).defence / 110 + this.rng.float(-0.15, 0.2), 0.1, 0.95),
+      pressure: this.withImportance(
+        clamp(this.strengthOf(this.other(side)).defence / 110 + this.rng.float(-0.15, 0.2), 0.1, 0.95)),
       opponent: this.strengthOf(this.other(side)).defence,
       xg: chance.xg,
       bigChance: chance.bigChance,
@@ -1243,7 +1257,8 @@ export class MatchEngine {
       hint: 'Waehle den Mitspieler, ziehe die Richtung und dosiere die Kraft.',
       distance: chance.distance,
       offset: chance.offset,
-      pressure: clamp(this.strengthOf(this.other(side)).midfield / 120 + this.rng.float(-0.1, 0.2), 0.1, 0.95),
+      pressure: this.withImportance(
+        clamp(this.strengthOf(this.other(side)).midfield / 120 + this.rng.float(-0.1, 0.2), 0.1, 0.95)),
       opponent: this.strengthOf(this.other(side)).defence,
       xg: chance.xg,
       bigChance: chance.bigChance,
