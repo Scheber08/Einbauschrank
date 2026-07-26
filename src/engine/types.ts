@@ -544,6 +544,27 @@ export interface GameState {
   /** Historie des World Nations Cup. */
   wncHistory: WncResult[];
 
+  /** Abgeschlossene Laufbahn (Konzept Abschnitt 2). Danach ist nur noch die
+   *  Chronik einsehbar. */
+  retirement?: Retirement;
+
   /** Zaehler fuer fortlaufende IDs. */
   nextId: number;
+}
+
+/** Abschluss der Spielerlaufbahn. */
+export interface Retirement {
+  season: number;
+  date: GameDate;
+  age: number;
+  /** Warum die Laufbahn endet. */
+  reason: 'choice' | 'age' | 'noClub';
+  /** Bewertung der Laufbahn, etwa "Vereinslegende". */
+  status: string;
+  appearances: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  honours: number;
+  clubs: string[];
 }

@@ -147,11 +147,19 @@ export default function CareerShell() {
           <div className="small muted" style={{ marginBottom: '0.5rem' }}>
             Saison {seasonLabel(game.season)}
           </div>
-          <button className="primary" style={{ width: '100%' }} onClick={() => advance()}>
-            {upcoming ? 'Weiter bis zum Spiel' : 'Weiter'}
-          </button>
+          {game.retirement ? (
+            <div className="pill good" style={{ width: '100%', textAlign: 'center' }}>
+              Laufbahn beendet
+            </div>
+          ) : (
+            <button className="primary" style={{ width: '100%' }} onClick={() => advance()}>
+              {upcoming ? 'Weiter bis zum Spiel' : 'Weiter'}
+            </button>
+          )}
           <div className="row" style={{ marginTop: '0.4rem' }}>
-            <button className="small ghost" style={{ flex: 1 }} onClick={() => advance(1)}>+1 Tag</button>
+            {!game.retirement && (
+              <button className="small ghost" style={{ flex: 1 }} onClick={() => advance(1)}>+1 Tag</button>
+            )}
             <button className="small ghost" style={{ flex: 1 }} onClick={() => void saveCurrent()}>Speichern</button>
           </div>
           <button className="small ghost" style={{ width: '100%', marginTop: '0.35rem' }}

@@ -9,6 +9,7 @@ import { addCareerEvent, addNews } from '../engine/ids';
 import { calcMarketValue } from '../engine/playerGen';
 import { Rng } from '../engine/rng';
 import { seedRelationships } from '../engine/relationships';
+import { retireUser } from '../engine/retirement';
 import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '../engine/save';
 import type { SeasonReport } from '../engine/season';
 import { computeOverall } from '../engine/attributes';
@@ -207,6 +208,23 @@ export function acceptOffer(offerId: string) {
   commit();
   void saveCurrent(true);
   showToast(`Wechsel zu ${club.name} abgeschlossen.`, 'good');
+}
+
+/** Freiwilliger Ruecktritt vom aktiven Sport (Konzept Abschnitt 2). */
+export function retireCareer() {
+  const game = getState().game;
+  if (!game || game.retirement) return;
+  const user = game.players[game.userPlayerId];
+  const summary = retireUser(game, 'choice');
+  addCareerEvent(game, 'title', 'Ende der Laufbahn',
+    `${summary.appearances} Pflichtspiele, ${summary.goals} Tore, ${summary.honours} Titel. `
+    + `Abschluss als ${summary.status}.`, {});
+  addNews(game, 'season', `${user?.lastName ?? 'Der Spieler'} beendet die Karriere`,
+    `Nach ${summary.appearances} Pflichtspielen ist Schluss. Bilanz: ${summary.goals} Tore, `
+    + `${summary.assists} Vorlagen, ${summary.honours} Titel.`, true);
+  commit();
+  void saveCurrent(true);
+  showToast(`Laufbahn beendet - ${summary.status}.`, 'good');
 }
 
 export function declineAllOffers() {

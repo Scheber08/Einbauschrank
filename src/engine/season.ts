@@ -10,12 +10,14 @@ import { developAiPlayer } from './development';
 import { buildLeagueSchedule, cupDates, leagueMatchDates } from './fixtures';
 import { addCareerEvent, addMatch, addNews, makeId } from './ids';
 import { calcMarketValue, calcSalary, createPlayer } from './playerGen';
+import { checkForcedRetirement } from './retirement';
 import { Rng, clamp } from './rng';
 import { averageRating, tryRecord } from './stats';
 import { buildTable, sortTable } from './table';
 import { SQUAD_ROLE_ORDER } from './types';
 import type {
-  Award, Club, Competition, GameState, Id, Match, Player, SeasonStats, SquadRole, TransferOffer,
+  Award, Club, Competition, GameState, Id, Match, Player, Retirement, SeasonStats, SquadRole,
+  TransferOffer,
 } from './types';
 
 // --- Saisonstart -------------------------------------------------------
@@ -246,6 +248,8 @@ export interface SeasonReport {
     objectivesMet: number;
     objectivesTotal: number;
   } | null;
+  /** Gesetzt, wenn die Laufbahn mit dieser Saison endet. */
+  retirement?: Retirement;
 }
 
 export function endSeason(state: GameState, rng: Rng): SeasonReport {
@@ -287,6 +291,17 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
   ageAndDevelop(state, rng);
   runTransferWindow(state, rng);
   resetForNewSeason(state, rng);
+
+  // Nach dem Transferfenster steht fest, ob die Laufbahn weitergeht.
+  const forced = checkForcedRetirement(state);
+  if (forced) {
+    report.retirement = forced;
+    addNews(state, 'season', 'Das Ende einer Laufbahn',
+      forced.reason === 'age'
+        ? `Nach ${forced.appearances} Pflichtspielen beendet ${state.players[state.userPlayerId]?.lastName} `
+          + 'die aktive Karriere.'
+        : 'Es liegt kein Angebot mehr vor. Die aktive Laufbahn endet hier.', true);
+  }
 
   return report;
 }

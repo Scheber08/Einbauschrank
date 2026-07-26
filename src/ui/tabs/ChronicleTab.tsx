@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { formatDate, seasonLabel } from '../../engine/date';
+import { canRetire, careerStatus } from '../../engine/retirement';
 import { careerTotals } from '../../engine/stats';
+import { retireCareer } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
 
@@ -18,29 +21,40 @@ const EVENT_ICONS: Record<string, string> = {
   contract: 'Vertrag',
 };
 
-/** Bewertung der Laufbahn am Karriereende (Konzept Abschnitt 2). */
-function careerStatus(goals: number, apps: number, honours: number): string {
-  const score = apps * 0.4 + goals * 2 + honours * 12;
-  if (score > 900) return 'Fussballikone';
-  if (score > 650) return 'Weltfussballer';
-  if (score > 450) return 'Internationaler Superstar';
-  if (score > 300) return 'Nationaler Star';
-  if (score > 190) return 'Vereinslegende';
-  if (score > 120) return 'Publikumsliebling';
-  if (score > 60) return 'Stammspieler';
-  if (score > 20) return 'Solider Profi';
-  return 'Amateur';
-}
-
 export default function ChronicleTab() {
   const game = useAppState().game!;
   const user = game.players[game.userPlayerId];
   const totals = careerTotals(game);
   const events = game.careerEvents.slice().reverse();
   const avg = totals.appearances > 0 ? totals.ratingSum / totals.appearances : 0;
+  const done = game.retirement;
+  const [confirmRetire, setConfirmRetire] = useState(false);
 
   return (
     <>
+      {done && (
+        <Panel title="Laufbahn abgeschlossen">
+          <div className="center" style={{ padding: '0.4rem 0 0.8rem' }}>
+            <div className="tiny dim">Karriere beendet {formatDate(done.date)} mit {done.age} Jahren</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5c542', margin: '0.3rem 0' }}>
+              {done.status}
+            </div>
+            <div className="small muted">{user.firstName} {user.lastName}</div>
+          </div>
+          <div className="grid four">
+            <div className="stat"><div className="value">{done.appearances}</div><div className="label">Pflichtspiele</div></div>
+            <div className="stat"><div className="value">{done.goals}</div><div className="label">Tore</div></div>
+            <div className="stat"><div className="value">{done.assists}</div><div className="label">Vorlagen</div></div>
+            <div className="stat"><div className="value">{done.honours}</div><div className="label">Titel</div></div>
+          </div>
+          {done.clubs.length > 0 && (
+            <p className="small muted" style={{ marginBottom: 0 }}>
+              Stationen: {done.clubs.join(' - ')}
+            </p>
+          )}
+        </Panel>
+      )}
+
       <Panel title="Karrierebilanz">
         <div className="grid four">
           <div className="stat"><div className="value">{totals.appearances}</div><div className="label">Pflichtspiele</div></div>
@@ -61,6 +75,30 @@ export default function ChronicleTab() {
           {' - '}
           {user.firstName} {user.lastName}, {game.honours.length} Titel und Auszeichnungen.
         </p>
+        {canRetire(game) && (
+          <div style={{ marginTop: '0.9rem', paddingTop: '0.8rem', borderTop: '1px solid var(--border-soft)' }}>
+            {!confirmRetire ? (
+              <button className="small ghost" onClick={() => setConfirmRetire(true)}>
+                Laufbahn beenden
+              </button>
+            ) : (
+              <div>
+                <p className="small" style={{ marginTop: 0 }}>
+                  Die aktive Laufbahn wirklich beenden? Danach bleibt nur noch die Chronik -
+                  gespielt wird nicht mehr.
+                </p>
+                <div className="row">
+                  <button className="primary small" onClick={() => retireCareer()}>
+                    Ja, Karriere beenden
+                  </button>
+                  <button className="small ghost" onClick={() => setConfirmRetire(false)}>
+                    Weiterspielen
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Panel>
 
       {game.honours.length > 0 && (
