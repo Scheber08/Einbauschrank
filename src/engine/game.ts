@@ -550,6 +550,20 @@ function simulateResultOnly(
   };
   drain(homeSquad);
   drain(awaySquad);
+
+  // Auch in den nur ergebnisorientiert simulierten Ligen verletzen sich Spieler -
+  // sonst haetten vier von fuenf Laendern dauerhaft kerngesunde Kader, was
+  // Kaderstaerken und Transfers verzerrt. Ein Wurf je Mannschaft genuegt.
+  for (const squad of [homeSquad, awaySquad]) {
+    if (squad.length === 0 || !rng.chance(0.14)) continue;
+    const fit = squad.filter((p) => !p.injury);
+    if (fit.length === 0) continue;
+    const victim = rng.weighted(fit, (p) => 0.5 + p.injuryProneness / 90);
+    const injury = rollInjury(rng, victim, 'Spiel');
+    const days = Math.max(3, Math.round(rng.normal(16, 14)));
+    injury.daysOut = days;
+    injury.totalDays = days;
+  }
 }
 
 function buildLightEvents(

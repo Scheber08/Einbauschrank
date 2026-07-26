@@ -141,7 +141,7 @@ export function applyTraining(
     // jeder Treffer auf mindestens +1 aufgerundet und war ab Rate 1 sogar
     // sicher - bei woechentlichem Training summierte sich das so stark, dass
     // ein Talent schon mit 19 sein Potenzial erreichte.
-    const amountRaw = rate * weight * ceiling * rng.float(0.35, 1.35) * 0.14;
+    const amountRaw = rate * weight * ceiling * rng.float(0.35, 1.35) * 0.21;
     const whole = Math.floor(amountRaw);
     const amount = whole + (rng.next() < amountRaw - whole ? 1 : 0);
     if (amount > 0 && current < 99) {

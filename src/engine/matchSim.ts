@@ -289,10 +289,12 @@ export function simulateLight(
     }
   }
 
-  // Verletzungen
+  // Verletzungen. Das Risiko war so niedrig angesetzt, dass sich ueber eine
+  // ganze Saison kaum jemand verletzte - Kadertiefe, Fitness und die
+  // Verletzungsentscheidung im Spiel liefen dadurch ins Leere.
   for (const o of all) {
     const p = o.player;
-    const risk = 0.0035 * (0.5 + p.injuryProneness / 90) * (1.4 - p.fitness / 160);
+    const risk = 0.018 * (0.5 + p.injuryProneness / 90) * (1.4 - p.fitness / 160);
     if (rng.chance(risk)) {
       injuries.push({ playerId: p.id, days: Math.max(3, Math.round(rng.normal(16, 14))) });
     }
