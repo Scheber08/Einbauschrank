@@ -9,26 +9,26 @@ import type { Club, GameState, Match } from './types';
 
 export type DerbyKind = 'city' | 'traditional' | 'topClash' | null;
 
-/** Stabiler Hash eines Textes (FNV-1a). */
-function hash(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
+/** Laufende Nummer einer Vereins-Id ("c573" -> 573). */
+function clubNumber(id: string): number {
+  const n = Number(id.replace(/\D/g, ''));
+  return Number.isFinite(n) ? n : 0;
 }
 
 /**
  * Traditioneller Erzrivale eines Vereins. Vereine ohne Stadtnachbarn haetten
  * sonst nie ein Derby - hier bekommt jeder Verein genau einen festen Gegenpart.
- * Die Zuordnung ergibt sich aus der Vereins-Id und ist damit symmetrisch und
- * ueber alle Sitzungen stabil; Auf- und Abstiege aendern daran nichts.
+ *
+ * Gepaart wird nach der laufenden Vereinsnummer. Da die Vereine bei der
+ * Welterzeugung Liga fuer Liga angelegt werden, treffen dadurch Vereine
+ * derselben Spielklasse aufeinander - man begegnet seinem Rivalen also
+ * tatsaechlich im Ligabetrieb. Die Zuordnung ist symmetrisch und dauerhaft;
+ * Auf- und Abstiege aendern nichts daran.
  */
 function archRivalId(club: Club, allClubs: Record<string, Club>): string | null {
   const sameCountry = Object.values(allClubs)
     .filter((c) => c.countryId === club.countryId)
-    .sort((a, b) => hash(a.id) - hash(b.id));
+    .sort((a, b) => clubNumber(a.id) - clubNumber(b.id));
   const index = sameCountry.findIndex((c) => c.id === club.id);
   if (index < 0 || sameCountry.length < 2) return null;
   // Benachbarte Vereine der Reihe nach paaren: 0-1, 2-3, 4-5 ...

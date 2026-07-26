@@ -3,10 +3,13 @@ import { computeOverall } from '../../engine/attributes';
 import { ageOn } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { selectLineup } from '../../engine/lineup';
+import { clubSponsors } from '../../engine/identity';
 import { RELATION_LABELS, relationList } from '../../engine/relationships';
+import { derbyKind, derbyLabel, rivalsOf } from '../../engine/rivalry';
 import { squadOf } from '../../engine/worldGen';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { useAppState } from '../../state/store';
+import ClubCrest from '../ClubCrest';
 import { Empty, Meter, Panel, Pill, money, shortName } from '../components';
 
 type SortKey = 'position' | 'ability' | 'age' | 'form' | 'value';
@@ -30,6 +33,11 @@ export default function SquadTab() {
   }, [club, squad, game.coachRelation, game.difficulty, game.version]);
 
   const starterIds = new Set(lineup?.starters.map((s) => s.playerId) ?? []);
+  const sponsors = club ? clubSponsors(club) : { shirt: '-', kit: '-' };
+  const rivals = useMemo(
+    () => (club ? rivalsOf(game, club.id) : []),
+    [club, game.clubs, game.version],
+  );
   const benchIds = new Set(lineup?.bench ?? []);
 
   const sorted = useMemo(() => {
@@ -85,8 +93,27 @@ export default function SquadTab() {
             <div className="row between"><span>Kapazitaet</span>
               <span>{club.stadiumCapacity.toLocaleString('de-DE')}</span></div>
             <div className="row between"><span>Spielstil</span><span>{club.tacticStyle}</span></div>
+            <div className="row between"><span>Trikotsponsor</span><span>{sponsors.shirt}</span></div>
+            <div className="row between"><span>Ausruester</span><span>{sponsors.kit}</span></div>
           </div>
         </div>
+
+        {rivals.length > 0 && (
+          <div style={{ marginTop: '0.9rem', paddingTop: '0.7rem', borderTop: '1px solid var(--border-soft)' }}>
+            <div className="tiny dim" style={{ marginBottom: '0.4rem' }}>Rivalen</div>
+            <div className="row" style={{ gap: '0.6rem', flexWrap: 'wrap' }}>
+              {rivals.map((r) => (
+                <div key={r.id} className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
+                  <ClubCrest club={r} size={22} />
+                  <div>
+                    <div className="small">{r.name}</div>
+                    <div className="tiny dim">{derbyLabel(derbyKind(club, r, game.clubs))}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <RelationshipsPanel />

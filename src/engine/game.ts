@@ -375,6 +375,7 @@ export function advanceDay(state: GameState): DayResult {
   if (userMatch) {
     state.pendingMatchId = userMatch.id;
     result.matchToPlay = userMatch.id;
+    announceDerby(state, userMatch);
     state.rngState = rng.state;
     return result;
   }
@@ -472,6 +473,34 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
     addNews(state, 'season', `Saison ${seasonLabel(report.season)} abgeschlossen`,
       'Die Auswertung der Saison liegt vor. Eine neue Spielzeit beginnt.', true);
   }
+}
+
+/**
+ * Vorbericht zu einem bedeutenden Spiel des eigenen Vereins. Ein Derby soll
+ * schon vor dem Anpfiff spuerbar sein (Konzept Abschnitt 26).
+ */
+function announceDerby(state: GameState, match: Match) {
+  const importance = matchImportance(state, match);
+  if (!importance.derby) return;
+  const user = state.players[state.userPlayerId];
+  const oppId = user?.clubId === match.homeClubId ? match.awayClubId : match.homeClubId;
+  const opponent = state.clubs[oppId];
+  if (!opponent) return;
+  // Nicht doppelt melden, wenn der Tag mehrfach betreten wird.
+  const already = state.news.some(
+    (n) => n.date === state.date && n.headline.startsWith(importance.label ?? ''));
+  if (already) return;
+
+  const texts: Record<string, string> = {
+    city: `Die ganze Stadt spricht nur ueber dieses Spiel. Gegen ${opponent.name} `
+      + 'zaehlt nicht die Tabelle, sondern die Ehre.',
+    traditional: `Das Duell mit ${opponent.name} hat Tradition. `
+      + 'Beide Lager fiebern dem Anpfiff seit Wochen entgegen.',
+    topClash: `Zwei Spitzenmannschaften treffen aufeinander. Gegen ${opponent.name} `
+      + 'schauen alle genau hin.',
+  };
+  addNews(state, 'match', `${importance.label} gegen ${opponent.name}`,
+    texts[importance.derby] ?? '', true);
 }
 
 // --- Hintergrundspiele -------------------------------------------------
@@ -887,6 +916,32 @@ function handleUserMatchAftermath(
   if (input.moraleDelta) {
     user.morale = clamp(user.morale + input.moraleDelta, 0, 100);
     state.coachRelation = clamp(state.coachRelation + input.moraleDelta * 0.4, 0, 100);
+  }
+
+  // Ein Derby wiegt schwerer als ein gewoehnliches Spiel: Der Ausgang schlaegt
+  // bei Fans und Moral deutlicher durch (Konzept Abschnitt 26).
+  const importance = matchImportance(state, match);
+  if (importance.derby && opponent) {
+    const ownGoals = s.clubId === match.homeClubId ? input.homeScore : input.awayScore;
+    const oppGoals = s.clubId === match.homeClubId ? input.awayScore : input.homeScore;
+    const weight = importance.derby === 'city' ? 1 : importance.derby === 'traditional' ? 0.85 : 0.6;
+    if (ownGoals > oppGoals) {
+      state.fanRelation = clamp(state.fanRelation + 6 * weight, 0, 100);
+      user.morale = clamp(user.morale + 7 * weight, 0, 100);
+      addNews(state, 'match', `${importance.label} gewonnen`,
+        `${scoreText} gegen ${opponent.name}. Ein Sieg, den die Anhaenger lange feiern.`, true);
+      // Ein eigenes Tor im Derby ist ein Karrieremoment.
+      if (s.goals > 0) {
+        addCareerEvent(state, 'title', `Tor im ${importance.label}`,
+          `${s.goals === 1 ? 'Ein Treffer' : `${s.goals} Treffer`} gegen ${opponent.name} `
+          + `beim ${scoreText}.`, { clubId: user.clubId ?? undefined });
+      }
+    } else if (ownGoals < oppGoals) {
+      state.fanRelation = clamp(state.fanRelation - 5 * weight, 0, 100);
+      user.morale = clamp(user.morale - 6 * weight, 0, 100);
+      addNews(state, 'match', `${importance.label} verloren`,
+        `${scoreText} gegen ${opponent.name}. Die Enttaeuschung im Umfeld ist gross.`, true);
+    }
   }
 
   // Reputation und Marktwert
