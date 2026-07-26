@@ -465,10 +465,18 @@ function run() {
     return { attack: attackCh, defend: defendCh, fitness: fitness40 / Math.max(1, games) };
   };
 
+  // Der Spieler muss fuer diese Messung sicher auf dem Platz stehen, sonst
+  // bleibt seine Live-Fitness beim Startwert und die Ausrichtungen sind nicht
+  // vergleichbar. Werte danach wiederherstellen.
+  const attrsBackup = { ...user.attrs };
+  for (const k of Object.keys(user.attrs) as (keyof typeof user.attrs)[]) {
+    user.attrs[k] = Math.max(user.attrs[k], 88);
+  }
   const atk = measure('attack');
   const bal = measure('balanced');
   const con = measure('contain');
   const rest = measure('conserve');
+  Object.assign(user.attrs, attrsBackup);
   log(`Nach vorne:      ${atk.attack} offensiv, ${atk.defend} defensiv, Fitness bei Min 40 ${atk.fitness.toFixed(1)}`);
   log(`Ausbalanciert:   ${bal.attack} offensiv, ${bal.defend} defensiv, Fitness bei Min 40 ${bal.fitness.toFixed(1)}`);
   log(`Defensiv:        ${con.attack} offensiv, ${con.defend} defensiv, Fitness bei Min 40 ${con.fitness.toFixed(1)}`);

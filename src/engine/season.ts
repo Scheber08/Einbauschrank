@@ -588,8 +588,14 @@ function ageAndDevelop(state: GameState, rng: Rng) {
     player.reputation = clamp(Math.round(
       player.reputation * 0.85 + ability * 0.2 + (3 - level) * 3), 1, 99);
 
-    // Karriereende
-    if (age >= 35 && rng.chance((age - 34) * 0.28)) {
+    // Karriereende (Konzept Abschnitt 18). Je aelter und je schwaecher, desto
+    // wahrscheinlicher der Ruecktritt. Frueher ging es erst ab 35 los - dadurch
+    // vergreiste die Welt, weil kaum Kaderplaetze fuer Nachwuchs frei wurden.
+    const retireChance = age >= 38 ? 1
+      : age >= 32
+        ? clamp((age - 31) * 0.17 + Math.max(0, 60 - ability) * 0.012, 0, 0.95)
+        : 0;
+    if (retireChance > 0 && rng.chance(retireChance)) {
       player.clubId = null;
       player.contract = null;
     }
