@@ -88,16 +88,20 @@ export function computeRating(
   r += s.shotsOnTarget * 0.09;
   r += (s.bigChances - s.bigChancesScored) * -0.28;
 
-  // Passspiel
+  // Passspiel. Fuer Torhueter gilt ein anderer Massstab: Sie schlagen lange
+  // Baelle, die naturgemaess seltener ankommen. Am Feldspielerwert gemessen
+  // verloren sie dauerhaft Note, ohne etwas falsch zu machen.
   if (s.passes >= 8) {
     const acc = s.passesCompleted / s.passes;
-    r += clamp((acc - 0.78) * 3.4, -0.9, 0.9);
+    const target = line === 'GK' ? 0.64 : 0.78;
+    r += clamp((acc - target) * (line === 'GK' ? 2.2 : 3.4), -0.9, 0.9);
   }
 
   // Dribbling und Ballverluste
   r += s.dribblesCompleted * 0.11;
   r -= (s.dribbles - s.dribblesCompleted) * 0.05;
-  r -= s.possessionLost * 0.035;
+  // Ein verlorener Abschlag wiegt weniger als ein Ballverlust im Aufbau.
+  r -= s.possessionLost * (line === 'GK' ? 0.015 : 0.035);
 
   // Zweikaempfe
   if (s.duels >= 3) {
@@ -115,9 +119,10 @@ export function computeRating(
     r -= oppGoals * (line === 'GK' ? 0.28 : 0.2);
   }
 
-  // Torwart
+  // Torwart. Paraden sind seine wichtigste sichtbare Leistung - Tore, Vorlagen
+  // und Dribblings, ueber die Feldspieler Note gewinnen, stehen ihm nicht offen.
   if (line === 'GK') {
-    r += s.saves * 0.16;
+    r += s.saves * 0.22;
     r += s.penaltiesSaved * 1.1;
   }
 
