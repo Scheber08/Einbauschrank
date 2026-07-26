@@ -1890,6 +1890,11 @@ export class MatchEngine {
     if (this.subsUsed[side] >= 5) return;
     const userPlayer = this.bench[side].find((p) => p.id === userId);
     if (!userPlayer) return;
+    // Ein Ersatztorwart wird nicht taktisch gebracht - er kaeme sonst als
+    // Feldspieler aufs Feld, weil hier nur Feldspieler ersetzt werden. Fuer den
+    // Torwart zaehlt allein die Aufstellung; bei Verletzung des Stammkeepers
+    // greift substitute(), das die Position korrekt beruecksichtigt.
+    if (userPlayer.position === 'TW') return;
 
     const behind = side === 'home' ? this.awayScore - this.homeScore : this.homeScore - this.awayScore;
     let chance = 0.16 + Math.max(0, behind) * 0.14 + (this.minute - 55) * 0.006;
