@@ -531,6 +531,31 @@ export interface TimingInput {
   direction?: number;
 }
 
+/**
+ * Guete einer Timing-Eingabe, 0 bis 1. Faellt innerhalb des Trefferfensters
+ * spuerbar ab, damit der genaue Zeitpunkt zaehlt und nicht nur das Treffen des
+ * Fensters an sich. Am Rand des Fensters bleibt nichts uebrig.
+ */
+function timingQuality(deviation: number, window: number): number {
+  if (window <= 0) return 0;
+  return clamp(1 - deviation / window, 0, 1) ** 1.4;
+}
+
+/**
+ * Rueckmeldung zum Zeitpunkt der Eingabe. Der Spieler soll nach der Szene
+ * wissen, ob er zu frueh, zu spaet oder genau richtig dran war - sonst laesst
+ * sich aus einer Niederlage nichts lernen.
+ */
+function timingFeedback(offset: number, window: number, quality: number): string {
+  const pct = Math.round(quality * 100);
+  if (offset > window) return `Timing ${pct} Prozent - deutlich zu spaet.`;
+  if (offset < -window) return `Timing ${pct} Prozent - deutlich zu frueh.`;
+  if (quality >= 0.95) return `Timing ${pct} Prozent - auf den Punkt.`;
+  if (quality >= 0.7) return `Timing ${pct} Prozent - fast auf den Punkt.`;
+  const richtung = offset > 0 ? 'etwas zu spaet' : 'etwas zu frueh';
+  return `Timing ${pct} Prozent - ${richtung}.`;
+}
+
 export function resolveDuel(
   timing: TimingInput, challenge: Challenge, player: Player,
   difficulty: DifficultySettings, rng: Rng,
@@ -541,23 +566,34 @@ export function resolveDuel(
   // Trefferfenster in Sekunden
   const window = (0.1 + skill / 520) * difficulty.targetSize;
   const dev = Math.abs(timing.offset);
-  const quality = clamp(1 - dev / (window * 2.6), 0, 1);
+  // Die Guete faellt innerhalb des Fensters deutlich ab. Zuvor war sie selbst am
+  // Rand noch bei 0,6, wodurch der Zeitpunkt kaum eine Rolle spielte.
+  const quality = timingQuality(dev, window);
 
   // Grundchance aus Attributen gegen den Gegenspieler
   const attrEdge = clamp(0.5 + (skill - challenge.opponent) / 140, 0.12, 0.9);
   const inputWeight = difficulty.inputWeight;
   const success = attrEdge * (1 - inputWeight) + quality * inputWeight;
 
-  if (dev <= window && rng.chance(clamp(success + 0.18, 0.05, 0.96))) {
-    return { outcome: 'duelWon', quality, detail: 'Ball sauber erobert' };
+  const timingText = timingFeedback(timing.offset, window, quality);
+
+  if (dev <= window && rng.chance(clamp(success + 0.06, 0.05, 0.93))) {
+    return { outcome: 'duelWon', quality, detail: `Ball sauber erobert. ${timingText}` };
   }
   if (timing.offset > window) {
     // Zu spaet: der Gegner ist schon vorbei, es folgt meist ein Foul.
     return rng.chance(clamp(0.65 - player.attrs.discipline / 400, 0.3, 0.85))
-      ? { outcome: 'foulCommitted', quality, detail: 'Zu spaet gekommen' }
-      : { outcome: 'duelLost', quality, detail: 'Zu spaet gekommen' };
+      ? { outcome: 'foulCommitted', quality, detail: `Zu spaet gekommen. ${timingText}` }
+      : { outcome: 'duelLost', quality, detail: `Zu spaet gekommen. ${timingText}` };
   }
-  return { outcome: 'duelLost', quality, detail: 'Zu frueh angegangen' };
+  if (timing.offset < -window) {
+    return { outcome: 'duelLost', quality, detail: `Zu frueh angegangen. ${timingText}` };
+  }
+  // Im Zeitfenster, aber der Gegenspieler behauptet den Ball.
+  return {
+    outcome: 'duelLost', quality,
+    detail: `Der Gegenspieler schirmt den Ball ab. ${timingText}`,
+  };
 }
 
 /**
@@ -616,27 +652,33 @@ export function resolveDribble(
     + player.attrs.balance * 0.15 + player.attrs.ballControl * 0.2;
   const window = (0.12 + skill / 480) * difficulty.targetSize * (move?.windowScale ?? 1);
   const dev = Math.abs(timing.offset);
-  const quality = clamp(1 - dev / (window * 2.4), 0, 1);
+  // Wie beim Zweikampf: der genaue Zeitpunkt der Finte entscheidet mit.
+  const quality = timingQuality(dev, window);
 
   const attrEdge = clamp(
     0.45 + (skill - challenge.opponent) / 130 + (move?.edge ?? 0), 0.1, 0.92,
   );
   const success = attrEdge * (1 - difficulty.inputWeight) + quality * difficulty.inputWeight;
 
+  const timingText = timingFeedback(timing.offset, window, quality);
+
   if (rng.chance(clamp(success, 0.04, 0.95))) {
     return {
       outcome: 'dribbleWon', quality,
-      detail: move ? `${move.name} sitzt` : 'Gegenspieler ausgespielt',
+      detail: `${move ? `${move.name} sitzt` : 'Gegenspieler ausgespielt'}. ${timingText}`,
     };
   }
   if (rng.chance(0.22)) {
-    return { outcome: 'foulSuffered', quality, detail: 'Der Gegner kommt zu spaet - Freistoss' };
+    return {
+      outcome: 'foulSuffered', quality,
+      detail: `Der Gegner kommt zu spaet - Freistoss. ${timingText}`,
+    };
   }
   return {
     outcome: 'dribbleLost', quality,
-    detail: dev > window * 1.6
+    detail: `${dev > window
       ? (timing.offset > 0 ? 'Zu spaet angesetzt' : 'Zu frueh angesetzt')
-      : 'Der Verteidiger liest die Bewegung',
+      : 'Der Verteidiger liest die Bewegung'}. ${timingText}`,
   };
 }
 
