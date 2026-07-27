@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CROSSBAR, GOAL_HALF_WIDTH, availableMoves, describeShot, resolveDribble, resolveDuel,
+  CROSSBAR, GOAL_HALF_WIDTH, availableMoves, describeShot, hitsWall, resolveDribble, resolveDuel,
   resolvePass, resolveSave, resolveShot, simulateBallFlight,
   type BallInput, type DribbleMove, type Flight, type ShotResolution,
 } from '../../engine/ballAction';
@@ -411,6 +411,23 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     return flight.crossing ? { x: flight.crossing.x, z: flight.crossing.z } : null;
   }, [step, aim, contactHover, lockedPower, challenge, player, isPass, isHeader]);
 
+  /** Beim Freistoss: Geht der Ball mit dieser Ausfuehrung ueber die Mauer? */
+  const wallBlocks = useMemo(() => {
+    if (challenge.kind !== 'freeKick' || step !== 'contact' || !aim) return false;
+    const flight = simulateBallFlight({
+      startX: challenge.offset,
+      startY: challenge.distance,
+      aimX: aim.x,
+      aimY: aim.y,
+      power: lockedPower,
+      contactX: contactHover.x,
+      contactY: contactHover.y,
+      shotPower: player.attrs.shotPower,
+      curve: player.attrs.curve,
+    });
+    return hitsWall(flight, challenge);
+  }, [step, aim, contactHover, lockedPower, challenge, player]);
+
   /**
    * Grobe Zielhilfe schon waehrend des Zielens: wo kreuzt der Ball die Torlinie?
    * Mit repraesentativer Kraft und mittigem Kontakt gerechnet - so sieht man
@@ -766,8 +783,20 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         }}>
           <ContactPicker onPick={fire} onHover={setContactHover} />
           {!isPass && (
-            <GoalView preview={preview} label="Voraussichtlicher Auftreffpunkt"
-              note="Zu wenig Kraft" />
+            <div style={{ flex: '1 1 320px', minWidth: 260 }}>
+              <GoalView preview={preview} label="Voraussichtlicher Auftreffpunkt"
+                note="Zu wenig Kraft" />
+              {challenge.kind === 'freeKick' && (
+                <div className="tiny center" style={{
+                  marginTop: 4, fontWeight: 650,
+                  color: wallBlocks ? '#ff8a95' : '#37d67a',
+                }}>
+                  {wallBlocks
+                    ? 'Die Mauer steht im Weg - tiefer am Ball treffen'
+                    : 'Der Ball geht ueber die Mauer'}
+                </div>
+              )}
+            </div>
           )}
         </div>
       ) : (

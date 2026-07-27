@@ -1189,6 +1189,7 @@ export class MatchEngine {
     const hints: Record<string, string> = {
       shot: 'Ziel, Kraft und Ballkontakt bestimmen den Abschluss.',
       longShot: 'Aus dieser Entfernung braucht es viel Kraft oder viel Effet.',
+      freeKick: 'Der Ball muss ueber die Mauer: tief am Ball treffen und mit Effet ins Eck ziehen.',
       header: 'Kurzer Weg, wenig Zeit. Der Kontaktpunkt entscheidet ueber die Flugbahn.',
       oneOnOne: 'Nur noch der Torwart. Ruhe bewahren.',
     };

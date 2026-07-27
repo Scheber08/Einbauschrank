@@ -350,11 +350,17 @@ export function resolveShot(
   const { x, z } = flight.crossing;
   const post = GOAL_HALF_WIDTH;
 
-  // Blockade durch Verteidiger oder Mauer
-  if (!isPenalty) {
-    const blockChance = isFreeKick
-      ? (challenge.wall ?? 0) * 0.045
-      : challenge.pressure * 0.22 * (challenge.distance > 18 ? 1.4 : 0.8);
+  // Die Mauer ist ein echtes Hindernis: Nur ein Ball, der ueber oder um sie
+  // herum geht, kommt durch. Zuvor war das eine blosse Wahrscheinlichkeit je
+  // Mauerspieler - ob der Ball tatsaechlich hoch genug flog, spielte keine
+  // Rolle, und der platte Schuss war die beste Loesung.
+  if (isFreeKick && (challenge.wall ?? 0) > 0 && hitsWall(flight, challenge)) {
+    return { outcome: 'blocked', flight, keeper: null, quality, crossing: { x, z } };
+  }
+
+  // Blockade durch herausruckende Verteidiger
+  if (!isPenalty && !isFreeKick) {
+    const blockChance = challenge.pressure * 0.22 * (challenge.distance > 18 ? 1.4 : 0.8);
     if (rng.chance(clamp(blockChance, 0, 0.45))) {
       return { outcome: 'blocked', flight, keeper: null, quality, crossing: { x, z } };
     }
@@ -523,6 +529,48 @@ export function resolvePass(
     return { outcome: 'passLost', flight, quality, targetId: target?.id ?? '', error, reason };
   }
   return { outcome: 'passCompleted', flight, quality, targetId: target?.id ?? '', error };
+}
+
+/** Abstand der Mauer vom Ball und ihre Sprunghoehe. */
+const WALL_DISTANCE = 9.15;
+const WALL_HEIGHT = 2.0;
+const WALL_PLAYER_WIDTH = 0.78;
+
+/**
+ * Trifft der Ball die Mauer? Geprueft wird der Punkt, an dem die Flugbahn die
+ * Mauerebene kreuzt: Er muss ueber die Mauer hinweg oder seitlich an ihr vorbei
+ * gehen. Damit wird der Effet ueber die Mauer zur richtigen Loesung, waehrend
+ * ein platter Schuss haengenbleibt.
+ */
+export function hitsWall(flight: Flight, challenge: Challenge): boolean {
+  const players = challenge.wall ?? 0;
+  if (players <= 0) return false;
+  const startX = challenge.offset;
+  const startY = challenge.distance;
+  // Richtung vom Ball zur Tormitte.
+  const len = Math.hypot(-startX, -startY) || 1;
+  const dirX = -startX / len;
+  const dirY = -startY / len;
+  const halfWidth = (players * WALL_PLAYER_WIDTH) / 2;
+
+  let prev = flight.points[0];
+  for (const p of flight.points) {
+    const along = (p.x - startX) * dirX + (p.y - startY) * dirY;
+    const prevAlong = (prev.x - startX) * dirX + (prev.y - startY) * dirY;
+    // Kreuzt die Bahn in diesem Schritt die Mauerebene?
+    if (prevAlong < WALL_DISTANCE && along >= WALL_DISTANCE) {
+      const span = along - prevAlong;
+      const ratio = span > 1e-6 ? (WALL_DISTANCE - prevAlong) / span : 0;
+      const z = prev.z + (p.z - prev.z) * ratio;
+      const px = prev.x + (p.x - prev.x) * ratio;
+      const py = prev.y + (p.y - prev.y) * ratio;
+      // Seitlicher Versatz zur Mauermitte.
+      const lateral = Math.abs((px - startX) * -dirY + (py - startY) * dirX);
+      return z < WALL_HEIGHT && lateral < halfWidth;
+    }
+    prev = p;
+  }
+  return false;
 }
 
 /**
