@@ -1,7 +1,9 @@
+import { AGENT_TASK_LABELS, agentAvailability } from '../../engine/agent';
 import { formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { clubSponsors } from '../../engine/identity';
-import { acceptOffer, declineAllOffers } from '../../state/actions';
+import type { AgentTaskKind } from '../../engine/types';
+import { acceptOffer, declineAllOffers, requestAgentTask } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import { Empty, Meter, Panel, Pill, money, salary } from '../components';
@@ -28,6 +30,8 @@ export default function TransfersTab() {
           <Meter label="Beliebtheit bei den Fans" value={game.fanRelation} />
         </div>
       </Panel>
+
+      <AgentPanel />
 
       <Panel title="Vertragsangebote" action={
         game.offers.length > 0
@@ -109,12 +113,70 @@ export default function TransfersTab() {
 
       <Panel title="Hinweis">
         <p className="small muted" style={{ margin: 0 }}>
-          Der Transfermarkt ist in dieser Version bewusst schlank gehalten: Angebote
-          entstehen nach jeder Saison abhaengig von Leistung, Alter und Reputation.
-          Leihen, Vorvertraege, Tauschgeschaefte und Beraterverhandlungen aus Abschnitt 34
-          und 35 des Konzepts folgen in einem spaeteren Ausbauschritt.
+          Angebote entstehen nach jeder Saison abhaengig von Leistung, Alter und
+          Reputation - oder wenn du deinen Berater losschickst. Leihen,
+          Vorvertraege und Tauschgeschaefte aus Abschnitt 34 folgen spaeter.
         </p>
       </Panel>
     </>
+  );
+}
+
+/** Berater: Auftraege erteilen und den Stand einsehen (Abschnitt 35). */
+function AgentPanel() {
+  const game = useAppState().game!;
+  const agent = game.agent;
+  if (!agent) return null;
+  const availability = agentAvailability(game);
+  const tasks: AgentTaskKind[] = ['findClub', 'raiseSalary', 'demandRole'];
+
+  const beschreibung: Record<AgentTaskKind, string> = {
+    findClub: 'Er klopft bei Vereinen an, die zu dir passen. Braucht knapp zwei Wochen.',
+    raiseSalary: 'Er verhandelt beim aktuellen Verein nach. Misslingt es, verstimmt das den Trainer.',
+    demandRole: 'Er fordert eine groessere Rolle im Kader. Riskant, wenn die Leistung sie nicht deckt.',
+  };
+
+  return (
+    <Panel title="Dein Berater" action={<Pill>Provision {(agent.commission * 100).toFixed(1)} %</Pill>}>
+      <div className="row between" style={{ marginBottom: '0.6rem' }}>
+        <div>
+          <div style={{ fontWeight: 680 }}>{agent.name}</div>
+          <div className="tiny dim">
+            {agent.quality >= 80 ? 'Topberater mit besten Kontakten'
+              : agent.quality >= 60 ? 'Etablierter Berater'
+              : agent.quality >= 40 ? 'Solider Berater' : 'Berater am Anfang seiner Laufbahn'}
+          </div>
+        </div>
+      </div>
+      <div className="grid two">
+        <Meter label="Verhandlungsgeschick" value={agent.quality} />
+        <Meter label="Vertrauensverhaeltnis" value={agent.trust} />
+      </div>
+
+      {agent.task ? (
+        <p className="small" style={{ marginBottom: 0 }}>
+          <strong>{AGENT_TASK_LABELS[agent.task.kind]}</strong> laeuft - Rueckmeldung
+          bis {formatShort(agent.task.dueOn)}.
+        </p>
+      ) : (
+        <>
+          <div className="grid three" style={{ marginTop: '0.5rem' }}>
+            {tasks.map((kind) => (
+              <button key={kind} style={{ textAlign: 'left', padding: '0.6rem 0.7rem' }}
+                disabled={!availability.canRequest}
+                onClick={() => requestAgentTask(kind)}>
+                <div className="small" style={{ fontWeight: 640 }}>{AGENT_TASK_LABELS[kind]}</div>
+                <div className="tiny dim">{beschreibung[kind]}</div>
+              </button>
+            ))}
+          </div>
+          <p className="tiny dim" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+            {availability.canRequest
+              ? `Noch ${3 - agent.requestsThisSeason} Auftraege in dieser Saison. Jeder Auftrag kostet etwas Geduld.`
+              : availability.reason}
+          </p>
+        </>
+      )}
+    </Panel>
   );
 }

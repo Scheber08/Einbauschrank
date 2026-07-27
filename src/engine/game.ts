@@ -24,6 +24,7 @@ import { quickTeamRating, selectLineup, type Lineup } from './lineup';
 import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
 import { simulateLight } from './matchSim';
 import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
+import { advanceAgent, createAgent } from './agent';
 import { expectedAttendance, matchImportance } from './rivalry';
 import { Rng, clamp, randomSeed } from './rng';
 import {
@@ -127,6 +128,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
     pendingMatchId: null,
     cupState: {},
     offers: [],
+    agent: createAgent(rng),
     honours: [],
     nationalCaps: 0,
     nationalGoals: 0,
@@ -408,6 +410,9 @@ export function advanceDay(state: GameState): DayResult {
       result.headlines.push(`Verletzung: ${result.training.injured.name}`);
     }
   }
+
+  // Der Berater arbeitet im Hintergrund weiter (Konzept Abschnitt 35).
+  advanceAgent(state, rng);
 
   // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
   // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.

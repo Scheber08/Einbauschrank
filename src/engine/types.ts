@@ -107,6 +107,31 @@ export interface Contract {
   releaseClause?: number;
 }
 
+// --- Beratersystem (Konzept Abschnitt 35) ------------------------------
+
+/** Auftrag an den Berater. Laeuft ueber mehrere Tage. */
+export type AgentTaskKind = 'findClub' | 'raiseSalary' | 'demandRole';
+
+export interface AgentTask {
+  kind: AgentTaskKind;
+  /** Tag, an dem der Auftrag erledigt ist. */
+  dueOn: GameDate;
+}
+
+export interface Agent {
+  name: string;
+  /** Verhandlungsgeschick und Reichweite, 1-100. */
+  quality: number;
+  /** Anteil am Gehalt, den der Berater einbehaelt (0-1). */
+  commission: number;
+  /** Wie gut das Verhaeltnis ist, 0-100. */
+  trust: number;
+  /** Laufender Auftrag, falls vorhanden. */
+  task: AgentTask | null;
+  /** Wie viele Auftraege in dieser Saison schon liefen. */
+  requestsThisSeason: number;
+}
+
 export type SquadRole =
   | 'Nachwuchsspieler' | 'Ergaenzungsspieler' | 'Rotationsspieler'
   | 'Stammspieler' | 'Schluesselspieler' | 'Mannschaftsfuehrer';
@@ -547,6 +572,9 @@ export interface GameState {
   /** Abgeschlossene Laufbahn (Konzept Abschnitt 2). Danach ist nur noch die
    *  Chronik einsehbar. */
   retirement?: Retirement;
+
+  /** Spielerberater (Konzept Abschnitt 35). */
+  agent?: Agent;
 
   /** Zaehler fuer fortlaufende IDs. */
   nextId: number;

@@ -1,4 +1,5 @@
 /** Aktionen, die den Spielstand veraendern. */
+import { ensureAgent, startAgentTask } from '../engine/agent';
 import { ageOn, makeDate } from '../engine/date';
 import {
   advanceDay, createNewGame, createObjectives, userClub,
@@ -13,7 +14,7 @@ import { retireUser } from '../engine/retirement';
 import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '../engine/save';
 import type { SeasonReport } from '../engine/season';
 import { computeOverall } from '../engine/attributes';
-import type { TrainingFocus, TrainingIntensity } from '../engine/types';
+import type { AgentTaskKind, TrainingFocus, TrainingIntensity } from '../engine/types';
 import { commit, getState, setState, showToast } from './store';
 
 export async function startNewCareer(opts: NewGameOptions) {
@@ -208,6 +209,22 @@ export function acceptOffer(offerId: string) {
   commit();
   void saveCurrent(true);
   showToast(`Wechsel zu ${club.name} abgeschlossen.`, 'good');
+}
+
+/** Beauftragt den Berater (Konzept Abschnitt 35). */
+export function requestAgentTask(kind: AgentTaskKind) {
+  const game = getState().game;
+  if (!game) return;
+  const rng = new Rng(game.rngState);
+  ensureAgent(game, rng);
+  game.rngState = rng.state;
+  if (!startAgentTask(game, kind)) {
+    showToast('Dein Berater kann das gerade nicht uebernehmen.', 'bad');
+    return;
+  }
+  commit();
+  void saveCurrent(true);
+  showToast('Auftrag erteilt. Dein Berater meldet sich.', 'info');
 }
 
 /** Freiwilliger Ruecktritt vom aktiven Sport (Konzept Abschnitt 2). */
