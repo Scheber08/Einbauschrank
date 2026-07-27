@@ -4,6 +4,7 @@
  * eine Schluesselsituation hat, die selbst gespielt werden kann.
  */
 import { POSITION_LINE, effectiveOverall } from './attributes';
+import { GOAL_HALF_WIDTH } from './ballAction';
 import type { Lineup } from './lineup';
 import {
   computeRating, expectedGoals, finishingModifier, keeperModifier,
@@ -1296,11 +1297,31 @@ export class MatchEngine {
       opponent: shooter.rating,
       xg: chance.xg,
       bigChance: chance.bigChance,
-      incoming: {
-        speed: clamp(18 + shooter.player.attrs.shotPower / 4, 18, 42),
-        curve: this.rng.float(-1, 1) * (shooter.player.attrs.curve / 100),
-        power: shooter.player.attrs.shotPower,
-      },
+      incoming: this.buildIncoming(shooter),
+    };
+  }
+
+  /**
+   * Der Schuss steht schon vor der Entscheidung des Torwarts fest, damit dieser
+   * die Koerperhaltung lesen kann. Der Hinweis ist absichtlich ungenau - je
+   * besser der Schuetze, desto weniger verraet er (Konzept Abschnitt 25).
+   */
+  private buildIncoming(shooter: OnPitchPlayer): NonNullable<Challenge['incoming']> {
+    // Breiter gestreut als zuvor, damit die Ecken wirklich angespielt werden und
+    // Mittestehenbleiben keine dominante Strategie mehr ist.
+    const aimX = clamp(
+      this.rng.normal(0, GOAL_HALF_WIDTH * 0.78),
+      -GOAL_HALF_WIDTH * 1.1, GOAL_HALF_WIDTH * 1.1,
+    );
+    // Der Hinweis ist bewusst grob: Er engt die Ecke ein, nimmt die
+    // Entscheidung aber nicht ab.
+    const deception = 0.85 + (shooter.player.attrs.composure ?? 50) / 80;
+    return {
+      speed: clamp(18 + shooter.player.attrs.shotPower / 4, 18, 42),
+      curve: this.rng.float(-1, 1) * (shooter.player.attrs.curve / 100),
+      power: shooter.player.attrs.shotPower,
+      aimX,
+      tell: clamp(aimX + this.rng.normal(0, deception), -GOAL_HALF_WIDTH * 1.3, GOAL_HALF_WIDTH * 1.3),
     };
   }
 

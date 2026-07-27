@@ -50,7 +50,18 @@ export interface Challenge {
   /** Anzahl Spieler in der Mauer (Freistoss). */
   wall?: number;
   /** Kommt der Schuss von links oder rechts (Torwartszene)? */
-  incoming?: { speed: number; curve: number; power: number };
+  incoming?: {
+    speed: number;
+    curve: number;
+    power: number;
+    /** Tatsaechliche Zielrichtung des Schuetzen auf der Torlinie, in Metern. */
+    aimX?: number;
+    /**
+     * Was die Koerperhaltung des Schuetzen verraet - die vermutete Richtung.
+     * Je besser der Schuetze, desto ungenauer der Hinweis.
+     */
+    tell?: number;
+  };
 }
 
 export type ChallengeOutcome =

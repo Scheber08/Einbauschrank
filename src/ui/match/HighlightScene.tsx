@@ -1166,6 +1166,33 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       ctx.beginPath(); ctx.moveTo(originX, y); ctx.lineTo(originX + goalW, y); ctx.stroke();
     }
 
+    // Was die Koerperhaltung des Schuetzen verraet: ein ungenauer Hinweis auf
+    // die Ecke. Er macht die Wahl zu einer Entscheidung statt zu einem Raten.
+    const tell = challenge.incoming?.tell;
+    if (tell !== undefined && step !== 'result') {
+      const [tx] = toScreen(clamp(tell, -GOAL_HALF_WIDTH, GOAL_HALF_WIDTH), 0);
+      const top = originY;
+      const bottom = originY + goalH;
+      const grad = ctx.createLinearGradient(tx - 90, 0, tx + 90, 0);
+      grad.addColorStop(0, 'rgba(245,197,66,0)');
+      grad.addColorStop(0.5, 'rgba(245,197,66,0.22)');
+      grad.addColorStop(1, 'rgba(245,197,66,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(tx - 90, top, 180, bottom - top);
+      ctx.strokeStyle = 'rgba(245,197,66,0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(tx, top);
+      ctx.lineTo(tx, bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(245,197,66,0.9)';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Koerperhaltung deutet hierhin', tx, top - 10);
+    }
+
     const point = dive ?? hover;
     if (point) {
       const [sx, sy] = toScreen(point.x, point.z);
@@ -1216,7 +1243,8 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       step === 'dive' ? 'Waehle Ecke und Hoehe' : step === 'timing' ? 'Jetzt abspringen' : resultText,
       VIEW_W / 2, 48,
     );
-  }, [dive, hover, step, difficulty.targetSize, resultText, goalH, goalW, originX]);
+  }, [dive, hover, step, difficulty.targetSize, resultText, goalH, goalW, originX,
+    challenge.incoming?.tell]);
 
   useEffect(() => { draw(); }, [draw]);
 

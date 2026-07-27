@@ -770,9 +770,12 @@ export function resolveSave(
   input: SaveInput, challenge: Challenge, keeper: Player,
   difficulty: DifficultySettings, rng: Rng,
 ): SaveResolution {
-  // Der Schuss wird aus der Sicht des Torwarts erzeugt.
+  // Der Schuss steht bereits fest, sobald die Szene beginnt - nur so kann der
+  // Torwart die Koerperhaltung lesen und seine Ecke bewusst waehlen. Fehlt die
+  // Vorgabe (aeltere Spielstaende), wird wie bisher gewuerfelt.
   const shooterQuality = challenge.opponent;
-  const aimX = clamp(rng.normal(0, GOAL_HALF_WIDTH * 0.55), -GOAL_HALF_WIDTH * 1.15, GOAL_HALF_WIDTH * 1.15);
+  const aimX = challenge.incoming?.aimX
+    ?? clamp(rng.normal(0, GOAL_HALF_WIDTH * 0.55), -GOAL_HALF_WIDTH * 1.15, GOAL_HALF_WIDTH * 1.15);
   const contactY = rng.float(-0.55, 0.3);
   const contactX = (challenge.incoming?.curve ?? 0) * 0.8;
   const power = clamp(0.45 + shooterQuality / 220 + rng.float(-0.12, 0.2), 0.25, 1);
@@ -801,7 +804,9 @@ export function resolveSave(
 
   // Reichweite um die gewaehlte Sprungposition
   const timingPenalty = clamp(1 - Math.abs(input.timing) / 0.35, 0, 1);
-  const reach = (0.85 + skill / 62) * difficulty.targetSize * (0.55 + timingPenalty * 0.55);
+  // Reichweite um die gewaehlte Ecke. Bewusst knapper als die halbe Torbreite,
+  // damit die Wahl der Ecke zaehlt und nicht ein Sprung das halbe Tor abdeckt.
+  const reach = (0.62 + skill / 88) * difficulty.targetSize * (0.55 + timingPenalty * 0.55);
   const dx = Math.abs(crossing.x - input.diveX);
   const dz = Math.abs(crossing.z - input.diveZ);
   const dist = Math.hypot(dx, dz * 1.25);
