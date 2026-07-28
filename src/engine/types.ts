@@ -496,6 +496,22 @@ export interface TransferOffer {
   leagueLevel: number;
   /** Verlaengerung beim eigenen Verein statt Wechsel. */
   renewal?: boolean;
+  /** Leihe: Der Stammverein bleibt bestehen, die Rueckkehr ist vereinbart. */
+  loan?: boolean;
+}
+
+/** Laufende Leihe (Konzept Abschnitt 34). */
+export interface LoanState {
+  /** Verein, zu dem der Spieler nach der Leihe zurueckkehrt. */
+  parentClubId: Id;
+  /** Gehalt beim Stammverein, das nach der Rueckkehr wieder gilt. */
+  parentSalary: number;
+  /** Kaderrolle beim Stammverein. */
+  parentRole: SquadRole;
+  /** Vertragsende beim Stammverein. */
+  parentUntil: GameDate;
+  /** Ende der Leihe. */
+  until: GameDate;
 }
 
 // --- Schwierigkeitsgrad (Konzept Abschnitt 59) --------------------------
@@ -619,6 +635,9 @@ export interface GameState {
 
   /** Soziales Netzwerk (Konzept Abschnitt 40). */
   social?: SocialState;
+
+  /** Laufende Leihe des eigenen Spielers (Konzept Abschnitt 34). */
+  loan?: LoanState;
 
   /** Zaehler fuer fortlaufende IDs. */
   nextId: number;

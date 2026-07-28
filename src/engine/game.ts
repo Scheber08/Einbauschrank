@@ -16,6 +16,7 @@ import { buildLifeEvent, type LifeEvent } from './events';
 import {
   CC_ID, CC_LEAGUE_ROUNDS, advanceChampionsCup, clearOldChampionsCup, startChampionsCup,
 } from './international';
+import { checkLoanReturn } from './loan';
 import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
 import type { WncResult } from './types';
@@ -416,6 +417,8 @@ export function advanceDay(state: GameState): DayResult {
 
   // Der Berater arbeitet im Hintergrund weiter (Konzept Abschnitt 35).
   advanceAgent(state, rng);
+  // Endet eine Leihe, kehrt der Spieler zum Stammverein zurueck (Abschnitt 34).
+  checkLoanReturn(state, rng);
 
   // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
   // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.

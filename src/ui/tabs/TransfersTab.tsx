@@ -29,6 +29,12 @@ export default function TransfersTab() {
           <Meter label="Beziehung zum Trainer" value={game.coachRelation} />
           <Meter label="Beliebtheit bei den Fans" value={game.fanRelation} />
         </div>
+        {game.loan && (
+          <p className="small" style={{ marginBottom: 0, color: 'var(--warn)' }}>
+            Du bist bis {formatShort(game.loan.until)} an {club?.name} ausgeliehen.
+            Danach geht es zurueck zu {game.clubs[game.loan.parentClubId]?.name}.
+          </p>
+        )}
       </Panel>
 
       <AgentPanel />
@@ -63,7 +69,8 @@ export default function TransfersTab() {
                     <div className="tiny dim">{league?.name} - {offerClub.city}</div>
                   </div>
                   {offer.renewal && <Pill tone="good">Verlaengerung</Pill>}
-                  {better && !offer.renewal && <Pill tone="good">Hoehere Liga</Pill>}
+                  {offer.loan && <Pill tone="warn">Leihe</Pill>}
+                  {better && !offer.renewal && !offer.loan && <Pill tone="good">Hoehere Liga</Pill>}
                 </div>
 
                 <div className="tiny dim" style={{ margin: '0.5rem 0 0.1rem' }}>
@@ -103,7 +110,7 @@ export default function TransfersTab() {
                 <p className="tiny dim">{offer.pitch}</p>
                 <button className="primary small" style={{ width: '100%' }}
                   onClick={() => acceptOffer(offer.id)}>
-                  {offer.renewal ? 'Verlaengern' : 'Angebot annehmen'}
+                  {offer.renewal ? 'Verlaengern' : offer.loan ? 'Leihe annehmen' : 'Angebot annehmen'}
                 </button>
               </div>
             );

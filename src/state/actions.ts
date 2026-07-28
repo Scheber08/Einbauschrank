@@ -10,6 +10,7 @@ import { addCareerEvent, addNews } from '../engine/ids';
 import { calcMarketValue } from '../engine/playerGen';
 import { Rng } from '../engine/rng';
 import { seedRelationships } from '../engine/relationships';
+import { acceptLoan } from '../engine/loan';
 import { retireUser } from '../engine/retirement';
 import { publishDraft } from '../engine/social';
 import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '../engine/save';
@@ -148,6 +149,20 @@ export function acceptOffer(offerId: string) {
   const user = game.players[game.userPlayerId];
   const club = offer ? game.clubs[offer.clubId] : null;
   if (!offer || !user || !club) return;
+
+  // Leihe: Der Stammverein bleibt bestehen, die Rueckkehr ist vereinbart.
+  if (offer.loan) {
+    if (acceptLoan(game, offer)) {
+      const relRng = new Rng(game.rngState);
+      seedRelationships(game, relRng);
+      game.rngState = relRng.state;
+      createObjectives(game);
+      commit();
+      void saveCurrent(true);
+      showToast(`Leihe zu ${club.name} vereinbart.`, 'good');
+    }
+    return;
+  }
 
   // Verlaengerung beim eigenen Verein: nur der Vertrag wird neu, das Umfeld
   // (Beziehungen, Trainer, Fans) bleibt bestehen.

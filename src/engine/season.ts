@@ -3,6 +3,7 @@
  * Auszeichnungen und Transfers (Konzept Abschnitt 8, 9, 34, 50, 51).
  */
 import { maybeOfferBetterAgent, resetAgentSeason } from './agent';
+import { generateLoanOffers } from './loan';
 import { computeOverall, POSITION_LINE } from './attributes';
 import { COUNTRY_BY_ID } from './countries';
 import { CUP_ROUNDS, drawFirstRound, drawRound, winnersOf } from './cup';
@@ -711,6 +712,8 @@ function runTransferWindow(state: GameState, rng: Rng) {
 
   generateUserOffers(state, rng);
   offerUserRenewal(state, rng);
+  // Wer kaum gespielt hat, bekommt Angebote fuer eine Leihe (Abschnitt 34).
+  generateLoanOffers(state, rng);
   // Der Berater startet mit frischem Kontingent in die neue Saison; wer sich
   // einen Namen gemacht hat, wird von einem groesseren Namen umworben.
   resetAgentSeason(state);
