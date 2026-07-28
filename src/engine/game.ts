@@ -16,6 +16,7 @@ import { buildLifeEvent, type LifeEvent } from './events';
 import {
   CC_ID, CC_LEAGUE_ROUNDS, advanceChampionsCup, clearOldChampionsCup, startChampionsCup,
 } from './international';
+import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
 import type { WncResult } from './types';
 import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
@@ -144,6 +145,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
 
   startSeason(state, rng);
   startChampionsCup(state, rng, null);
+  startTrophy(state, rng, null);
   createObjectives(state);
   seedRelationships(state, rng);
   updateNationalStatus(state);
@@ -442,6 +444,7 @@ export function advanceDay(state: GameState): DayResult {
     if (cup) advanceCup(state, rng, cup.id);
   }
   advanceChampionsCup(state, rng);
+  advanceTrophy(state);
 
   handleSeasonTransitions(state, rng, result);
   updateObjectives(state);
@@ -470,6 +473,8 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
     // gerade beendeten Saison.
     clearOldChampionsCup(state);
     startChampionsCup(state, rng, report.season);
+    clearOldTrophy(state);
+    startTrophy(state, rng, report.season);
     updateNationalStatus(state);
     // World Nations Cup im Sommer eines Turnierjahres.
     if (isWncYear(report.season)) {

@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { sortedTable, userClub } from '../../engine/game';
 import { COUNTRIES } from '../../engine/countries';
 import { CC_ID, CC_NAME, championsCupTable } from '../../engine/international';
+import { CT_ID, CT_NAME } from '../../engine/trophy';
 import { leaguesOfCountry, cupOfCountry } from '../../engine/season';
 import { topAssists, topScorers } from '../../engine/stats';
 import { CUP_ROUNDS } from '../../engine/cup';
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
-import { Empty, FormDots, Panel, shortName } from '../components';
+import { Empty, FormDots, Panel, Pill, shortName } from '../components';
 
 export default function TableTab() {
   const game = useAppState().game!;
@@ -55,6 +56,7 @@ export default function TableTab() {
   return (
     <>
       <ChampionsCupPanel />
+      <TrophyPanel />
 
       <Panel title="Wettbewerbe" action={
         <div className="chip-row">
@@ -303,6 +305,52 @@ function ChampionsCupPanel() {
           </div>
         </>
       )}
+    </Panel>
+  );
+}
+
+/** Zweiter europaeischer Wettbewerb - reines K.-o.-Turnier (Abschnitt 11). */
+function TrophyPanel() {
+  const game = useAppState().game!;
+  const club = userClub(game);
+  const ct = game.competitions[CT_ID];
+
+  const matches = useMemo(() => {
+    if (!ct) return [];
+    return Object.values(game.matches)
+      .filter((m) => m.competitionId === CT_ID && m.season === game.season)
+      .sort((a, b) => (a.matchday ?? 0) - (b.matchday ?? 0) || a.date.localeCompare(b.date));
+  }, [ct, game.season, game.version]);
+
+  if (!ct) return null;
+
+  return (
+    <Panel title={CT_NAME} action={<Pill>{ct.clubIds.length} Teilnehmer</Pill>}>
+      {matches.length === 0 && <Empty text="Die Auslosung steht noch aus." />}
+      {matches.length > 0 && (
+        <div className="scroll">
+          <table>
+            <tbody>
+              {matches.map((m) => (
+                <tr key={m.id} className={
+                  club && (m.homeClubId === club.id || m.awayClubId === club.id) ? 'user' : ''}>
+                  <td className="tiny dim">{m.roundName}</td>
+                  <td style={{ textAlign: 'right' }}>{game.clubs[m.homeClubId]?.name}</td>
+                  <td className="center mono" style={{ width: 66 }}>
+                    {m.played ? `${m.homeScore}:${m.awayScore}` : <span className="dim">-:-</span>}
+                    {m.penalties && <div className="tiny dim">n.E. {m.penalties[0]}:{m.penalties[1]}</div>}
+                  </td>
+                  <td>{game.clubs[m.awayClubId]?.name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="tiny dim" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+        Der zweite europaeische Wettbewerb: Hier spielen die Vereine, die den Champions
+        Cup knapp verpasst haben - im reinen K.-o.-Modus vom Achtelfinale bis zum Finale.
+      </p>
     </Panel>
   );
 }
