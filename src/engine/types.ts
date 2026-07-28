@@ -107,6 +107,47 @@ export interface Contract {
   releaseClause?: number;
 }
 
+// --- Soziales Netzwerk (Konzept Abschnitt 40) --------------------------
+
+export interface SocialPost {
+  id: Id;
+  date: GameDate;
+  /** Wer schreibt: Fans, Medien, Kritiker oder der Spieler selbst. */
+  kind: 'fan' | 'media' | 'critic' | 'own';
+  author: string;
+  text: string;
+  likes: number;
+}
+
+export interface SocialEffect {
+  image?: number;
+  fans?: number;
+  reputation?: number;
+  /** Wirkung auf die Stimmung in der Mannschaft. */
+  teamMood?: number;
+}
+
+export interface SocialOption {
+  id: string;
+  label: string;
+  tone: string;
+  effect: SocialEffect;
+  /** Was veroeffentlicht wird. Leer heisst: nichts posten. */
+  text: string;
+}
+
+/** Offene Gelegenheit, sich selbst zu Wort zu melden. */
+export interface SocialDraft {
+  prompt: string;
+  options: SocialOption[];
+}
+
+export interface SocialState {
+  followers: number;
+  feed: SocialPost[];
+  draft: SocialDraft | null;
+}
+
 // --- Beratersystem (Konzept Abschnitt 35) ------------------------------
 
 /** Auftrag an den Berater. Laeuft ueber mehrere Tage. */
@@ -575,6 +616,9 @@ export interface GameState {
 
   /** Spielerberater (Konzept Abschnitt 35). */
   agent?: Agent;
+
+  /** Soziales Netzwerk (Konzept Abschnitt 40). */
+  social?: SocialState;
 
   /** Zaehler fuer fortlaufende IDs. */
   nextId: number;

@@ -25,6 +25,7 @@ import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
 import { simulateLight } from './matchSim';
 import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
+import { socialAfterMatch } from './social';
 import { expectedAttendance, matchImportance } from './rivalry';
 import { Rng, clamp, randomSeed } from './rng';
 import {
@@ -921,6 +922,15 @@ function handleUserMatchAftermath(
   if (input.moraleDelta) {
     user.morale = clamp(user.morale + input.moraleDelta, 0, 100);
     state.coachRelation = clamp(state.coachRelation + input.moraleDelta * 0.4, 0, 100);
+  }
+
+  // Die Oeffentlichkeit meldet sich zu Wort (Konzept Abschnitt 40).
+  {
+    const socialRng = new Rng(state.rngState);
+    const own = s.clubId === match.homeClubId ? input.homeScore : input.awayScore;
+    const opp = s.clubId === match.homeClubId ? input.awayScore : input.homeScore;
+    socialAfterMatch(state, s, own, opp, opponent?.name ?? 'den Gegner', socialRng);
+    state.rngState = socialRng.state;
   }
 
   // Ein Derby wiegt schwerer als ein gewoehnliches Spiel: Der Ausgang schlaegt

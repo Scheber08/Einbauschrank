@@ -11,6 +11,7 @@ import { calcMarketValue } from '../engine/playerGen';
 import { Rng } from '../engine/rng';
 import { seedRelationships } from '../engine/relationships';
 import { retireUser } from '../engine/retirement';
+import { publishDraft } from '../engine/social';
 import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '../engine/save';
 import type { SeasonReport } from '../engine/season';
 import { computeOverall } from '../engine/attributes';
@@ -209,6 +210,19 @@ export function acceptOffer(offerId: string) {
   commit();
   void saveCurrent(true);
   showToast(`Wechsel zu ${club.name} abgeschlossen.`, 'good');
+}
+
+/** Veroeffentlicht einen eigenen Beitrag (Konzept Abschnitt 40). */
+export function postSocial(optionId: string) {
+  const game = getState().game;
+  if (!game) return;
+  const rng = new Rng(game.rngState);
+  const option = publishDraft(game, optionId, rng);
+  game.rngState = rng.state;
+  commit();
+  void saveCurrent(true);
+  if (option?.text) showToast('Beitrag veroeffentlicht.', 'good');
+  else showToast('Du haeltst dich zurueck.', 'info');
 }
 
 /** Beauftragt den Berater (Konzept Abschnitt 35). */

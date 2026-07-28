@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { formatDate } from '../../engine/date';
+import { postSocial } from '../../state/actions';
 import { commit, useAppState } from '../../state/store';
 import type { NewsCategory } from '../../engine/types';
-import { Empty, Panel } from '../components';
+import { Empty, Panel, Pill } from '../components';
 
 const CATEGORY_LABELS: Partial<Record<NewsCategory, string>> = {
   match: 'Spielberichte',
@@ -27,7 +28,9 @@ export default function NewsTab() {
   }
 
   return (
-    <Panel title="Nachrichten" action={
+    <>
+      <SocialPanel />
+      <Panel title="Nachrichten" action={
       <div className="row">
         <div className="chip-row">
           <span className={`chip ${filter === 'all' ? 'active' : ''}`}
@@ -55,6 +58,73 @@ export default function NewsTab() {
           </article>
         ))}
       </div>
+      </Panel>
+    </>
+  );
+}
+
+const KIND_STYLE: Record<string, { label: string; color: string }> = {
+  own: { label: 'Du', color: '#37d67a' },
+  fan: { label: 'Fans', color: '#2bb7ff' },
+  media: { label: 'Medien', color: '#f5c542' },
+  critic: { label: 'Kritik', color: '#ff8a95' },
+};
+
+/** Soziales Netzwerk: Reaktionen der Oeffentlichkeit und eigene Beitraege. */
+function SocialPanel() {
+  const game = useAppState().game!;
+  const social = game.social;
+  if (!social || (social.feed.length === 0 && !social.draft)) return null;
+
+  return (
+    <Panel title="Oeffentlichkeit" action={
+      <Pill>{social.followers.toLocaleString('de-DE')} Follower</Pill>
+    }>
+      {social.draft && (
+        <div style={{
+          padding: '0.7rem 0.8rem', marginBottom: '0.8rem',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+          background: '#0c1729',
+        }}>
+          <div className="tiny dim">Willst du dich dazu aeussern?</div>
+          <div style={{ fontWeight: 620, margin: '0.2rem 0 0.6rem' }}>{social.draft.prompt}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {social.draft.options.map((o) => (
+              <button key={o.id} style={{ textAlign: 'left', padding: '0.5rem 0.7rem' }}
+                onClick={() => postSocial(o.id)}>
+                <div className="small" style={{ fontWeight: 600 }}>{o.label}</div>
+                <div className="tiny dim">
+                  {o.text ? `"${o.text}"` : 'Kein Beitrag'} - {o.tone}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {social.feed.length === 0 ? (
+        <Empty text="Noch nichts gepostet." />
+      ) : (
+        <div className="scroll">
+          {social.feed.slice(0, 20).map((p) => {
+            const style = KIND_STYLE[p.kind] ?? KIND_STYLE.media;
+            return (
+              <article className="news-item" key={p.id}>
+                <div className="row between">
+                  <span className="small" style={{ fontWeight: 620, color: style.color }}>
+                    {p.author}
+                  </span>
+                  <span className="tiny dim">{formatDate(p.date)}</span>
+                </div>
+                <div className="small muted">{p.text}</div>
+                <div className="tiny dim" style={{ marginTop: 2 }}>
+                  {style.label} - {p.likes.toLocaleString('de-DE')} Gefaellt mir
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </Panel>
   );
 }
