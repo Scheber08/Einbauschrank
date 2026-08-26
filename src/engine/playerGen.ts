@@ -6,6 +6,7 @@ import {
 import { COUNTRY_BY_ID, type CountryDef } from './countries';
 import { addDays, ageOn, makeDate, type GameDate } from './date';
 import { NAME_POOLS } from './names';
+import { NATION_BY_ID, namePoolOf } from './nations';
 import { Rng, clamp } from './rng';
 import type { Contract, Player, SquadRole } from './types';
 
@@ -115,11 +116,24 @@ function physique(rng: Rng, position: PositionCode): { height: number; weight: n
 }
 
 export function createPlayer(rng: Rng, id: string, opts: PlayerGenOptions): Player {
-  const country = COUNTRY_BY_ID[opts.countryId];
-  const pool = NAME_POOLS[opts.countryId];
+  // countryId ist die Herkunftsnation. Namen und Laender-Eigenheiten haengen
+  // am zugeordneten Pool - so bekommt ein Brasilianer iberische Namen, ohne
+  // dass es fuer jede Nation ein eigenes Ligasystem braucht.
+  const poolId = namePoolOf(opts.countryId);
+  const country = COUNTRY_BY_ID[poolId];
+  const pool = NAME_POOLS[poolId] ?? NAME_POOLS.falkenland;
   const ability = clamp(Math.round(opts.ability), 12, 96);
 
   const attrs = generateAttributes(rng, ability, opts.position, country, opts.age);
+
+  // Leichte nationale Neigung obendrauf, falls fuer die Nation hinterlegt.
+  const bias = NATION_BY_ID[opts.countryId]?.bias;
+  if (bias) {
+    for (const [key, delta] of Object.entries(bias)) {
+      const k = key as AttrKey;
+      attrs[k] = clamp(Math.round(attrs[k] + delta * rng.float(0.3, 1)), 1, 99);
+    }
+  }
 
   // Potenzial: junge Spieler haben deutlich mehr Luft nach oben.
   const youthRoom = Math.max(0, 25 - opts.age);

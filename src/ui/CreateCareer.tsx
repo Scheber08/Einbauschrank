@@ -5,6 +5,7 @@ import { COUNTRIES } from '../engine/countries';
 import { realCountry } from '../engine/realData';
 import { HAIR_COLORS, SKIN_TONES } from './PlayerAvatar';
 import { NAME_POOLS } from '../engine/names';
+import { namePoolOf, nationsByRegion } from '../engine/nations';
 import { Rng, randomSeed } from '../engine/rng';
 import { startNewCareer } from '../state/actions';
 import { setState } from '../state/store';
@@ -28,7 +29,9 @@ export default function CreateCareer() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [age, setAge] = useState(17);
-  const [nationality, setNationality] = useState('falkenland');
+  // Wo gespielt wird und woher der Spieler kommt, sind getrennte Angaben.
+  const [homeCountry, setHomeCountry] = useState('falkenland');
+  const [nationality, setNationality] = useState('de');
   const [position, setPosition] = useState<PositionCode>('ST');
   const [altPositions, setAltPositions] = useState<PositionCode[]>([]);
   const [foot, setFoot] = useState<Foot>('rechts');
@@ -51,7 +54,7 @@ export default function CreateCareer() {
 
   function randomName() {
     const rng = new Rng(randomSeed());
-    const pool = NAME_POOLS[nationality] ?? NAME_POOLS.falkenland;
+    const pool = NAME_POOLS[namePoolOf(nationality)] ?? NAME_POOLS.falkenland;
     setFirstName(rng.pick(pool.firstNames));
     setLastName(rng.pick(pool.lastNames));
   }
@@ -71,6 +74,7 @@ export default function CreateCareer() {
       lastName: lastName.trim(),
       age,
       nationality,
+      homeCountry,
       position,
       altPositions: altPositions.filter((p) => p !== position),
       foot,
@@ -97,12 +101,24 @@ export default function CreateCareer() {
               <input value={saveName} onChange={(e) => setSaveName(e.target.value)} />
             </div>
             <div>
-              <label>Nationalitaet</label>
-              <select value={nationality} onChange={(e) => setNationality(e.target.value)}>
+              <label>Land, in dem du spielst</label>
+              <select value={homeCountry} onChange={(e) => setHomeCountry(e.target.value)}>
                 {COUNTRIES.map((c) => (
                   <option key={c.id} value={c.id}>
                     {realCountry(c.id)?.displayName ?? c.name} - {c.style}
                   </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label>Herkunftsland</label>
+              <select value={nationality} onChange={(e) => setNationality(e.target.value)}>
+                {nationsByRegion().map((group) => (
+                  <optgroup key={group.region} label={group.region}>
+                    {group.nations.map((n) => (
+                      <option key={n.id} value={n.id}>{n.name}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

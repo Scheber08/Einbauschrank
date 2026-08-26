@@ -1,43 +1,45 @@
-# Kader der ersten Liga. Nur Namen und Positionen - alle Spielwerte
+# Kader der ersten Liga. Nur Namen, Positionen und Herkunft - alle Spielwerte
 # erzeugt das Spiel weiterhin aus der Vereinsstaerke.
 # Positionen: TW IV LV RV DM ZM OM LA RA ST
-verein;name;position
-Nordstern Hafenstadt;Jonas Falkner;TW
-Nordstern Hafenstadt;Piet Ahrenberg;IV
-Nordstern Hafenstadt;Malte Dornbusch;IV
-Nordstern Hafenstadt;Ole Requena;LV
-Nordstern Hafenstadt;Silas Habicht;RV
-Nordstern Hafenstadt;Lennard Kaltenbach;DM
-Nordstern Hafenstadt;Fabian Moorbach;ZM
-Nordstern Hafenstadt;Nico Sturmberg;OM
-Nordstern Hafenstadt;Kilian Vetterlein;LA
-Nordstern Hafenstadt;Arne Waldschmidt;RA
-Nordstern Hafenstadt;Tobias Nordmann;ST
-Nordstern Hafenstadt;Marek Reichl;ST
-FC Silberbach;Hendrik Uhlig;TW
-FC Silberbach;Jannis Tannhoff;IV
-FC Silberbach;Till Neuhaus;IV
-FC Silberbach;Bennet Ostermann;LV
-FC Silberbach;Levin Pfeilstein;RV
-FC Silberbach;Moritz Quandt;DM
-FC Silberbach;Anton Reitmeier;ZM
-FC Silberbach;Elias Schoenfeld;OM
-FC Silberbach;Emil Falkner;LA
-FC Silberbach;Fynn Hartmann;ST
-Eisvogel Nordheim;Joris Steinbach;TW
-Eisvogel Nordheim;Marlon Wieland;IV
-Eisvogel Nordheim;Nils Reinhardt;LV
-Eisvogel Nordheim;Sven Kohlmann;DM
-Eisvogel Nordheim;Valentin Baumgart;OM
-Eisvogel Nordheim;Aaron Lindner;ST
-SV Wolkenstein;Cedric Grothe;TW
-SV Wolkenstein;Damian Vogelsang;IV
-SV Wolkenstein;Erik Ebert;RV
-SV Wolkenstein;Florian Sandberg;ZM
-SV Wolkenstein;Gero Kastner;RA
-SV Wolkenstein;Hauke Meinhardt;ST
-Möwenfels United;Ilja Rothbauer;TW
-Möwenfels United;Jakob Wintersen;IV
-Möwenfels United;Konrad Duerrhoff;DM
-Möwenfels United;Lasse Espenlaub;OM
-Möwenfels United;Mattis Gerlach;ST
+# nation: freiwillig. Kennung oder Name, also "br" oder "Brasilien".
+#         Bleibt die Spalte leer, wuerfelt das Spiel die Herkunft.
+verein;name;position;nation
+Nordstern Hafenstadt;Jonas Falkner;TW;de
+Nordstern Hafenstadt;Piet Ahrenberg;IV;de
+Nordstern Hafenstadt;Malte Dornbusch;IV;
+Nordstern Hafenstadt;Ole Requena;LV;es
+Nordstern Hafenstadt;Silas Habicht;RV;
+Nordstern Hafenstadt;Lennard Kaltenbach;DM;
+Nordstern Hafenstadt;Fabian Moorbach;ZM;
+Nordstern Hafenstadt;Nico Sturmberg;OM;
+Nordstern Hafenstadt;Kilian Vetterlein;LA;
+Nordstern Hafenstadt;Arne Waldschmidt;RA;
+Nordstern Hafenstadt;Tobias Nordmann;ST;
+Nordstern Hafenstadt;Marek Reichl;ST;
+FC Silberbach;Hendrik Uhlig;TW;
+FC Silberbach;Jannis Tannhoff;IV;
+FC Silberbach;Till Neuhaus;IV;
+FC Silberbach;Bennet Ostermann;LV;
+FC Silberbach;Levin Pfeilstein;RV;
+FC Silberbach;Moritz Quandt;DM;
+FC Silberbach;Anton Reitmeier;ZM;
+FC Silberbach;Elias Schoenfeld;OM;
+FC Silberbach;Emil Falkner;LA;
+FC Silberbach;Fynn Hartmann;ST;
+Eisvogel Nordheim;Joris Steinbach;TW;
+Eisvogel Nordheim;Marlon Wieland;IV;
+Eisvogel Nordheim;Nils Reinhardt;LV;
+Eisvogel Nordheim;Sven Kohlmann;DM;
+Eisvogel Nordheim;Valentin Baumgart;OM;
+Eisvogel Nordheim;Aaron Lindner;ST;
+SV Wolkenstein;Cedric Grothe;TW;
+SV Wolkenstein;Damian Vogelsang;IV;
+SV Wolkenstein;Erik Ebert;RV;
+SV Wolkenstein;Florian Sandberg;ZM;
+SV Wolkenstein;Gero Kastner;RA;
+SV Wolkenstein;Hauke Meinhardt;ST;
+Möwenfels United;Ilja Rothbauer;TW;
+Möwenfels United;Jakob Wintersen;IV;
+Möwenfels United;Konrad Duerrhoff;DM;
+Möwenfels United;Lasse Espenlaub;OM;
+Möwenfels United;Mattis Gerlach;ST;

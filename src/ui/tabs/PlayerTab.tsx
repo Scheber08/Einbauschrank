@@ -3,7 +3,7 @@ import {
   ATTR_GROUPS, POSITION_LABELS, computeOverall, effectiveOverall,
 } from '../../engine/attributes';
 import { BACKGROUNDS } from '../../engine/backgrounds';
-import { COUNTRY_BY_ID } from '../../engine/countries';
+import { nationName } from '../../engine/nations';
 import { ageOn, formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { renewContract } from '../../state/actions';
@@ -20,7 +20,7 @@ export default function PlayerTab() {
 
   const ability = computeOverall(user.attrs, user.position);
   const showPotential = game.difficulty !== 'schwer' && game.difficulty !== 'simulation';
-  const country = COUNTRY_BY_ID[user.nationality];
+
   const bg = user.background ? BACKGROUNDS[user.background] : null;
 
   const activeGroup = ATTR_GROUPS.find((g) => g.key === group) ?? ATTR_GROUPS[0];
@@ -60,7 +60,7 @@ export default function PlayerTab() {
             <div className="row between small"><span className="muted">Nebenpositionen</span>
               <span>{user.altPositions.length ? user.altPositions.join(', ') : '-'}</span></div>
             <div className="row between small"><span className="muted">Nationalitaet</span>
-              <span>{country?.name ?? user.nationality}</span></div>
+              <span>{nationName(user.nationality)}</span></div>
             <div className="row between small"><span className="muted">Geboren</span>
               <span>{formatShort(user.birthDate)}</span></div>
             <div className="row between small"><span className="muted">Groesse / Gewicht</span>

@@ -4,6 +4,7 @@ import { COUNTRIES, COUNTRY_BY_ID, type CountryDef } from './countries';
 import { ageOn, type GameDate } from './date';
 import { sponsorsFor } from './identity';
 import { NAME_POOLS, STADIUM_PLACES, STADIUM_STANDALONE, STADIUM_WORDS } from './names';
+import { FOREIGN_NATION_POOL, nationOfGameCountry } from './nations';
 import {
   assignSquadNames, deriveShort, leagueLayout, realClub, realCountry, realLeagueName,
   type RealClub,
@@ -112,6 +113,8 @@ function generateSquad(
   const usedNumbers = new Set<number>();
 
   const positions = rng.shuffle(SQUAD_TEMPLATE.slice());
+  // Die Nation, die der Liga des Vereins entspricht - die Mehrheit des Kaders.
+  const homeNation = nationOfGameCountry(country.id) ?? country.id;
   // Eigene Kadernamen ueberschreiben nur die Namen, niemals die Spielwerte.
   const nameOverrides = realSquad?.length
     ? assignSquadNames(realSquad, positions)
@@ -131,11 +134,17 @@ function generateSquad(
     else if (ageRoll < 0.93) age = rng.int(29, 32);
     else age = rng.int(33, 37);
 
-    // Auslaendische Spieler: in hoeheren Ligen haeufiger.
+    // Auslaendische Spieler: in hoeheren Ligen haeufiger. Die Herkunft kommt
+    // aus der Nationenliste, nicht aus den fuenf Ligalaendern - ein Kader
+    // ohne einen einzigen Brasilianer waere kein Fussballkader.
     const foreignChance = level === 1 ? 0.3 : level === 2 ? 0.16 : 0.07;
-    const nationality = rng.chance(foreignChance)
-      ? rng.pick(COUNTRIES.filter((c) => c.id !== country.id)).id
-      : country.id;
+    let nationality = homeNation;
+    if (rng.chance(foreignChance)) {
+      for (let tries = 0; tries < 8; tries++) {
+        const pick = rng.pick(FOREIGN_NATION_POOL);
+        if (pick !== homeNation) { nationality = pick; break; }
+      }
+    }
 
     let shirtNumber = 0;
     for (let tries = 0; tries < 60; tries++) {
@@ -160,6 +169,8 @@ function generateSquad(
     if (override) {
       if (override.firstName) player.firstName = override.firstName;
       player.lastName = override.lastName;
+      // Eine Herkunft aus der Vorlage schlaegt die gewuerfelte.
+      if (override.nation) player.nationality = override.nation;
     }
 
     const role: SquadRole = index < 6 ? 'Schluesselspieler'

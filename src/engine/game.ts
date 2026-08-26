@@ -20,6 +20,7 @@ import {
 import { checkLoanReturn, generateLoanOffers } from './loan';
 import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
+import { gameCountryOfNation } from './nations';
 import type { WncResult } from './types';
 import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
@@ -71,7 +72,14 @@ export interface NewGameOptions {
   firstName: string;
   lastName: string;
   age: number;
+  /** Herkunftsland des Spielers - eine Kennung aus nations.ts. */
   nationality: string;
+  /**
+   * In welchem Land die Laufbahn beginnt. Fehlt die Angabe, wird das
+   * Herkunftsland genommen, sofern es bespielbar ist - so bleiben aeltere
+   * Aufrufe gueltig, die beides noch nicht getrennt haben.
+   */
+  homeCountry?: string;
   position: PositionCode;
   altPositions: PositionCode[];
   foot: Foot;
@@ -164,9 +172,22 @@ export function createNewGame(opts: NewGameOptions): GameState {
   return state;
 }
 
+/**
+ * In welchem Land die Laufbahn spielt - nicht zwingend das Herkunftsland.
+ * Ohne ausdrueckliche Wahl beginnt man dort, wo die eigene Nation ihr
+ * Ligasystem hat; hat sie keines, im Standardland.
+ */
+export function homeCountryOf(opts: NewGameOptions): string {
+  return COUNTRY_BY_ID[opts.homeCountry ?? '']?.id
+    ?? COUNTRY_BY_ID[gameCountryOfNation(opts.nationality) ?? '']?.id
+    ?? PLAYABLE_COUNTRY;
+}
+
 function createUserPlayer(state: GameState, rng: Rng, opts: NewGameOptions): Player {
   const bg = BACKGROUNDS[opts.background];
-  const country = COUNTRY_BY_ID[opts.nationality] ?? COUNTRY_BY_ID[PLAYABLE_COUNTRY];
+  // Die Attributneigung richtet sich nach dem Land, in dem er ausgebildet
+  // wurde - also dem Spielland, nicht dem Pass.
+  const country = COUNTRY_BY_ID[homeCountryOf(opts)];
 
   const baseAbility = clamp(
     { academy: 46, homeClub: 41, street: 43, wonderkid: 55, lateBloomer: 38 }[opts.background]
@@ -187,7 +208,7 @@ function createUserPlayer(state: GameState, rng: Rng, opts: NewGameOptions): Pla
     ability + 2, 97,
   );
 
-  const club = pickStartingClub(state, rng, bg.startLevel, bg.clubReputationBand);
+  const club = pickStartingClub(state, rng, bg.startLevel, bg.clubReputationBand, homeCountryOf(opts));
   const league = club ? state.competitions[club.leagueId] : null;
   const level = league?.level ?? 3;
 
@@ -247,13 +268,17 @@ function createUserPlayer(state: GameState, rng: Rng, opts: NewGameOptions): Pla
   return player;
 }
 
-function pickStartingClub(state: GameState, rng: Rng, level: number, band: [number, number]) {
-  const league = leaguesOfCountry(state, PLAYABLE_COUNTRY).find((l) => l.level === level);
+/** Startverein im gewaehlten Spielland - nicht mehr fest im Standardland. */
+function pickStartingClub(
+  state: GameState, rng: Rng, level: number, band: [number, number],
+  countryId: string = PLAYABLE_COUNTRY,
+) {
+  const league = leaguesOfCountry(state, countryId).find((l) => l.level === level);
   const pool = (league?.clubIds ?? [])
     .map((id) => state.clubs[id])
     .filter((c) => c && c.reputation >= band[0] && c.reputation <= band[1]);
   if (pool.length === 0) {
-    const fallback = leaguesOfCountry(state, PLAYABLE_COUNTRY)[level - 1];
+    const fallback = leaguesOfCountry(state, countryId)[level - 1];
     return fallback ? state.clubs[rng.pick(fallback.clubIds)] : undefined;
   }
   return rng.weighted(pool, (c) => c.youth + c.training * 0.5);

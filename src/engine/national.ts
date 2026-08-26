@@ -1,15 +1,19 @@
 /**
  * Nationalmannschaften und World Nations Cup (Konzept Abschnitt 12 und 13).
  *
- * Der World Nations Cup findet alle vier Jahre statt. Neben den fuenf
- * Hauptlaendern nehmen elf vereinfachte Nationen teil, die nur eine Staerke
- * besitzen. Das Turnier wird in einem Durchgang simuliert; die Beteiligung des
+ * Der World Nations Cup findet alle vier Jahre statt. Sechzehn Nationen nehmen
+ * teil: die fuenf Laender mit eigenem Ligasystem und elf weitere. Die Nation
+ * des eigenen Spielers ist immer dabei, egal welches Herkunftsland er gewaehlt
+ * hat. Das Turnier wird in einem Durchgang simuliert; die Beteiligung des
  * eigenen Spielers fliesst als Laenderspiele und Tore in seine Karriere ein.
  */
 import { effectiveOverall, computeOverall } from './attributes';
-import { COUNTRIES } from './countries';
+import { COUNTRIES, COUNTRY_BY_ID } from './countries';
 import { ageOn } from './date';
 import { addCareerEvent, addNews } from './ids';
+import {
+  NATIONS, NATION_BY_ID, gameCountryOfNation, nationName, nationOfGameCountry,
+} from './nations';
 import { Rng, clamp } from './rng';
 import type { GameState, Id, Player, WncResult } from './types';
 
@@ -20,40 +24,39 @@ export function isWncYear(season: number): boolean {
   return season >= FIRST_WNC && (season - FIRST_WNC) % 4 === 0;
 }
 
-/** Vereinfachte Zusatznationen (Abschnitt 13): nur Name und Staerke. */
-interface ExtraNation {
-  id: string;
-  name: string;
-  strength: number;
-}
-
-const EXTRA_NATIONS: ExtraNation[] = [
-  { id: 'x-nordia', name: 'Nordia', strength: 74 },
-  { id: 'x-vessaria', name: 'Vessaria', strength: 71 },
-  { id: 'x-montara', name: 'Montara', strength: 69 },
-  { id: 'x-kaledon', name: 'Kaledon', strength: 67 },
-  { id: 'x-adria', name: 'Adria', strength: 66 },
-  { id: 'x-sarona', name: 'Sarona', strength: 64 },
-  { id: 'x-thulia', name: 'Thulia', strength: 62 },
-  { id: 'x-brenland', name: 'Brenland', strength: 60 },
-  { id: 'x-costamar', name: 'Costamar', strength: 58 },
-  { id: 'x-veldoria', name: 'Veldoria', strength: 56 },
-  { id: 'x-halmyra', name: 'Halmyra', strength: 54 },
-];
+/** Groesse des Turnierfeldes. */
+const FIELD_SIZE = 16;
 
 interface Nation {
   id: string;
   name: string;
   strength: number;
+  /** Wird der Kader aus echten Spielern der Welt gebildet? */
   isMain: boolean;
-  /** Nur Hauptnationen: aktueller Kader. */
   squad?: Player[];
 }
 
-/** Bester Nationalkader eines Hauptlandes: die 23 staerksten passenden Spieler. */
-export function nationalSquad(state: GameState, countryId: Id): Player[] {
+/**
+ * Wie gross ist der Andrang in dieser Nation? Die Ligalaender bringen ihre
+ * eigene Reputation mit, alle anderen ihr fussballerisches Gewicht. In einer
+ * kleineren Nation kommt man leichter in die Auswahl - das macht die freie
+ * Wahl des Herkunftslandes auch spielerisch unterscheidbar.
+ */
+function nationReputation(nationId: string): number {
+  const gameCountry = gameCountryOfNation(nationId);
+  if (gameCountry) return COUNTRY_BY_ID[gameCountry]?.reputation ?? 60;
+  const nation = NATION_BY_ID[nationId];
+  if (nation) return clamp(nation.strength * 1.75 - 45, 25, 95);
+  return 42;
+}
+
+/**
+ * Bester Kader einer Nation: die 23 staerksten Spieler dieser Herkunft, die
+ * gerade fit sind. Fuer kleine Nationen kommen entsprechend wenige zusammen.
+ */
+export function nationalSquad(state: GameState, nationId: Id): Player[] {
   return Object.values(state.players)
-    .filter((p) => p.nationality === countryId && !p.injury)
+    .filter((p) => p.nationality === nationId && !p.injury)
     .map((p) => ({ p, r: computeOverall(p.attrs, p.position) + p.form / 10 }))
     .sort((a, b) => b.r - a.r)
     .slice(0, 23)
@@ -73,8 +76,6 @@ function mainNationStrength(squad: Player[]): number {
 export function evaluateNomination(state: GameState): boolean {
   const user = state.players[state.userPlayerId];
   if (!user) return false;
-  const country = COUNTRIES.find((c) => c.id === user.nationality);
-  if (!country) return false;
 
   const ability = computeOverall(user.attrs, user.position);
   // Konkurrenz auf der eigenen Position im Land.
@@ -87,7 +88,7 @@ export function evaluateNomination(state: GameState): boolean {
 
   // Guter Spieler auf einer nicht ueberlaufenen Position wird nominiert.
   const score = ability + (user.form - 50) / 4 + (user.reputation - 40) / 8 - (rank - 1) * 6;
-  const threshold = 58 + country.reputation / 10;
+  const threshold = 58 + nationReputation(user.nationality) / 10;
   return score >= threshold;
 }
 
@@ -108,6 +109,59 @@ interface TournamentTeam {
 }
 
 /**
+ * Stellt das Teilnehmerfeld zusammen: die fuenf Ligalaender sind gesetzt, den
+ * Rest fuellen die staerksten uebrigen Nationen auf. Die Nation des eigenen
+ * Spielers ist immer dabei - sonst waere die freie Wahl des Herkunftslandes
+ * nichts wert; sie verdraengt notfalls den schwaechsten Gast.
+ *
+ * Die Staerke eines Ligalandes kommt aus seinem echten Kader. Bei den
+ * uebrigen zaehlt das hinterlegte Gewicht, das aber nachgibt, wenn genug
+ * Legionaere dieser Herkunft in den Ligen spielen - eine goldene Generation
+ * soll sich auch im Turnier bemerkbar machen.
+ */
+function buildTournamentField(state: GameState, userNation: string | undefined): Nation[] {
+  const leagueNations = new Set(
+    COUNTRIES.map((c) => nationOfGameCountry(c.id) ?? c.id),
+  );
+  const field: Nation[] = [];
+
+  const add = (id: string) => {
+    if (field.some((n) => n.id === id)) return;
+    const squad = nationalSquad(state, id);
+    const home = leagueNations.has(id);
+    // Unter 16 verfuegbaren Spielern ist der Kader keine belastbare Grundlage.
+    const real = squad.length >= 16;
+    const base = NATION_BY_ID[id]?.strength ?? 55;
+    let strength = base;
+    if (home) strength = mainNationStrength(squad);
+    else if (real) strength = base * 0.55 + mainNationStrength(squad) * 0.45;
+    field.push({ id, name: nationName(id), strength, isMain: home || real, squad });
+  };
+
+  for (const id of leagueNations) add(id);
+
+  // Auffuellen nach Gewicht, damit das Feld nicht willkuerlich wirkt.
+  const contenders = NATIONS
+    .filter((n) => !leagueNations.has(n.id))
+    .sort((a, b) => b.strength - a.strength);
+  for (const n of contenders) {
+    if (field.length >= FIELD_SIZE) break;
+    add(n.id);
+  }
+
+  if (userNation && !field.some((n) => n.id === userNation)) {
+    // Den schwaechsten Gast hinauswerfen - die Ligalaender bleiben gesetzt.
+    const weakest = field
+      .filter((n) => !leagueNations.has(n.id))
+      .sort((a, b) => a.strength - b.strength)[0];
+    if (weakest) field.splice(field.indexOf(weakest), 1);
+    add(userNation);
+  }
+
+  return field;
+}
+
+/**
  * Spielt den gesamten World Nations Cup und traegt Ergebnis sowie die
  * Beteiligung des eigenen Spielers in den Spielstand ein.
  */
@@ -115,15 +169,7 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
   const user = state.players[state.userPlayerId];
   const userNation = user?.nationality;
 
-  // 16 Teilnehmer: fuenf Hauptnationen, elf Zusatznationen.
-  const mainNations: Nation[] = COUNTRIES.map((c) => {
-    const squad = nationalSquad(state, c.id);
-    return { id: c.id, name: c.name, strength: mainNationStrength(squad), isMain: true, squad };
-  });
-  const extra: Nation[] = EXTRA_NATIONS.map((n) => ({
-    id: n.id, name: n.name, strength: n.strength, isMain: false,
-  }));
-  const nations = rng.shuffle([...mainNations, ...extra]);
+  const nations = rng.shuffle(buildTournamentField(state, userNation));
 
   const nominated = state.nationalNominated && !!userNation;
   let userCaps = 0;
@@ -238,12 +284,12 @@ export function updateNationalStatus(state: GameState) {
   state.nationalNominated = nominated;
 
   if (nominated && !wasNominated) {
-    const country = COUNTRIES.find((c) => c.id === user.nationality);
+    const land = nationName(user.nationality);
     addNews(state, 'national', 'Nationalmannschaft: Berufung',
-      `${user.firstName} ${user.lastName} wird erstmals fuer ${country?.name ?? 'sein Land'} nominiert.`,
+      `${user.firstName} ${user.lastName} wird erstmals fuer ${land} nominiert.`,
       true);
     addCareerEvent(state, 'national', 'Erste Nominierung',
-      `Berufung in die Nationalmannschaft von ${country?.name ?? '-'} mit `
+      `Berufung in die Nationalmannschaft von ${land} mit `
       + `${ageOn(user.birthDate, state.date)} Jahren.`);
   }
 }

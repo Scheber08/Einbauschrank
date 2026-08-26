@@ -6,6 +6,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { CustomClub, CustomCompetition, CustomDatabase } from '../engine/customDb';
+import { nationsByRegion } from '../engine/nations';
 import { Empty, Panel } from './components';
 
 /** Tiefe Kopie, damit Abbrechen wirklich alles verwirft. */
@@ -239,7 +240,12 @@ export default function DatabaseEditor(
             <div className="scroll" style={{ maxHeight: 320 }}>
               <table>
                 <thead>
-                  <tr><th>Name</th><th style={{ width: 90 }}>Position</th><th style={{ width: 40 }} /></tr>
+                  <tr>
+                    <th>Name</th>
+                    <th style={{ width: 90 }}>Position</th>
+                    <th style={{ width: 130 }}>Herkunft</th>
+                    <th style={{ width: 40 }} />
+                  </tr>
                 </thead>
                 <tbody>
                   {club.squad.map((p, i) => (
@@ -255,6 +261,21 @@ export default function DatabaseEditor(
                         })}>
                           {POSITIONS.map((pos) => (
                             <option key={pos} value={pos}>{pos || 'beliebig'}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select value={p.nation ?? ''} onChange={(e) => update((d) => {
+                          d.competitions[compIndex].clubs[clubIndex].squad[i].nation =
+                            e.target.value || undefined;
+                        })}>
+                          <option value="">wuerfeln</option>
+                          {nationsByRegion().map((g) => (
+                            <optgroup key={g.region} label={g.region}>
+                              {g.nations.map((n) => (
+                                <option key={n.id} value={n.id}>{n.name}</option>
+                              ))}
+                            </optgroup>
                           ))}
                         </select>
                       </td>

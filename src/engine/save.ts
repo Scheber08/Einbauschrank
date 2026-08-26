@@ -4,6 +4,7 @@
  * verschiedener Karrieren niemals vermischen koennen.
  */
 import { ageOn, seasonLabel, year } from './date';
+import { normalizeNationality } from './nations';
 import type { GameState } from './types';
 
 const DB_NAME = 'road-to-glory';
@@ -111,10 +112,23 @@ export async function saveGame(state: GameState): Promise<void> {
   });
 }
 
+/**
+ * Bringt einen geladenen Spielstand auf den aktuellen Stand. Bisher gibt es
+ * nur einen Fall: Vor der Trennung von Herkunft und Spielort stand in
+ * `nationality` ein Ligaland statt einer Nation.
+ */
+function migrate(state: GameState): GameState {
+  for (const player of Object.values(state.players)) {
+    const nation = normalizeNationality(player.nationality);
+    if (nation !== player.nationality) player.nationality = nation;
+  }
+  return state;
+}
+
 export async function loadGame(saveId: string): Promise<GameState | null> {
   const result = await tx<GameState>([STORE_SAVES], 'readonly',
     (stores) => stores[STORE_SAVES].get(saveId) as IDBRequest<GameState>);
-  return result ?? null;
+  return result ? migrate(result) : null;
 }
 
 export async function listSaves(): Promise<SaveMeta[]> {

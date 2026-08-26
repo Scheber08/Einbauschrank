@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { computeOverall } from '../engine/attributes';
-import { COUNTRY_BY_ID } from '../engine/countries';
+import { nationName } from '../engine/nations';
 import { ageOn, formatDate, seasonLabel } from '../engine/date';
 import { nextUserMatch, userClub, userLeague } from '../engine/game';
 import type { SeasonReport } from '../engine/season';
@@ -215,7 +215,7 @@ export default function CareerShell() {
       </main>
 
       {wnc && <WncModal result={wnc}
-        nation={game.countries[user.nationality]?.name ?? COUNTRY_BY_ID[user.nationality]?.name}
+        nation={nationName(user.nationality)}
         onClose={() => setWnc(null)} />}
       {lifeEvent && <LifeEventModal event={lifeEvent} onClose={() => setLifeEvent(null)} />}
       {training && <TrainingModal outcome={training} onClose={() => setTraining(null)} />}

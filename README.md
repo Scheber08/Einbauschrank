@@ -40,8 +40,8 @@ npm run typecheck
 | 9 Nationaler Pokal | Alle 60 Vereine, Vorrunde bis Finale, Verlaengerung und Elfmeterschiessen |
 | 10 Continental Champions Cup | 24 Teilnehmer aus fuenf Laendern, Ligaphase (8 Spiele, gemeinsame Tabelle), K.-o.-Phase Achtelfinale bis Finale; eigene Teilnahme spielbar, Sieger in Chronik und Rekorden |
 | 11 Continental Trophy | Zweiter Vereinswettbewerb parallel zum Champions Cup, mit eigener Auslosung und Chronikeintrag |
-| 12-13 Nationalmannschaft, World Nations Cup | Nominierung des eigenen Spielers nach Staerke, Form und Positionskonkurrenz; World Nations Cup alle vier Jahre (16 Nationen, Gruppen- und K.-o.-Phase) mit Laenderspielen, Toren und Titel in der Chronik |
-| 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende |
+| 12-13 Nationalmannschaft, World Nations Cup | Nominierung des eigenen Spielers nach Staerke, Form und Positionskonkurrenz; World Nations Cup alle vier Jahre (16 Nationen, Gruppen- und K.-o.-Phase) mit Laenderspielen, Toren und Titel in der Chronik. Die eigene Nation ist immer im Feld, auch ohne eigenes Ligasystem |
+| 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende. Spielland und Herkunftsland werden getrennt gewaehlt: 81 Nationen aus allen Erdteilen |
 | 16-17 Attribute, Potenzial | 54 Attribute in fuenf Gruppen, positionsabhaengige Gesamtstaerke, veraenderliches Potenzial |
 | 18-19 Wochenablauf, Training | Wochentraining mit 17 Schwerpunkten und vier Intensitaetsstufen |
 | 20-26 Spielmodi und Gameplay | Simulation, eigene Highlights, alle wichtigen Szenen; Schuss, Pass, Zweikampf, Dribbling mit Finten, Freistoss mit Mauer, Elfmeter, Torwartparade |
@@ -132,6 +132,22 @@ Spielbildschirm und Editor kommen erst, wenn sie gebraucht werden.
 | Spielbildschirm | beim ersten Spiel |
 | Editor | beim Oeffnen der Datenbanken |
 
+## Herkunft und Spielort
+
+Wo jemand spielt und woher er kommt, sind zwei verschiedene Dinge. Bei der
+Spielerstellung werden beide getrennt gewaehlt: das Spielland aus den fuenf
+Laendern mit eigenem Ligasystem, das Herkunftsland aus 81 Nationen.
+
+Jede Nation hat ein fussballerisches Gewicht. Es steuert zweierlei: wie viele
+Legionaere sie in die Ligen schickt - Argentinien deutlich mehr als Bolivien -
+und wie stark ihre Auswahl im World Nations Cup auftritt. Wo genug Spieler
+einer Herkunft in den Ligen stehen, zaehlt deren tatsaechliche Staerke mit, so
+dass eine goldene Generation sich auch im Turnier bemerkbar macht.
+
+In einer kleineren Nation kommt man leichter in die Auswahl als in einer
+grossen - die Wahl des Herkunftslandes ist damit auch eine spielerische
+Entscheidung, nicht nur eine kosmetische.
+
 ## Ligen und Wettbewerbe
 
 Anzahl und Groesse der Ligen sind nicht fest vorgegeben. Ohne eigene Daten
@@ -142,13 +158,22 @@ mit achtzehn Vereinen spielt 34 Spieltage, eine mit zwoelf entsprechend 22.
 
 ## Eigene Vereins- und Spielernamen
 
-Alle mitgelieferten Laender, Vereine und Personen sind frei erfunden.
+Alle mitgelieferten Vereine, Stadien, Staedte und Personen sind frei erfunden.
+Laendernamen sind geografische Bezeichnungen und damit frei verwendbar; die
+Ligen tragen beschreibende Namen wie "Deutschland Erste Liga" statt
+geschuetzter Wettbewerbsmarken.
 
 Der empfohlene Weg fuer eigene Namen fuehrt ueber **Datenbanken & Editor** im
 Hauptmenue: Dort laesst sich ein Ordner mit CSV-Dateien laden, im Spiel
 bearbeiten und mit eigenen Wappen versehen. Diese Daten liegen ausschliesslich
 im Browser und koennen gar nicht in einen Build geraten. Aufbau und ein
 vollstaendiges Beispiel liegen unter `public/beispiel-datenbank/`.
+
+Kaderdateien haben die Spalten `verein;name;position;nation`. Position und
+Nation sind freiwillig; bei der Nation reicht die Kennung (`br`) oder der Name
+(`Brasilien`, auch `Österreich` mit Umlaut). Bleibt die Spalte leer, wuerfelt
+das Spiel die Herkunft aus dem Gewicht der Nationen. Alle Spielwerte erzeugt
+das Spiel weiterhin selbst - eine Datenbank liefert nur Namen und Herkunft.
 
 Alternativ - und nur fuer den privaten Gebrauch - koennen Datenpakete als JSON
 unter `src/data/` liegen; Format und Felder stehen in
@@ -170,7 +195,8 @@ src/
     date.ts          Kalenderrechnung
     types.ts         Zentrale Datentypen des Spielstands
     attributes.ts    54 Attribute, Positionen, Gesamtstaerkeberechnung
-    countries.ts     Die fuenf fiktiven Laender
+    countries.ts     Die fuenf bespielbaren Laender mit eigenem Ligasystem
+    nations.ts       Herkunftslaender der Spieler, weltweit
     names.ts         Fiktive Namens- und Ortspools
     backgrounds.ts   Karrierehintergruende
     playerGen.ts     Spielererzeugung, Marktwert, Gehalt
@@ -307,5 +333,7 @@ Produktionsbuilds.
 
 ## Hinweis zu Lizenzen
 
-Alle Laender, Ligen, Vereine, Staedte, Stadien und Spielernamen sind frei
-erfunden. Es werden keine echten Vereinsnamen, Wappen oder Personen verwendet.
+Vereine, Staedte, Stadien und Spielernamen sind frei erfunden. Es werden keine
+echten Vereinsnamen, Wappen oder Personen verwendet. Laender- und Nationsnamen
+sind geografische Bezeichnungen und keine Marken; die Ligen tragen
+beschreibende Namen statt geschuetzter Wettbewerbsmarken.

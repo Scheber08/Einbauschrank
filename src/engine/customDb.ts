@@ -14,6 +14,7 @@
  *   *.png / *.jpg     Wappen, ueber den Dateinamen zugeordnet (optional)
  */
 import { parseCsv, field, num, type CsvRow } from './csv';
+import { findNation } from './nations';
 
 export interface CustomClub {
   name: string;
@@ -26,7 +27,7 @@ export interface CustomClub {
   manager?: string;
   /** Dateiname eines mitgelieferten Wappens. */
   crest?: string;
-  squad: { name: string; pos?: string }[];
+  squad: { name: string; pos?: string; nation?: string }[];
 }
 
 export interface CustomCompetition {
@@ -99,6 +100,7 @@ function readClubs(rows: CsvRow[]): CustomClub[] {
 
 function attachPlayers(clubs: CustomClub[], rows: CsvRow[], warnings: string[]) {
   const byName = new Map(clubs.map((c) => [c.name.toLowerCase(), c]));
+  const unknownNations = new Set<string>();
   let unmatched = 0;
   for (const row of rows) {
     const clubName = field(row, 'verein', 'club', 'team', 'mannschaft');
@@ -106,13 +108,22 @@ function attachPlayers(clubs: CustomClub[], rows: CsvRow[], warnings: string[]) 
     if (!name) continue;
     const club = byName.get(clubName.toLowerCase());
     if (!club) { unmatched++; continue; }
+    // Herkunft ist freiwillig; "br", "Brasilien" und "brasilien" sind gleich
+    // gemeint. Was sich nicht zuordnen laesst, wuerfelt das Spiel wie bisher.
+    const nationInput = field(row, 'nation', 'nationalitaet', 'land', 'herkunft');
+    const nation = nationInput ? findNation(nationInput) : null;
+    if (nationInput && !nation) unknownNations.add(nationInput);
     club.squad.push({
       name,
       pos: field(row, 'position', 'pos') || undefined,
+      nation: nation?.id,
     });
   }
   if (unmatched > 0) {
     warnings.push(`${unmatched} Spieler ohne passenden Verein uebersprungen.`);
+  }
+  if (unknownNations.size > 0) {
+    warnings.push(`Unbekannte Herkunft: ${[...unknownNations].slice(0, 8).join(', ')}`);
   }
 }
 
@@ -286,14 +297,16 @@ export function exportDatabase(db: CustomDatabase): ExportFile[] {
     if (comp.kind !== 'liga') continue;
 
     const clubLines = ['name;kuerzel;stadt;farbe1;farbe2;stadion;kapazitaet;ruf;trainer;wappen'];
-    const playerLines = ['verein;name;position'];
+    const playerLines = ['verein;name;position;nation'];
     for (const c of comp.clubs) {
       clubLines.push([
         c.name, c.short ?? '', c.city ?? '', c.colors?.[0] ?? '', c.colors?.[1] ?? '',
         c.stadium ?? '', c.capacity ?? '', c.reputation ?? '', c.manager ?? '', c.crest ?? '',
       ].map((v) => esc(String(v))).join(D));
       for (const p of c.squad) {
-        playerLines.push([c.name, p.name, p.pos ?? ''].map((v) => esc(String(v))).join(D));
+        playerLines.push(
+          [c.name, p.name, p.pos ?? '', p.nation ?? ''].map((v) => esc(String(v))).join(D),
+        );
       }
     }
     files.push({ filename: file, content: `${clubLines.join('\n')}\n` });

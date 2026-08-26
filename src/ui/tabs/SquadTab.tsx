@@ -4,6 +4,7 @@ import { ageOn } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { selectLineup } from '../../engine/lineup';
 import { clubSponsors } from '../../engine/identity';
+import { nationCode, nationName } from '../../engine/nations';
 import { RELATION_LABELS, relationList } from '../../engine/relationships';
 import { derbyKind, derbyLabel, rivalsOf } from '../../engine/rivalry';
 import { squadOf } from '../../engine/worldGen';
@@ -156,6 +157,7 @@ export default function SquadTab() {
               <tr>
                 <th style={{ width: 30 }}>#</th>
                 <th>Name</th>
+                <th style={{ width: 34 }}>Land</th>
                 <th>Pos</th>
                 <th className="num">Alter</th>
                 <th className="num">Staerke</th>
@@ -174,6 +176,9 @@ export default function SquadTab() {
                     <td>
                       {p.isUser ? <strong>{p.firstName} {p.lastName}</strong>
                         : shortName(p.firstName, p.lastName)}
+                    </td>
+                    <td className="tiny dim mono" title={nationName(p.nationality)}>
+                      {nationCode(p.nationality)}
                     </td>
                     <td className="tiny muted">{p.position}</td>
                     <td className="num mono">{ageOn(p.birthDate, game.date)}</td>

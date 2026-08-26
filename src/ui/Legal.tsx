@@ -112,9 +112,14 @@ export default function Legal() {
 
         <Panel title="Inhalte und Namensrechte">
           <p className="small" style={{ marginTop: 0 }}>
-            Alle in diesem Spiel enthaltenen Laender, Ligen, Vereine, Stadien und
-            Personen sind frei erfunden. Aehnlichkeiten mit bestehenden Vereinen oder
-            lebenden Personen sind nicht beabsichtigt.
+            Vereine, Stadien, Staedte und Personen in diesem Spiel sind frei erfunden.
+            Aehnlichkeiten mit bestehenden Vereinen oder lebenden Personen sind nicht
+            beabsichtigt.
+          </p>
+          <p className="small">
+            Laender- und Nationsnamen sind geografische Bezeichnungen und als solche
+            keine Marken. Die Ligen tragen bewusst beschreibende Namen wie
+            &bdquo;Deutschland Erste Liga&ldquo; und keine Wettbewerbsmarken.
           </p>
           <p className="small">
             Besucherinnen und Besucher koennen ueber den Editor eigene Namen laden.

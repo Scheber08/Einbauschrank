@@ -1,4 +1,12 @@
-/** Die fuenf fiktiven Laender (Konzept Abschnitt 5). */
+/**
+ * Die fuenf bespielbaren Laender (Konzept Abschnitt 5).
+ *
+ * Laendernamen sind geografische Bezeichnungen und frei verwendbar. Die
+ * Liganamen sind bewusst allgemein gehalten ("Erste Liga" statt geschuetzter
+ * Wettbewerbsmarken), damit auch ein veroeffentlichter Build unbedenklich ist.
+ * Die Kennungen (id) bleiben unveraendert, damit bestehende Spielstaende und
+ * Wettbewerbs-Ids weiter passen.
+ */
 import type { AttrKey } from './attributes';
 import type { TacticStyle } from './types';
 
@@ -26,8 +34,8 @@ export interface CountryDef {
 export const COUNTRIES: CountryDef[] = [
   {
     id: 'falkenland',
-    name: 'Falkenland',
-    short: 'FAL',
+    name: 'Deutschland',
+    short: 'GER',
     reputation: 78,
     description: 'Taktisch, diszipliniert, koerperlich, mit starker Nachwuchsarbeit.',
     style: 'Taktisch und diszipliniert',
@@ -39,13 +47,13 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['highPress', 'buildUp', 'possession', 'counter', 'direct'],
     wealth: 1.0,
     youth: 85,
-    leagueNames: ['Falkenland Oberliga', 'Falkenland Zweite Liga', 'Falkenland Dritte Liga'],
-    cupName: 'Falkenland-Pokal',
+    leagueNames: ['Deutschland Erste Liga', 'Deutschland Zweite Liga', 'Deutschland Dritte Liga'],
+    cupName: 'Deutschland-Pokal',
   },
   {
     id: 'albion',
-    name: 'Albion',
-    short: 'ALB',
+    name: 'England',
+    short: 'ENG',
     reputation: 86,
     description: 'Schnell, intensiv, koerperbetont, mit vielen Flanken und hohem Pressing.',
     style: 'Intensiv und koerperbetont',
@@ -57,13 +65,13 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['highPress', 'direct', 'wingPlay', 'counter', 'longBall'],
     wealth: 1.4,
     youth: 72,
-    leagueNames: ['Albion Premier League', 'Albion Championship', 'Albion League One'],
-    cupName: 'Albion Cup',
+    leagueNames: ['England Erste Liga', 'England Zweite Liga', 'England Dritte Liga'],
+    cupName: 'England-Pokal',
   },
   {
     id: 'iberia',
-    name: 'Iberia',
-    short: 'IBE',
+    name: 'Spanien',
+    short: 'ESP',
     reputation: 84,
     description: 'Technisch, ballbesitzorientiert, mit kreativer Offensive und starken Dribblern.',
     style: 'Technisch und ballbesitzorientiert',
@@ -75,13 +83,13 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['possession', 'buildUp', 'highPress', 'wingPlay'],
     wealth: 1.15,
     youth: 88,
-    leagueNames: ['Iberia Primera', 'Iberia Segunda', 'Iberia Tercera'],
-    cupName: 'Copa Iberia',
+    leagueNames: ['Spanien Erste Liga', 'Spanien Zweite Liga', 'Spanien Dritte Liga'],
+    cupName: 'Spanien-Pokal',
   },
   {
     id: 'calcio',
-    name: 'Calcio',
-    short: 'CAL',
+    name: 'Italien',
+    short: 'ITA',
     reputation: 80,
     description: 'Defensiv, taktisch, kontrolliert, mit gutem Stellungsspiel und starken Torhuetern.',
     style: 'Defensiv und taktisch',
@@ -93,13 +101,13 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['deepBlock', 'counter', 'buildUp', 'possession'],
     wealth: 1.1,
     youth: 74,
-    leagueNames: ['Calcio Serie Prima', 'Calcio Serie Seconda', 'Calcio Serie Terza'],
-    cupName: 'Coppa Calcio',
+    leagueNames: ['Italien Erste Liga', 'Italien Zweite Liga', 'Italien Dritte Liga'],
+    cupName: 'Italien-Pokal',
   },
   {
     id: 'gallia',
-    name: 'Gallia',
-    short: 'GAL',
+    name: 'Frankreich',
+    short: 'FRA',
     reputation: 76,
     description: 'Athletisch, schnell, direkt, mit starken Fluegelspielern und intensiven Zweikaempfen.',
     style: 'Athletisch und direkt',
@@ -111,8 +119,8 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['counter', 'wingPlay', 'direct', 'highPress'],
     wealth: 1.05,
     youth: 90,
-    leagueNames: ['Gallia Ligue Prime', 'Gallia Ligue Deux', 'Gallia Ligue Trois'],
-    cupName: 'Coupe de Gallia',
+    leagueNames: ['Frankreich Erste Liga', 'Frankreich Zweite Liga', 'Frankreich Dritte Liga'],
+    cupName: 'Frankreich-Pokal',
   },
 ];
 

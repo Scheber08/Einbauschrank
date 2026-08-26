@@ -10,6 +10,8 @@ So legst du eine eigene an:
 2. main.csv anpassen - eine Zeile je Liga oder Pokal.
 3. Fuer jede Liga eine CSV mit den Vereinen anlegen (Spalte "datei" in main.csv).
 4. Optional je Liga eine Datei <name>.spieler.csv mit den Kadern.
+   Spalten: verein;name;position;nation - Position und Nation sind freiwillig.
+   Bei der Nation reicht die Kennung ("br") oder der Name ("Brasilien").
 5. Optional Wappen als PNG, JPG oder SVG in denselben Ordner legen und in der
    Spalte "wappen" beim Verein eintragen.
 6. Im Hauptmenue unter "Datenbanken" den Ordner auswaehlen.

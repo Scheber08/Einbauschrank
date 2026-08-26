@@ -42,7 +42,7 @@ function run() {
     firstName: 'Test',
     lastName: 'Spieler',
     age: 17,
-    nationality: 'falkenland',
+    nationality: 'de',
     position: 'ST',
     altPositions: ['OM'],
     foot: 'rechts',
@@ -152,9 +152,12 @@ function run() {
   {
     // Eine eigene, laenger laufende Karriere, damit der erste WNC (2028)
     // stattfindet - er wird am Ende der Saison 2028 gespielt.
+    // Nigeria hat kein eigenes Ligasystem und steht nicht im Standardfeld:
+    // damit prueft der Test zugleich, dass die Nation des eigenen Spielers
+    // in jedem Fall einen Turnierplatz bekommt.
     const gN = createNewGame({
       saveName: 'WNC-Test', seed: 33221, difficulty: 'einfach',
-      firstName: 'Natio', lastName: 'Spieler', age: 17, nationality: 'iberia',
+      firstName: 'Natio', lastName: 'Spieler', age: 17, nationality: 'ng',
       position: 'ST', altPositions: [], foot: 'rechts', height: 183, weight: 78,
       shirtNumber: 9,
       appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' },
@@ -193,6 +196,8 @@ function run() {
     }
     check('Starker Spieler wird nominiert', gN.nationalNominated, `${gN.nationalNominated}`);
     check('Nominierter Spieler sammelt Laenderspiele', gN.nationalCaps > 0, `${gN.nationalCaps}`);
+    check('Nation ohne Ligasystem nimmt am WNC teil', gN.nationalCaps > 0,
+      `Nigeria, ${gN.nationalCaps} Einsaetze`);
   }
 
   // --- Continental Champions Cup (Abschnitt 10) -----------------------

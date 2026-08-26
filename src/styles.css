@@ -634,7 +634,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .chip.active { background: #17365c; border-color: #2f5b8c; color: #fff; }
 
 @media (max-width: 900px) {
-  .career { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr) statt 1fr: sonst darf eine breite Tabelle die Spalte und
+     damit die ganze Seite aufziehen, statt im eigenen Rahmen zu scrollen. */
+  .career { grid-template-columns: minmax(0, 1fr); }
   .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid.three { grid-template-columns: 1fr; }
   .nav { flex-direction: row; flex-wrap: wrap; }

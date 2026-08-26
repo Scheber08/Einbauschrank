@@ -45,6 +45,8 @@ export interface RealSquadEntry {
   name: string;
   /** Positionskuerzel wie in attributes.ts: TW, IV, LV, RV, DM, ZM, OM, LA, RA, ST. */
   pos?: string;
+  /** Herkunftsnation als Kennung aus nations.ts. Fehlt sie, wuerfelt das Spiel. */
+  nation?: string;
 }
 
 export interface RealLeague {
@@ -217,7 +219,12 @@ export function leagueLayout(countryId: string): LeagueLayout[] {
     .map((l) => ({ level: l.level, clubs: Math.max(4, l.clubs.length) }));
 }
 
-export interface SplitName { firstName: string; lastName: string; }
+export interface SplitName {
+  firstName: string;
+  lastName: string;
+  /** Nur gesetzt, wenn die Vorlage eine Herkunft mitbringt. */
+  nation?: string;
+}
 
 /** "Manuel Neuer" -> Vor- und Nachname. Mehrteilige Nachnamen bleiben ganz. */
 export function splitName(full: string): SplitName {
@@ -252,11 +259,11 @@ export function assignSquadNames(
     const slot = positions.findIndex((p, i) => !taken.has(i) && p.toUpperCase() === wanted);
     if (slot === -1) {
       // Keine passende Position frei - der Name wandert in den allgemeinen Topf.
-      withoutPos.push({ name: entry.name });
+      withoutPos.push({ name: entry.name, nation: entry.nation });
       continue;
     }
     taken.add(slot);
-    result[slot] = splitName(entry.name);
+    result[slot] = { ...splitName(entry.name), nation: entry.nation };
   }
 
   let cursor = 0;
@@ -264,7 +271,7 @@ export function assignSquadNames(
     while (cursor < positions.length && taken.has(cursor)) cursor++;
     if (cursor >= positions.length) break;
     taken.add(cursor);
-    result[cursor] = splitName(entry.name);
+    result[cursor] = { ...splitName(entry.name), nation: entry.nation };
   }
 
   return result;
