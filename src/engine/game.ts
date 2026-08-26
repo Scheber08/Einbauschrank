@@ -6,7 +6,8 @@ import { computeOverall, POSITION_LINE, type PositionCode } from './attributes';
 import { BACKGROUNDS } from './backgrounds';
 import { COUNTRIES, COUNTRY_BY_ID } from './countries';
 import {
-  addDays, ageOn, formatShort, makeDate, seasonLabel, weekday, type GameDate,
+  addDays, ageOn, dayOfMonth, formatShort, makeDate, month, seasonLabel, weekday,
+  type GameDate,
 } from './date';
 import {
   advancePlayerDay, applyTraining, driftForm, rollInjury, updateFormAfterMatch,
@@ -16,7 +17,7 @@ import { buildLifeEvent, type LifeEvent } from './events';
 import {
   CC_ID, CC_LEAGUE_ROUNDS, advanceChampionsCup, clearOldChampionsCup, startChampionsCup,
 } from './international';
-import { checkLoanReturn } from './loan';
+import { checkLoanReturn, generateLoanOffers } from './loan';
 import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
 import type { WncResult } from './types';
@@ -419,6 +420,13 @@ export function advanceDay(state: GameState): DayResult {
   advanceAgent(state, rng);
   // Endet eine Leihe, kehrt der Spieler zum Stammverein zurueck (Abschnitt 34).
   checkLoanReturn(state, rng);
+  // Wintertransferfenster (Abschnitt 34): Wer bis zur Winterpause kaum gespielt
+  // hat, muss nicht die ganze Saison auf der Bank sitzen, sondern bekommt schon
+  // zur Halbserie Leihangebote. Ohne das dauert der erste Einsatz bei einem
+  // Spitzenverein leicht eine komplette Spielzeit.
+  if (month(state.date) === 1 && dayOfMonth(state.date) === 3) {
+    generateLoanOffers(state, rng);
+  }
 
   // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
   // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.

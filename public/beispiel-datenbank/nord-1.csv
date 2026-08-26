@@ -1,0 +1,23 @@
+# Vereine der ersten Liga. Die Reihenfolge bestimmt die Staerke:
+# der erste Eintrag ist der staerkste Verein. "ruf" ueberschreibt das (1-100).
+name;kuerzel;stadt;farbe1;farbe2;stadion;kapazitaet;ruf;trainer;wappen
+Nordstern Hafenstadt;NSH;Hafenstadt;#1e5aa8;#ffffff;Hafenarena;54000;88;Ole Brandner;nordstern.svg
+FC Silberbach;FCS;Silberbach;#c0392b;#f4f4f4;Silberstadion;48000;85;Ruben Kastner;silberbach.svg
+Eisvogel Nordheim;EVN;Nordheim;#146b3a;#ffe066;Vogelnest;41000;80;Tammo Deichmann
+SV Wolkenstein;SVW;Wolkenstein;#7c2d8f;#ffffff;Wolkenhalle;36000;76;Ilja Nordmann
+Möwenfels United;MFU;Möwenfels;#f0b400;#101010;Klippenstadion;33000;72;Sven Ahrend
+Rotfels Talheim;RFT;Talheim;#b91c1c;#111827;Talarena;30000;69;Gero Steinbeck
+Blaulicht Bruckstadt;BLB;Bruckstadt;#0e7490;#ffffff;Bruckpark;28000;66;Hauke Reimers
+Grünwiese SC;GWS;Grünwiese;#4d7c0f;#ffffff;Wiesenring;26000;63;Malte Krohn
+Sturmbucht FC;SBF;Sturmbucht;#0369a1;#facc15;Buchtstadion;24000;60;Piet Fahrenkamp
+Ankerberg 08;AB08;Ankerberg;#374151;#f59e0b;Ankerplatz;22000;57;Bennet Solveig
+Nebeltal SV;NTS;Nebeltal;#065f46;#fbbf24;Nebelarena;20000;54;Thore Wieland
+Kranichhorst FC;KHF;Kranichhorst;#831843;#fde68a;Kranichfeld;19000;52;Arne Bollmann
+Steinfurt United;SFU;Steinfurt;#1f2937;#ef4444;Steinring;18000;50;Kilian Rasmus
+Bernsteinau SC;BSA;Bernsteinau;#e06a00;#101010;Bernsteinpark;17000;48;Levin Hartkopf
+Dünenwald FC;DWF;Dünenwald;#134e4a;#ffffff;Dünenstadion;16000;46;Joris Mattfeld
+Leuchtturm Weitsee;LTW;Weitsee;#5b21b6;#a3e635;Seeblick;15000;44;Nils Kaltenbach
+Frostheim SV;FHS;Frostheim;#7f1d1d;#fef3c7;Frostarena;14000;42;Emil Rohwedder
+Klippstadt 96;KS96;Klippstadt;#1e3a8a;#f97316;Klippring;13000;40;Rasmus Doorn
+Salzbrück FC;SZB;Salzbrück;#9d174d;#ffffff;Salzstadion;12000;38;Hendrik Vosskamp
+Torfmoor SV;TMS;Torfmoor;#111827;#e5e7eb;Moorstadion;11000;36;Quirin Achterberg

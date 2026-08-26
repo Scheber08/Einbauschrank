@@ -315,10 +315,18 @@ function run() {
     }
   }
 
+  // Spiel und Startwert jedes Durchlaufs merken: Der Modusvergleich weiter
+  // unten wiederholt genau diese Partien mit genau diesen Zufallsstroemen.
+  // Nur so unterscheidet die beiden Laeufe wirklich der Modus und nicht der
+  // Zufall - vorher verglich der Test zwei voellig verschiedene Spielverlaeufe.
+  const ownRuns: { id: string; seed: number }[] = [];
+
   for (const m of upcoming) {
     const prepared = prepareUserMatch(game, m.id, true);
     if (!prepared) continue;
-    const rng2 = new Rng((game.rngState + interactiveMatches * 7919) >>> 0);
+    const seed = (game.rngState + interactiveMatches * 7919) >>> 0;
+    ownRuns.push({ id: m.id, seed });
+    const rng2 = new Rng(seed);
     const engine = new MatchEngine({ ...prepared.setup, highlightMode: 'own', rng: rng2 });
     engine.runToEnd((c) => {
       kinds.set(c.kind, (kinds.get(c.kind) ?? 0) + 1);
@@ -375,10 +383,12 @@ function run() {
   log('\n--- Modus-Vergleich own gegen all ---');
   const allKinds = new Map<string, number>();
   let allMatches = 0;
-  for (const m of upcoming.slice(0, 39)) {
-    const prepared = prepareUserMatch(game, m.id, true);
+  // Dieselben Partien, dieselben Startwerte wie im Lauf oben - nur der Modus
+  // ist anders. Damit ist die Differenz ein echter Effekt und kein Rauschen.
+  for (const run of ownRuns) {
+    const prepared = prepareUserMatch(game, run.id, true);
     if (!prepared) continue;
-    const rng4 = new Rng((game.rngState + allMatches * 5387 + 991) >>> 0);
+    const rng4 = new Rng(run.seed);
     const engine = new MatchEngine({ ...prepared.setup, highlightMode: 'all', rng: rng4 });
     engine.runToEnd((c) => {
       allKinds.set(c.kind, (allKinds.get(c.kind) ?? 0) + 1);
@@ -567,11 +577,35 @@ function run() {
 
   // --- Verletzungsentscheidung (Konzept Abschnitt 18 und 37) ----------
   log('\n--- Verletzungsentscheidung ---');
-  const injuryMatch = upcoming.find((m) => prepareUserMatch(game, m.id, true)?.userInLineup);
+
+  /**
+   * Bereitet ein Spiel vor, in dem der eigene Spieler sicher in der Startelf
+   * steht - notfalls, indem er fuer diesen Test hineingesetzt wird.
+   *
+   * Geprueft wird hier die Verletzungsentscheidung, nicht die Nominierung. Ohne
+   * das haengt die Abdeckung daran, ob der Trainer ihn zufaellig aufstellt: Der
+   * Test fiel dann still aus und meldete trotzdem "bestanden".
+   */
+  function prepareStarting(matchId: string) {
+    const prepared = prepareUserMatch(game, matchId, true);
+    if (!prepared || prepared.userInLineup) return prepared;
+    const lineup = prepared.setup.homeClub.id === user.clubId ? prepared.setup.homeLineup
+      : prepared.setup.awayClub.id === user.clubId ? prepared.setup.awayLineup : null;
+    if (!lineup) return null;
+    const slot = lineup.starters.findIndex((s) => s.position !== 'TW');
+    if (slot < 0) return null;
+    lineup.starters[slot] = {
+      playerId: user.id, position: user.position, rating: lineup.starters[slot].rating,
+    };
+    return prepared;
+  }
+
+  const injuryMatch = upcoming.find((m) => !!prepareStarting(m.id));
+  check('Ein Spiel fuer den Verletzungstest gefunden', !!injuryMatch);
   if (injuryMatch) {
     // "Auswechseln lassen" ergibt exakt die geschaetzte Ausfalldauer.
     const off = (() => {
-      const prepared = prepareUserMatch(game, injuryMatch.id, true)!;
+      const prepared = prepareStarting(injuryMatch.id)!;
       const r = new Rng(555);
       const e = new MatchEngine({ ...prepared.setup, rng: r });
       e.pendingInjury = { minute: 30, estimatedDays: 20, severity: 'mittel', canSubstitute: true };
@@ -586,7 +620,7 @@ function run() {
     // "Weiterspielen" ueber viele Versuche: mal glimpflich, mal schlimmer.
     let mild = 0; let worse = 0;
     for (let i = 0; i < 60; i++) {
-      const prepared = prepareUserMatch(game, injuryMatch.id, true)!;
+      const prepared = prepareStarting(injuryMatch.id)!;
       const r = new Rng(1000 + i * 97);
       const e = new MatchEngine({ ...prepared.setup, rng: r });
       // Frueh im Spiel verletzen, damit viel Zeit fuer eine Verschlimmerung bleibt.

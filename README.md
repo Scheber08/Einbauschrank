@@ -39,6 +39,7 @@ npm run typecheck
 | 7-8 Ligamodus, Auf- und Abstieg | 38 Spieltage, alle Tabellenkriterien, direkter Auf- und Abstieg, Relegation ueber Hin- und Rueckspiel |
 | 9 Nationaler Pokal | Alle 60 Vereine, Vorrunde bis Finale, Verlaengerung und Elfmeterschiessen |
 | 10 Continental Champions Cup | 24 Teilnehmer aus fuenf Laendern, Ligaphase (8 Spiele, gemeinsame Tabelle), K.-o.-Phase Achtelfinale bis Finale; eigene Teilnahme spielbar, Sieger in Chronik und Rekorden |
+| 11 Continental Trophy | Zweiter Vereinswettbewerb parallel zum Champions Cup, mit eigener Auslosung und Chronikeintrag |
 | 12-13 Nationalmannschaft, World Nations Cup | Nominierung des eigenen Spielers nach Staerke, Form und Positionskonkurrenz; World Nations Cup alle vier Jahre (16 Nationen, Gruppen- und K.-o.-Phase) mit Laenderspielen, Toren und Titel in der Chronik |
 | 14-15 Spielerstellung | Grunddaten, Positionen, Aussehen, fuenf Karrierehintergruende |
 | 16-17 Attribute, Potenzial | 54 Attribute in fuenf Gruppen, positionsabhaengige Gesamtstaerke, veraenderliches Potenzial |
@@ -48,9 +49,12 @@ npm run typecheck
 | 27-28 Simulation, Taktik | Minutenweise Detailsimulation fuer eigene Spiele, schnelle Hintergrundsimulation fuer alle uebrigen; sieben Formationen, acht Spielstile |
 | 29 Trainerbeziehung | Beeinflusst Aufstellung, Einsatzzeit und Kaderplatz |
 | 33-34 Vertraege, Transfers | Vertragsverlaengerung, Angebote nach jeder Saison, Wechsel des eigenen Spielers, Transferbewegungen der Computerspieler |
+| 34 Leihgeschaefte | Wer kaum spielt, bekommt Leihangebote aus tieferen Spielklassen - zur Winterpause und zum Saisonende |
+| 35 Beratersystem | Ein Berater sucht Vereine, verhandelt Gehalt nach und fordert eine groessere Rolle ein; Auftraege kosten Zeit und Vertrauen |
 | 36-38 Marktwert, Form, Fitness | Dynamischer Marktwert, Form, Moral, Fitness, Spielpraxis, Selbstvertrauen |
 | 37 Verletzungen | Neun Verletzungsarten mit Heilungsverlauf und dauerhaften Folgen bei schweren Faellen |
 | 39 Medien | Nachrichtensystem mit Kategorien und Filter; Interviews nach markanten Spielen mit drei Antworttonlagen (Wirkung auf Moral, Trainer, Fans, Image, Reputation) |
+| 40 Soziales Netzwerk | Feed mit Fan-, Medien- und Kritikerstimmen; eigene Beitraege wirken auf Ansehen, Fans und Umfeld |
 | 30 Beziehungen zu Mitspielern | Mentor, Freunde und Rivalen, die sich mit gemeinsamer Spielzeit entwickeln; Freunde bieten sich im Spiel oefter an, das Umfeld beeinflusst die Moral |
 | 31-32 Leben abseits des Platzes | Woechentliche Ereignisse (Sponsor, Mannschaftsabend, Charity, Zusatztraining, soziale Medien) mit Wirkung auf Moral, Fitness, Image, Fans und Trainerbeziehung |
 | 41-42 Saisonziele, Bewertung | Vier Saisonziele, positionsabhaengige Notenberechnung von 1,0 bis 10,0 |
@@ -62,23 +66,100 @@ npm run typecheck
 | 57 Oberflaeche | Karriere-Dashboard mit zehn Bereichen, responsiv fuer Desktop und Tablet |
 | 59 Schwierigkeitsgrad | Vier Stufen mit Auswirkung auf Trefferbereiche, Entwicklung, Verletzungen und Einsatzzeit |
 
+## Oberflaeche
+
+Alles wird als Inline-SVG gezeichnet, ohne Bilddateien:
+
+- **Aufstellungen** als Feldgrafik, Trikots in Vereinsfarben, der eigene Spieler
+  hervorgehoben - im Spielbildschirm fuer beide Mannschaften, im Kaderbereich
+  fuer die voraussichtliche Startelf.
+- **Kraefteverhaeltnis** vor dem Anpfiff: Angriff, Mittelfeld, Abwehr und
+  Torwart beider Teams im direkten Balkenvergleich.
+- **Spielverlauf** als Zeitachse mit Treffern, Karten und Wechseln beider
+  Seiten, darunter ein Druckverlauf je Viertelstunde.
+- **Attributprofil** als Netzdiagramm ueber die Attributgruppen.
+- **Vereinswappen** und **Spielerportraet**, beide aus den Spielstandsdaten
+  abgeleitet.
+
 ## Noch nicht enthalten
 
 Diese Punkte aus dem Konzept sind bewusst spaeteren Ausbauschritten vorbehalten:
 
-- **Abschnitt 11**: Continental Trophy (zweiter Vereinswettbewerb). Champions Cup
-  (10), Nationalmannschaften und World Nations Cup (12-13) sind umgesetzt.
 - Die Spiele des World Nations Cup werden derzeit simuliert; die Beteiligung des
   eigenen Spielers (Laenderspiele, Tore, Turnierverlauf) fliesst in die Karriere
   ein, ist aber noch nicht interaktiv spielbar.
-- **Abschnitt 40**: ein voll ausgebautes soziales Netzwerk mit Feed. (Fan- und
-  Medienreaktionen laufen bislang ueber den Nachrichten-Feed.)
-- **Abschnitt 35**: Beratersystem.
-- **Abschnitt 34**: Leihen, Vorvertraege und Tauschgeschaefte. Der Transfermarkt
-  ist derzeit auf Angebote an den eigenen Spieler und eine einfache Umverteilung
-  der Computerspieler reduziert.
+- **Abschnitt 34**: Vorvertraege und Tauschgeschaefte. Leihen sind umgesetzt,
+  der uebrige Transfermarkt bleibt auf Angebote an den eigenen Spieler und eine
+  einfache Umverteilung der Computerspieler beschraenkt.
 - **Abschnitt 20.4**: Erweiterte Spielersteuerung ueber ein komplettes Spiel.
 - **Abschnitt 58**: Sound und Musik.
+
+## Veroeffentlichen
+
+Das Spiel ist eine reine Browseranwendung ohne Server-Anteil: Der Build ist eine
+statische Seite, die auf jedem Webspace liegen kann. Spielstaende und geladene
+Datenbanken liegen in IndexedDB, also im Browser jedes einzelnen Besuchers -
+es gibt nichts zu synchronisieren und keine Nutzerdaten auf dem Server.
+
+**Fuer eine oeffentliche Seite immer so bauen:**
+
+```bash
+npm run build:public
+```
+
+Der Unterschied ist wichtig: `npm run build` kompiliert die privaten
+Datenpakete aus `src/data/` mit ins ausgelieferte JavaScript - sie waeren
+damit oeffentlich abrufbar. `npm run build:public` laesst sie ersatzlos weg
+und liefert nur die frei erfundenen Namen aus. Besucher koennen sich ihre
+eigene Datenbank weiterhin im Browser laden; diese verlaesst ihren Rechner nie.
+
+**Vor dem Hochladen ausfuellen:** Die Betreiberangaben fuer das Impressum stehen
+als Vorlage in `src/ui/Legal.tsx` (Konstante `BETREIBER`). Solange dort noch
+Platzhalter stehen, weist die Seite selbst darauf hin.
+
+Danach den Inhalt von `dist/` auf den Webserver legen. Weitere Voraussetzungen
+gibt es nicht - kein Node, keine Datenbank, kein Backend.
+
+Die Anwendung ist in Teile zerlegt, damit der erste Aufruf nicht auf alles
+warten muss: Beim Oeffnen laedt nur das Hauptmenue. Spiellogik, Karrierebereich,
+Spielbildschirm und Editor kommen erst, wenn sie gebraucht werden.
+
+| Teil | wird geladen |
+| --- | --- |
+| Menue und Rahmen | beim Oeffnen |
+| Spiellogik | beim Start oder Laden einer Karriere |
+| Karrierebereich | beim Betreten der Karriere |
+| Spielbildschirm | beim ersten Spiel |
+| Editor | beim Oeffnen der Datenbanken |
+
+## Ligen und Wettbewerbe
+
+Anzahl und Groesse der Ligen sind nicht fest vorgegeben. Ohne eigene Daten
+spielt jedes Land drei Ligen zu zwanzig Vereinen; eine geladene Datenbank kann
+beliebig viele Ebenen mit beliebiger Vereinszahl beschreiben. Spielplan,
+Tabelle, Auf- und Abstieg sowie die Relegation richten sich danach: Eine Liga
+mit achtzehn Vereinen spielt 34 Spieltage, eine mit zwoelf entsprechend 22.
+
+## Eigene Vereins- und Spielernamen
+
+Alle mitgelieferten Laender, Vereine und Personen sind frei erfunden.
+
+Der empfohlene Weg fuer eigene Namen fuehrt ueber **Datenbanken & Editor** im
+Hauptmenue: Dort laesst sich ein Ordner mit CSV-Dateien laden, im Spiel
+bearbeiten und mit eigenen Wappen versehen. Diese Daten liegen ausschliesslich
+im Browser und koennen gar nicht in einen Build geraten. Aufbau und ein
+vollstaendiges Beispiel liegen unter `public/beispiel-datenbank/`.
+
+Alternativ - und nur fuer den privaten Gebrauch - koennen Datenpakete als JSON
+unter `src/data/` liegen; Format und Felder stehen in
+[src/data/README.md](src/data/README.md). Diese Dateien landen in einem
+normalen Build, siehe Abschnitt "Veroeffentlichen".
+
+Solche Dateien enden auf `.local.json` und stehen in `.gitignore`: Sie bleiben
+auf dem eigenen Rechner und landen nie im Repository. Fehlt ein Datenpaket,
+laeuft das Spiel unveraendert mit den erfundenen Namen. Ein damit erzeugter
+Produktionsbuild (`dist/`) enthaelt die Daten allerdings sehr wohl und sollte
+entsprechend nicht weitergegeben werden.
 
 ## Aufbau des Projekts
 
@@ -104,13 +185,31 @@ src/
     ballAction.ts    Ballphysik, Ausfuehrungsfehler, Torwartlogik
     development.ts   Training, Entwicklung, Verletzungen, Form
     season.ts        Saisonstart und -ende, Relegation, Auszeichnungen, Transfers
+    international.ts Champions Cup
+    trophy.ts        Continental Trophy
+    national.ts      Nationalmannschaft und World Nations Cup
+    loan.ts          Leihgeschaefte
+    agent.ts         Spielerberater
+    social.ts        Sozialer Feed
+    media.ts         Nachrichten und Interviews
+    events.ts        Ereignisse abseits des Platzes
+    relationships.ts Mentor, Freunde, Rivalen
+    rivalry.ts       Derbys und Spielbedeutung
+    identity.ts      Wappen und Sponsoren, aus der Vereins-Id abgeleitet
     stats.ts         Statistikverwaltung und Rekorde
+    retirement.ts    Karriereende
     game.ts          Karrierestart, Tagesablauf, Spielabwicklung
     save.ts          IndexedDB-Spielstaende
+    realData.ts      Optionale eigene Vereins- und Spielernamen
+  data/              Eigene Datenpakete (gitignoriert) und ihre Beschreibung
   state/             Zustandsspeicher und Aktionen der Oberflaeche
   ui/                React-Komponenten
     tabs/            Die zehn Bereiche des Karriere-Dashboards
     match/           Spielbildschirm und interaktive Canvas-Szenen
+    FormationPitch   Aufstellung als Feldgrafik
+    AttributeRadar   Attributprofil als Netzdiagramm
+    ClubCrest        Vereinswappen als SVG
+    PlayerAvatar     Spielerportraet als SVG
 ```
 
 Die Engine kennt React nicht und laesst sich unabhaengig testen oder spaeter

@@ -121,6 +121,13 @@ interface MentalityEffect {
   effort: number;
 }
 
+/**
+ * Wie stark der eigene Spieler bei ausbalancierter Ausrichtung in Szenen
+ * gezogen wird. 0 hiesse: einer von elf - dann bleiben zu wenige Momente
+ * uebrig, um eine Partie selbst zu praegen.
+ */
+const USER_FOCUS = 0.16;
+
 const MENTALITY_EFFECTS: Record<Mentality, MentalityEffect> = {
   attack: { attack: 1.55, defend: 0.6, effort: 1.25 },
   balanced: { attack: 1.0, defend: 1.0, effort: 1.0 },
@@ -248,6 +255,14 @@ export class MatchEngine {
 
   get currentMentality(): Mentality {
     return this.mentality;
+  }
+
+  /**
+   * Regulaeres Spielende inklusive Nachspielzeit, nach Verlaengerung 120plus.
+   * Die Verlaufsgrafik braucht die Gesamtdauer, um die Zeitachse zu skalieren.
+   */
+  get scheduledEnd(): number {
+    return this.fullTime;
   }
 
   /** Aktuelle Live-Fitness des eigenen Spielers, fuer Anzeige und Tests. */
@@ -690,7 +705,11 @@ export class MatchEngine {
     const line = POSITION_LINE[user.slot];
     if (line === 'DEF') return shooter; // Verteidiger schliessen selten ab
 
-    const swapToUser = clamp((this.attackFactor - 1) * 0.5, 0, 0.4);
+    // Grundfokus: Erzaehlt wird die Laufbahn dieses einen Spielers, also sucht
+    // er den Abschluss etwas haeufiger als ein beliebiger Mitspieler. Die
+    // Ausrichtung verschiebt das nach oben oder unten; defensiv eingestellt
+    // faellt der Fokus auf null und der Ball geht wieder an die anderen.
+    const swapToUser = clamp(USER_FOCUS + (this.attackFactor - 1) * 0.5, 0, 0.45);
     const swapAway = clamp((1 - this.attackFactor) * 0.5, 0, 0.4);
 
     if (shooter.player.id !== userId && swapToUser > 0 && this.rng.chance(swapToUser)) {
@@ -1937,7 +1956,13 @@ export class MatchEngine {
     let chance = 0.16 + Math.max(0, behind) * 0.14 + (this.minute - 55) * 0.006;
     const role = userPlayer.contract?.role;
     if (role === 'Stammspieler' || role === 'Schluesselspieler') chance += 0.2;
-    if (role === 'Nachwuchsspieler') chance -= 0.06;
+    // Ein entschiedenes Spiel ist die Gelegenheit der Nachwuchskraefte: Steht es
+    // in der Schlussphase klar, bringt der Trainer die Talente. Nur dann - wer
+    // in einem engen Spiel gebracht wird, hat sich das anders verdient.
+    if (role === 'Nachwuchsspieler') {
+      const decided = Math.abs(this.homeScore - this.awayScore) >= 2 && this.minute >= 62;
+      chance += decided ? 0.26 : -0.02;
+    }
     chance += this.setup.difficulty.playtimeBonus / 200;
 
     if (!this.rng.chance(clamp(chance, 0.02, 0.85))) return;

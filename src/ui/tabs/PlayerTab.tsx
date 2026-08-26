@@ -8,6 +8,7 @@ import { ageOn, formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { renewContract } from '../../state/actions';
 import { useAppState } from '../../state/store';
+import AttributeRadar from '../AttributeRadar';
 import { AttrList, Meter, Panel, Pill, money, salary } from '../components';
 
 export default function PlayerTab() {
@@ -23,6 +24,16 @@ export default function PlayerTab() {
   const bg = user.background ? BACKGROUNDS[user.background] : null;
 
   const activeGroup = ATTR_GROUPS.find((g) => g.key === group) ?? ATTR_GROUPS[0];
+
+  // Staerkste und schwaechste Gruppe - der Radar zeigt es, die Worte benennen es.
+  const groupMeans = ATTR_GROUPS
+    .filter((g) => (g.key === 'goalkeeping' ? user.position === 'TW' : true))
+    .map((g) => ({
+      label: g.label,
+      value: g.attrs.reduce((a, k) => a + (user.attrs[k] ?? 0), 0) / Math.max(1, g.attrs.length),
+    }));
+  const strongest = groupMeans.reduce((b, g) => (g.value > b.value ? g : b), groupMeans[0]);
+  const weakest = groupMeans.reduce((b, g) => (g.value < b.value ? g : b), groupMeans[0]);
 
   return (
     <>
@@ -71,6 +82,27 @@ export default function PlayerTab() {
             Hintergrund: {bg.name} - {bg.description}
           </p>
         )}
+      </Panel>
+
+      <Panel title="Profil">
+        <div className="profile-split">
+          <AttributeRadar player={user} />
+          <div className="small muted">
+            <p style={{ marginTop: 0 }}>
+              Das Netz zeigt den Durchschnitt jeder Attributgruppe. Es macht auf
+              einen Blick sichtbar, welcher Spielertyp du geworden bist - und wo
+              gezieltes Training am meisten bewirkt.
+            </p>
+            <div className="row between small">
+              <span className="muted">Staerkste Gruppe</span>
+              <span style={{ color: 'var(--accent)' }}>{strongest.label}</span>
+            </div>
+            <div className="row between small">
+              <span className="muted">Schwaechste Gruppe</span>
+              <span style={{ color: 'var(--warn)' }}>{weakest.label}</span>
+            </div>
+          </div>
+        </div>
       </Panel>
 
       <Panel title="Attribute" action={

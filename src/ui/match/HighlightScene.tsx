@@ -35,16 +35,92 @@ export default function HighlightScene(props: SceneProps) {
   return <BallChallenge {...props} />;
 }
 
+/**
+ * Wie viele Sekunden bleiben, bis der Gegner da ist.
+ * 0 bedeutet: keine Hetze - bei ruhendem Ball wartet der Gegner ebenfalls.
+ *
+ * Ohne diese Uhr liesse sich jede Szene beliebig lange auspendeln; genau das
+ * nimmt einer Grosschance die Spannung. Der Wert ist bewusst grosszuegig -
+ * es geht um Druck, nicht um Hektik.
+ */
+function pressureSeconds(challenge: Challenge, difficulty: DifficultySettings): number {
+  if (challenge.kind === 'penalty' || challenge.kind === 'freeKick') return 0;
+  // Die Uhr laeuft ueber die ganze Szene, also ueber Richtung, Kraft und
+  // Ballkontakt zusammen. Sie ist bewusst grosszuegig bemessen: Wer weiss, was
+  // er tut, schafft es locker - nur das ewige Auspendeln faellt weg.
+  // Wer mehr Hektik will, senkt BASE; wer mehr Ruhe will, erhoeht sie.
+  const BASE = 8.5;
+  return clamp((BASE - challenge.pressure * 3.4) / difficulty.meterSpeed, 3.4, 13);
+}
+
+/**
+ * Laufende Uhr fuer den Gegnerdruck. Liefert den Rest als Anteil (1 bis 0) und
+ * ruft `onExpire` genau einmal auf. Rechnet mit der Systemuhr statt mit
+ * Einzelbildern, damit die Zeit auch bei stockender Bildrate stimmt.
+ */
+function usePressureClock(seconds: number, active: boolean, onExpire: () => void): number {
+  const [left, setLeft] = useState(1);
+  const firedRef = useRef(false);
+  const expireRef = useRef(onExpire);
+  expireRef.current = onExpire;
+
+  useEffect(() => {
+    if (!active || seconds <= 0) return;
+    const start = performance.now();
+    firedRef.current = false;
+    let raf = 0;
+    const loop = () => {
+      const rest = clamp(1 - (performance.now() - start) / (seconds * 1000), 0, 1);
+      setLeft(rest);
+      if (rest <= 0) {
+        if (!firedRef.current) { firedRef.current = true; expireRef.current(); }
+        return;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [seconds, active]);
+
+  return seconds > 0 ? left : 1;
+}
+
+/**
+ * Laesst eine Ergebnisanzeige von selbst weiterlaufen. Ein gelungener Moment
+ * darf kurz stehen bleiben, alles andere bremst den Spielfluss nur. Der
+ * "Weiter"-Knopf bleibt daneben als Abkuerzung bestehen.
+ */
+function useAutoAdvance(active: boolean, good: boolean, run: () => void) {
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setTimeout(() => runRef.current(), good ? 2400 : 1500);
+    return () => window.clearTimeout(timer);
+  }, [active, good]);
+}
+
+/** Balken, der den heranrueckenden Gegner sichtbar macht. */
+function PressureBar({ left }: { left: number }) {
+  const colour = left > 0.5 ? '#37d67a' : left > 0.22 ? '#f5c542' : '#ff6b7a';
+  return (
+    <div className="pressure-bar" title="Zeit, bis der Gegner da ist">
+      <span style={{ width: `${left * 100}%`, background: colour }} />
+    </div>
+  );
+}
+
 function Frame(
-  { challenge, step, steps, hint, footer, children }:
+  { challenge, step, steps, hint, footer, pressureLeft, children }:
   {
     challenge: Challenge; step: number; steps: string[]; hint: string;
-    footer?: React.ReactNode; children: React.ReactNode;
+    footer?: React.ReactNode; pressureLeft?: number; children: React.ReactNode;
   },
 ) {
   return (
     <div className="scene-overlay">
       <div className="scene">
+        {pressureLeft !== undefined && <PressureBar left={pressureLeft} />}
         <div className="scene-head">
           <span className="title">{challenge.title}</span>
           <span className="pill">{challenge.minute}.</span>
@@ -670,11 +746,12 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     setStep('contact');
   }
 
-  function fire(cx: number, cy: number) {
-    if (!aim) return;
+  function fire(cx: number, cy: number, aimOverride?: { x: number; y: number }) {
+    const shotAim = aimOverride ?? aim;
+    if (!shotAim) return;
     const rng = new Rng(seed ^ 0x9e3779b9);
     const input: BallInput = {
-      aimX: aim.x, aimY: aim.y,
+      aimX: shotAim.x, aimY: shotAim.y,
       power: Math.max(0.08, powerRef.current),
       contactX: cx, contactY: cy,
     };
@@ -719,9 +796,39 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     setStep('flight');
   }
 
+  // --- Gegnerdruck ------------------------------------------------------
+  // Der Gegner rueckt heran, waehrend gezielt wird. Laeuft die Zeit ab, wird
+  // mit dem gespielt, was gerade eingestellt ist: ueberhastet, aber nie
+  // verloren - ein Abschluss aus der Not ist besser als gar keiner.
+  const pressureTime = useMemo(
+    () => pressureSeconds(challenge, difficulty), [challenge, difficulty],
+  );
+  const clockRuns = step === 'target' || step === 'aim' || step === 'power' || step === 'contact';
+
+  const timeLeft = usePressureClock(pressureTime, clockRuns, () => {
+    if (!clockRuns) return;
+    const rushed = aim ?? hover ?? { x: 0, y: Math.min(8, challenge.distance * 0.35) };
+    if (step === 'power' && chargingRef.current) {
+      powerRef.current = Math.max(
+        0.08, powerFromElapsed(performance.now() - chargeStartRef.current),
+      );
+    } else if (step !== 'contact') {
+      powerRef.current = 0.55;
+    }
+    chargingRef.current = false;
+    fire(0, 0, rushed);
+  });
+
   // Tastatursteuerung
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Im Kontaktschritt schiesst die Leertaste sofort mittig ab - fuer alle,
+      // die den Feinschliff nicht jedes Mal brauchen.
+      if (e.code === 'Space' && step === 'contact' && e.type === 'keydown') {
+        e.preventDefault();
+        fire(0, 0);
+        return;
+      }
       if (e.code !== 'Space') return;
       e.preventDefault();
       if (e.type === 'keydown') startCharge();
@@ -747,10 +854,15 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   const isGoal = finalRef.current?.outcome === 'goal' || finalRef.current?.outcome === 'passCompleted';
 
+  useAutoAdvance(step === 'result', isGoal, () => {
+    if (finalRef.current) onDone(finalRef.current);
+  });
+
   return (
     <Frame challenge={passLike && selfShoot ? { ...challenge, title: 'Abschluss' } : challenge}
       step={stepIndex} steps={stepLabels}
       hint={step === 'flight' ? challenge.hint : hints[step]}
+      pressureLeft={clockRuns && pressureTime > 0 ? timeLeft : undefined}
       footer={
         <>
           {step === 'target' && (
@@ -1064,8 +1176,27 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
   const steps = isDribble && moves.length > 1 ? ['Finte', 'Timing', ''] : ['Timing', ''];
   const stepIndex = phase === 'move' ? 0 : phase === 'run' ? (steps.length === 3 ? 1 : 0) : steps.length - 1;
 
+  const timingWon = finalRef.current?.outcome === 'dribbleWon'
+    || finalRef.current?.outcome === 'duelWon'
+    || finalRef.current?.outcome === 'foulSuffered';
+  useAutoAdvance(phase === 'result', timingWon, () => {
+    if (finalRef.current) onDone(finalRef.current);
+  });
+
+  // Auch die Fintenwahl steht unter Druck - der Gegner wartet nicht, bis man
+  // sich entschieden hat. Laeuft die Zeit ab, wird der einfachste Zug gespielt.
+  const movePressure = useMemo(
+    () => pressureSeconds(challenge, difficulty), [challenge, difficulty],
+  );
+  const moveTimeLeft = usePressureClock(movePressure, phase === 'move', () => {
+    if (phase !== 'move') return;
+    setMove(moves[0] ?? null);
+    setPhase('run');
+  });
+
   return (
     <Frame challenge={challenge} step={stepIndex} steps={steps}
+      pressureLeft={phase === 'move' && movePressure > 0 ? moveTimeLeft : undefined}
       hint={phase === 'move'
         ? 'Waehle deine Bewegung. Schwierigere Finten haben ein engeres Zeitfenster.'
         : phase === 'run' ? challenge.hint : (finalRef.current?.detail ?? '')}
@@ -1310,6 +1441,12 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   const distanceHint = crossingRef.current && dive
     ? `Abstand zum Ball: ${Math.hypot(crossingRef.current.x - dive.x, crossingRef.current.z - dive.z).toFixed(2)} Meter`
     : '';
+
+  const saved = finalRef.current?.outcome === 'saveMade'
+    || finalRef.current?.outcome === 'caught';
+  useAutoAdvance(step === 'result', saved, () => {
+    if (finalRef.current) onDone(finalRef.current);
+  });
 
   return (
     <Frame challenge={challenge} step={step === 'dive' ? 0 : step === 'timing' ? 1 : 2}

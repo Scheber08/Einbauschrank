@@ -109,6 +109,47 @@ export function advanceCalendar(maxDays = 60): AdvanceSummary {
   return { days, matchToPlay: null, seasonReport, training, lifeEvent: null, wnc };
 }
 
+/**
+ * Spult ohne Zwischenstopps bis zum naechsten eigenen Spiel vor.
+ *
+ * Unterschied zu `advanceCalendar`: Trainingsberichte halten den Kalender
+ * nicht an - das Training wirkt weiterhin, nur die Aufstellung der
+ * verbesserten Werte entfaellt. Ereignisse abseits des Platzes werden dabei
+ * ausgelassen; wer direkt zum Anpfiff will, verzichtet auf diese
+ * Entscheidungen. Beim Saisonwechsel wird trotzdem angehalten, sonst liefe
+ * der Saisonbericht mit allen Auszeichnungen unbemerkt vorbei.
+ */
+export function advanceToMatch(maxDays = 400): AdvanceSummary {
+  const game = getState().game;
+  if (!game) {
+    return { days: 0, matchToPlay: null, seasonReport: null, training: null, lifeEvent: null, wnc: null };
+  }
+
+  let days = 0;
+  let seasonReport: SeasonReport | null = null;
+  let wnc: DayResult['wnc'] = null;
+
+  for (let i = 0; i < maxDays; i++) {
+    const result = advanceDay(game);
+    // Das Training wirkt in advanceDay, sein Bericht wird hier bewusst verworfen.
+    if (result.wnc) wnc = result.wnc;
+    if (result.matchToPlay) {
+      commit();
+      return { days, matchToPlay: result.matchToPlay, seasonReport, training: null, lifeEvent: null, wnc };
+    }
+    days++;
+    // Saisonende ist zu wichtig, um daran vorbeizuspulen.
+    if (result.seasonReport) {
+      seasonReport = result.seasonReport;
+      break;
+    }
+  }
+
+  commit();
+  void saveCurrent(true);
+  return { days, matchToPlay: null, seasonReport, training: null, lifeEvent: null, wnc };
+}
+
 /** Einen einzelnen Tag weiterschalten. */
 export function advanceOneDay(): AdvanceSummary {
   return advanceCalendar(1);

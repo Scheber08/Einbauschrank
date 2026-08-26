@@ -1,0 +1,23 @@
+Beispieldatenbank fuer Road to Glory
+====================================
+
+Alle Vereine, Staedte, Stadien und Personen in diesen Dateien sind frei
+erfunden. Sie dienen als Vorlage fuer eigene Datenbanken.
+
+So legst du eine eigene an:
+
+1. Diesen Ordner kopieren und umbenennen.
+2. main.csv anpassen - eine Zeile je Liga oder Pokal.
+3. Fuer jede Liga eine CSV mit den Vereinen anlegen (Spalte "datei" in main.csv).
+4. Optional je Liga eine Datei <name>.spieler.csv mit den Kadern.
+5. Optional Wappen als PNG, JPG oder SVG in denselben Ordner legen und in der
+   Spalte "wappen" beim Verein eintragen.
+6. Im Hauptmenue unter "Datenbanken" den Ordner auswaehlen.
+
+Die Daten bleiben ausschliesslich in deinem Browser. Sie werden nicht
+hochgeladen, nicht mitgeliefert und landen in keinem Build.
+
+Hinweis zu fremden Namen: Vereinsnamen und Wappen sind in der Regel geschuetzt,
+Spielernamen beruehren Persoenlichkeitsrechte. Fuer den privaten Gebrauch am
+eigenen Rechner ist das unproblematisch. Gib eine so befuellte Datenbank aber
+nicht weiter und veroeffentliche keinen damit erzeugten Build.

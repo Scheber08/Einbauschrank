@@ -7,6 +7,13 @@
  */
 import type { Club } from './types';
 
+/**
+ * Was fuer ein Wappen gebraucht wird - bewusst schmaler als `Club`, damit auch
+ * die Spielstandsuebersicht im Hauptmenue eines zeichnen kann, ohne den
+ * vollstaendigen Vereinsdatensatz geladen zu haben.
+ */
+export type CrestClub = Pick<Club, 'id' | 'name' | 'short' | 'colors' | 'reputation'>;
+
 /** Stabiler Hash eines Strings (FNV-1a). */
 function hash(text: string): number {
   let h = 0x811c9dc5;
@@ -45,7 +52,7 @@ const SHAPES: CrestShape[] = ['shield', 'round', 'diamond', 'banner'];
 const PATTERNS: CrestPattern[] = ['stripes', 'halves', 'sash', 'hoop', 'plain', 'chevron'];
 
 /** Wappenform eines Vereins - stabil ueber alle Sitzungen. */
-export function crestStyle(club: Club): CrestStyle {
+export function crestStyle(club: CrestClub): CrestStyle {
   const h = hash(club.id);
   return {
     shape: pick(SHAPES, mix(h, 1)),
@@ -56,7 +63,7 @@ export function crestStyle(club: Club): CrestStyle {
 }
 
 /** Kuerzel fuer das Wappen: bevorzugt das Vereinskuerzel, sonst Initialen. */
-export function crestLabel(club: Club): string {
+export function crestLabel(club: CrestClub): string {
   if (club.short && club.short.length <= 4) return club.short.toUpperCase();
   const words = club.name.split(/\s+/).filter((w) => w.length > 2);
   return words.slice(0, 3).map((w) => w[0]).join('').toUpperCase() || '?';

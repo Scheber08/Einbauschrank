@@ -1,0 +1,9 @@
+# Wettbewerbe dieser Datenbank. Eine Zeile je Liga oder Pokal.
+# land: frei waehlbare Kennung. Mehrere Ligen mit gleicher Kennung bilden ein Ligasystem.
+# typ:  liga oder pokal
+# ebene: 1 ist die hoechste Spielklasse
+# datei: CSV mit den Vereinen. Kader optional in <datei>.spieler.csv
+id;typ;land;landname;name;kurz;ebene;datei
+nord-1;liga;nordland;Nordland;Nordland Oberliga;NL1;1;nord-1.csv
+nord-2;liga;nordland;Nordland;Nordland Unterliga;NL2;2;nord-2.csv
+nord-pokal;pokal;nordland;Nordland;Nordlandpokal;NPK;;

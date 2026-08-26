@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { POSITIONS, POSITION_LABELS, POSITION_NEIGHBOURS, type PositionCode } from '../engine/attributes';
 import { BACKGROUND_LIST } from '../engine/backgrounds';
 import { COUNTRIES } from '../engine/countries';
+import { realCountry } from '../engine/realData';
+import { HAIR_COLORS, SKIN_TONES } from './PlayerAvatar';
 import { NAME_POOLS } from '../engine/names';
 import { Rng, randomSeed } from '../engine/rng';
 import { startNewCareer } from '../state/actions';
@@ -16,8 +18,8 @@ const DIFFICULTIES: { key: Difficulty; label: string; hint: string }[] = [
   { key: 'simulation', label: 'Karriere-Simulation', hint: 'Sehr realistisch, wenig Einfluss durch Minispiele, kein sichtbares Potenzial.' },
 ];
 
-const HAIR_COLORS = ['#2b2118', '#5b3a1e', '#a86b2c', '#d8b46a', '#8e8e8e', '#1a1a1a'];
-const SKIN_TONES = ['#f3d3b6', '#e5b48c', '#c78f63', '#9b6440', '#6f4326', '#4a2c1a'];
+// Haut- und Haarfarben teilt sich die Erstellung mit dem Portraet, sonst
+// sieht der fertige Spieler anders aus als in der Vorschau.
 const EYE_COLORS = ['#4a3120', '#2f6b8f', '#3f7a4a', '#6b6b6b'];
 const BOOT_COLORS = ['#ffffff', '#111111', '#e0261f', '#1f6ee0', '#37d67a', '#f5c542'];
 
@@ -98,7 +100,9 @@ export default function CreateCareer() {
               <label>Nationalitaet</label>
               <select value={nationality} onChange={(e) => setNationality(e.target.value)}>
                 {COUNTRIES.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} - {c.style}</option>
+                  <option key={c.id} value={c.id}>
+                    {realCountry(c.id)?.displayName ?? c.name} - {c.style}
+                  </option>
                 ))}
               </select>
             </div>

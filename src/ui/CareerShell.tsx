@@ -8,10 +8,13 @@ import type { TrainingOutcome } from '../engine/development';
 import type { LifeEvent, LifeOption } from '../engine/events';
 import type { WncResult } from '../engine/types';
 import { clubSponsors } from '../engine/identity';
-import { advanceCalendar, applyLifeEvent, backToMenu, saveCurrent } from '../state/actions';
+import {
+  advanceCalendar, advanceToMatch, applyLifeEvent, backToMenu, saveCurrent,
+} from '../state/actions';
 import { setState, useAppState, type CareerTab } from '../state/store';
 import ClubCrest from './ClubCrest';
-import { Bar, Meter, initials, money } from './components';
+import { Bar, Meter, money } from './components';
+import PlayerAvatar from './PlayerAvatar';
 import CalendarTab from './tabs/CalendarTab';
 import ChronicleTab from './tabs/ChronicleTab';
 import NewsTab from './tabs/NewsTab';
@@ -64,13 +67,28 @@ export default function CareerShell() {
     else if (result.training) setTraining(result.training);
   }
 
+  /** Ohne Trainingsberichte und Zwischenereignisse bis zum Anpfiff. */
+  function skipToMatch() {
+    const result = advanceToMatch();
+    if (result.matchToPlay) {
+      setState({ screen: 'match' });
+      return;
+    }
+    if (result.wnc) setWnc(result.wnc);
+    if (result.seasonReport) setSeasonReport(result.seasonReport);
+  }
+
   return (
     <div className="career">
       <aside className="sidebar">
         <section className="panel identity">
-          <div className="avatar" style={{ background: club?.colors[0] ?? '#37d67a' }}>
-            {initials(user.firstName, user.lastName)}
-          </div>
+          <PlayerAvatar
+            look={user.appearance}
+            jersey={club?.colors[0]}
+            trim={club?.colors[1]}
+            size={92}
+            name={`${user.firstName} ${user.lastName}`}
+          />
           <div className="name">{user.firstName} {user.lastName}</div>
           <div className="small muted">
             {user.position} - {ageOn(user.birthDate, game.date)} Jahre
@@ -152,9 +170,18 @@ export default function CareerShell() {
               Laufbahn beendet
             </div>
           ) : (
-            <button className="primary" style={{ width: '100%' }} onClick={() => advance()}>
-              {upcoming ? 'Weiter bis zum Spiel' : 'Weiter'}
-            </button>
+            <>
+              <button className="primary" style={{ width: '100%' }} onClick={() => advance()}>
+                {upcoming ? 'Weiter bis zum Spiel' : 'Weiter'}
+              </button>
+              {upcoming && (
+                <button className="small" style={{ width: '100%', marginTop: '0.35rem' }}
+                  onClick={skipToMatch}
+                  title="Springt ohne Trainingsberichte und Ereignisse direkt zum Anpfiff">
+                  Direkt zum Anpfiff
+                </button>
+              )}
+            </>
           )}
           <div className="row" style={{ marginTop: '0.4rem' }}>
             {!game.retirement && (
@@ -172,7 +199,9 @@ export default function CareerShell() {
         </section>
       </aside>
 
-      <main>
+      {/* Der key sorgt dafuer, dass beim Wechsel neu gemountet und damit die
+          Einblendung erneut abgespielt wird - der Wechsel wird sichtbar. */}
+      <main key={app.tab} className="tab-pane">
         {app.tab === 'overview' && <OverviewTab />}
         {app.tab === 'calendar' && <CalendarTab />}
         {app.tab === 'training' && <TrainingTab />}
@@ -185,7 +214,8 @@ export default function CareerShell() {
         {app.tab === 'chronicle' && <ChronicleTab />}
       </main>
 
-      {wnc && <WncModal result={wnc} nation={COUNTRY_BY_ID[user.nationality]?.name}
+      {wnc && <WncModal result={wnc}
+        nation={game.countries[user.nationality]?.name ?? COUNTRY_BY_ID[user.nationality]?.name}
         onClose={() => setWnc(null)} />}
       {lifeEvent && <LifeEventModal event={lifeEvent} onClose={() => setLifeEvent(null)} />}
       {training && <TrainingModal outcome={training} onClose={() => setTraining(null)} />}

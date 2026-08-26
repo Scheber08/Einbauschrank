@@ -10,6 +10,7 @@ import { squadOf } from '../../engine/worldGen';
 import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
+import FormationPitch from '../FormationPitch';
 import { Empty, Meter, Panel, Pill, money, shortName } from '../components';
 
 type SortKey = 'position' | 'ability' | 'age' | 'form' | 'value';
@@ -82,6 +83,28 @@ export default function SquadTab() {
             <div className="label">Abwehr</div>
           </div>
         </div>
+        {lineup && (
+          <div style={{ marginTop: '0.9rem' }}>
+            <div className="row between" style={{ marginBottom: '0.4rem' }}>
+              <span className="tiny dim">Voraussichtliche Startelf</span>
+              <span className="tiny dim">
+                {starterIds.has(game.userPlayerId) ? 'Du stehst in der Startelf'
+                  : benchIds.has(game.userPlayerId) ? 'Du sitzt auf der Bank'
+                  : 'Du bist derzeit nicht im Kader'}
+              </span>
+            </div>
+            <div style={{ maxWidth: 340, margin: '0 auto' }}>
+              <FormationPitch
+                slots={lineup.starters}
+                players={game.players}
+                colors={club.colors}
+                formation={club.formation}
+                userPlayerId={game.userPlayerId}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="grid two" style={{ marginTop: '0.9rem' }}>
           <div>
             <Meter label="Trainingsanlagen" value={club.training} />

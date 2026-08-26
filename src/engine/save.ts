@@ -18,6 +18,11 @@ export interface SaveMeta {
   age: number;
   position: string;
   clubName: string;
+  /** Vereinsdaten fuer das Wappen im Hauptmenue. Bei aelteren Staenden leer. */
+  clubId?: string;
+  clubShort?: string;
+  clubColors?: [string, string];
+  clubReputation?: number;
   leagueName: string;
   season: string;
   careerYears: number;
@@ -80,6 +85,10 @@ export function buildMeta(state: GameState): SaveMeta {
     age: user ? ageOn(user.birthDate, state.date) : 0,
     position: user?.position ?? '-',
     clubName: club?.name ?? 'Vereinslos',
+    clubId: club?.id,
+    clubShort: club?.short,
+    clubColors: club?.colors,
+    clubReputation: club?.reputation,
     leagueName: league?.name ?? '-',
     season: seasonLabel(state.season),
     careerYears: Math.max(1, state.season - startSeason + 1),

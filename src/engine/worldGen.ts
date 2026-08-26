@@ -4,6 +4,10 @@ import { COUNTRIES, COUNTRY_BY_ID, type CountryDef } from './countries';
 import { ageOn, type GameDate } from './date';
 import { sponsorsFor } from './identity';
 import { NAME_POOLS, STADIUM_PLACES, STADIUM_STANDALONE, STADIUM_WORDS } from './names';
+import {
+  assignSquadNames, deriveShort, leagueLayout, realClub, realCountry, realLeagueName,
+  type RealClub,
+} from './realData';
 import { SQUAD_TEMPLATE, createPlayer, makeContract } from './playerGen';
 import { Rng, clamp } from './rng';
 import type {
@@ -41,11 +45,24 @@ function abilityForReputation(reputation: number): number {
   return clamp(29 + reputation * 0.545, 32, 84);
 }
 
-function reputationBand(rng: Rng, level: number, rank: number): number {
-  // rank 0 = staerkster Verein der Liga
-  if (level === 1) return clamp(Math.round(88 - rank * 1.9 + rng.normal(0, 2.5)), 45, 95);
-  if (level === 2) return clamp(Math.round(56 - rank * 1.15 + rng.normal(0, 2.2)), 26, 62);
-  return clamp(Math.round(36 - rank * 0.85 + rng.normal(0, 2)), 12, 42);
+/**
+ * Ruf eines Vereins nach Spielklasse und Tabellenrang.
+ *
+ * Die Spanne wird ueber die vorhandenen Ebenen verteilt, statt drei feste
+ * Baender zu benutzen: So bleibt das Gefaelle stimmig, ob ein Land zwei Ligen
+ * hat oder sechs. `rank` 0 ist der staerkste Verein seiner Liga.
+ */
+function reputationBand(
+  rng: Rng, level: number, rank: number, levels: number, clubsInLeague: number,
+): number {
+  const top = 88;
+  const bottom = 20;
+  const span = (top - bottom) / Math.max(1, levels);
+  const ceiling = top - (level - 1) * span;
+  // Innerhalb der Liga faellt der Ruf vom ersten bis zum letzten Platz.
+  const withinDrop = span * 0.75;
+  const value = ceiling - (rank / Math.max(1, clubsInLeague - 1)) * withinDrop;
+  return clamp(Math.round(value + rng.normal(0, 2.2)), 8, 95);
 }
 
 function makeClubName(rng: Rng, country: CountryDef, city: string): { name: string; short: string } {
@@ -88,12 +105,17 @@ function makeStadium(
 function generateSquad(
   rng: Rng, club: Club, level: number, country: CountryDef,
   currentDate: GameDate, makeId: (p: string) => Id,
+  realSquad?: RealClub['squad'],
 ): Player[] {
   const avgAbility = abilityForReputation(club.reputation);
   const players: Player[] = [];
   const usedNumbers = new Set<number>();
 
   const positions = rng.shuffle(SQUAD_TEMPLATE.slice());
+  // Eigene Kadernamen ueberschreiben nur die Namen, niemals die Spielwerte.
+  const nameOverrides = realSquad?.length
+    ? assignSquadNames(realSquad, positions)
+    : null;
 
   positions.forEach((position, index) => {
     // Die ersten Spieler eines Kaders sind die Stammkraefte.
@@ -134,6 +156,12 @@ function generateSquad(
       shirtNumber: shirtNumber || 60 + index,
     });
 
+    const override = nameOverrides?.[index];
+    if (override) {
+      if (override.firstName) player.firstName = override.firstName;
+      player.lastName = override.lastName;
+    }
+
     const role: SquadRole = index < 6 ? 'Schluesselspieler'
       : index < 11 ? 'Stammspieler'
       : index < 17 ? 'Rotationsspieler'
@@ -165,7 +193,7 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
   for (const def of COUNTRIES) {
     countries[def.id] = {
       id: def.id,
-      name: def.name,
+      name: realCountry(def.id)?.displayName ?? def.name,
       short: def.short,
       styleBias: def.attrBias,
       reputation: def.reputation,
@@ -179,29 +207,45 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
     const usedNames = new Set<string>();
     let cityIndex = 0;
 
-    for (let level = 1; level <= 3; level++) {
+    // Aufbau des Ligasystems: aus eigenen Daten, sonst der Standardaufbau.
+    const layout = leagueLayout(countryId);
+    // Der Rufabstand zwischen den Ebenen haengt daran, wie viele es gibt -
+    // bei fuenf Ligen faellt er flacher aus als bei zweien.
+    const repStep = layout.length > 1 ? 66 / (layout.length - 1) : 0;
+
+    for (const tier of layout) {
+      const level = tier.level;
       const competitionId = `${countryId}-l${level}`;
       const competition: Competition = {
         id: competitionId,
         countryId,
-        name: country.leagueNames[level - 1],
+        name: realLeagueName(countryId, level)
+          ?? country.leagueNames[level - 1]
+          ?? `${country.name} Liga ${level}`,
         short: `${country.short}${level}`,
         type: 'league',
         level,
         clubIds: [],
-        reputation: clamp(country.reputation - (level - 1) * 22, 10, 95),
+        reputation: clamp(country.reputation - (level - 1) * repStep, 10, 95),
       };
 
-      for (let rank = 0; rank < 20; rank++) {
-        const city = cities[cityIndex++ % cities.length];
+      for (let rank = 0; rank < tier.clubs; rank++) {
+        // Eigenes Datenpaket hat Vorrang; fehlt es, wird wie bisher gewuerfelt.
+        const real = realClub(countryId, level, rank);
+
+        const city = real?.city ?? cities[cityIndex++ % cities.length];
         let naming = makeClubName(rng, country, city);
         let guard = 0;
         while (usedNames.has(naming.name) && guard++ < 20) naming = makeClubName(rng, country, city);
+        if (real) naming = { name: real.name, short: real.short ?? deriveShort(real.name) };
         usedNames.add(naming.name);
 
-        const reputation = reputationBand(rng, level, rank);
+        const reputation = real?.reputation
+          ?? reputationBand(rng, level, rank, layout.length, tier.clubs);
         const clubId = opts.makeId('c');
         const stadium = makeStadium(rng, city, reputation, clubId);
+        if (real?.stadium) stadium.name = real.stadium;
+        if (real?.capacity) stadium.capacity = real.capacity;
 
         const club: Club = {
           id: clubId,
@@ -210,7 +254,7 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
           name: naming.name,
           short: naming.short,
           city,
-          colors: CLUB_COLORS[(cityIndex + level) % CLUB_COLORS.length],
+          colors: real?.colors ?? CLUB_COLORS[(cityIndex + level) % CLUB_COLORS.length],
           reputation,
           budget: Math.round(reputation * reputation * 900 * country.wealth),
           wageBudget: Math.round(reputation * 1400 * country.wealth),
@@ -220,14 +264,17 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
           tacticStyle: rng.pick(country.tactics),
           training: clamp(Math.round(reputation * 0.7 + country.youth * 0.25 + rng.normal(0, 7)), 15, 95),
           youth: clamp(Math.round(reputation * 0.5 + country.youth * 0.45 + rng.normal(0, 8)), 15, 95),
-          managerName: `${rng.pick(pool.managerFirst)} ${rng.pick(pool.lastNames)}`,
+          managerName: real?.manager
+            ?? `${rng.pick(pool.managerFirst)} ${rng.pick(pool.lastNames)}`,
           history: [],
         };
 
         clubs[clubId] = club;
         competition.clubIds.push(clubId);
 
-        for (const p of generateSquad(rng, club, level, country, opts.currentDate, opts.makeId)) {
+        for (const p of generateSquad(
+          rng, club, level, country, opts.currentDate, opts.makeId, real?.squad,
+        )) {
           players[p.id] = p;
         }
       }
@@ -240,7 +287,7 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
     competitions[cupId] = {
       id: cupId,
       countryId,
-      name: country.cupName,
+      name: realCountry(countryId)?.cupName ?? country.cupName,
       short: 'Pokal',
       type: 'cup',
       level: 0,

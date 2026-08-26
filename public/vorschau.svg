@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#060c18"/><stop offset="70%" stop-color="#0d1b30"/><stop offset="100%" stop-color="#0f4d29"/>
+    </linearGradient>
+    <linearGradient id="txt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="10%" stop-color="#37d67a"/><stop offset="60%" stop-color="#2bb7ff"/><stop offset="100%" stop-color="#f5c542"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="3">
+    <path d="M0 470 H1200"/><path d="M600 470 V630"/>
+    <ellipse cx="600" cy="560" rx="190" ry="60"/>
+  </g>
+  <text x="80" y="290" font-family="system-ui, sans-serif" font-size="104" font-weight="800" fill="url(#txt)">ROAD TO GLORY</text>
+  <text x="84" y="350" font-family="system-ui, sans-serif" font-size="32" fill="#8ea3c4">Eine Fussballkarriere aus der Sicht eines einzelnen Spielers</text>
+</svg>

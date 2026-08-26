@@ -5,3 +5,7 @@ dist-ssr
 .vite
 .DS_Store
 *.log
+
+# Private Datenpakete mit echten Vereins- und Spielernamen.
+# Bleiben lokal, damit das Repository veroeffentlichbar bleibt.
+src/data/*.local.json

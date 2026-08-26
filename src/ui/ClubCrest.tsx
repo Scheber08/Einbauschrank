@@ -2,8 +2,9 @@
  * Vereinswappen als SVG, erzeugt aus Vereinsfarben und Id.
  * Jeder Verein bekommt so ein wiedererkennbares Zeichen, ohne Bilddateien.
  */
-import { crestLabel, crestStyle, type CrestPattern } from '../engine/identity';
-import type { Club } from '../engine/types';
+import {
+  crestLabel, crestStyle, type CrestClub, type CrestPattern,
+} from '../engine/identity';
 
 /** Fuellmuster innerhalb der Wappenform. */
 function Pattern(
@@ -68,7 +69,7 @@ function shapePath(shape: string): string {
 }
 
 export default function ClubCrest(
-  { club, size = 34, title }: { club: Club; size?: number; title?: boolean },
+  { club, size = 34, title }: { club: CrestClub; size?: number; title?: boolean },
 ) {
   const style = crestStyle(club);
   const [primary, secondary] = club.colors;

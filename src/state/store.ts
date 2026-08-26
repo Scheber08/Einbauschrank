@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import type { GameState } from '../engine/types';
 
-export type Screen = 'menu' | 'create' | 'career' | 'match';
+export type Screen = 'menu' | 'create' | 'career' | 'match' | 'data' | 'legal';
 
 export type CareerTab =
   | 'overview' | 'calendar' | 'training' | 'squad' | 'table'

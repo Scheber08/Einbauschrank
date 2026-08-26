@@ -84,10 +84,14 @@ export function selectLineup(
     }
   }
 
-  // Auf der Bank gilt derselbe Massstab wie in der Startelf, damit der eigene
-  // Spieler nicht unbemerkt aus dem Kader faellt.
+  // Auf der Bank gilt ein anderer Massstab als in der Startelf: Wer heute
+  // spielt, entscheidet die Tagesform - wen der Trainer mitnimmt, entscheidet
+  // auch die Entwicklung. Talente sammeln so Kaderluft, ohne dass ein
+  // Siebzehnjaehriger einem Stammspieler den Platz wegnimmt.
   const benchScore = (p: Player) =>
-    slotScore(p, p.position, opts.coachRelation) + (p.isUser ? opts.userBonus ?? 0 : 0);
+    slotScore(p, p.position, opts.coachRelation)
+    + (p.isUser ? opts.userBonus ?? 0 : 0)
+    + benchProspectBonus(p);
   const bench = available
     .filter((p) => !used.has(p.id))
     .sort((a, b) => benchScore(b) - benchScore(a))
@@ -105,6 +109,15 @@ export function selectLineup(
     tactic: club.tacticStyle,
     ...strengths,
   };
+}
+
+/**
+ * Zusatzgewicht des Entwicklungspotenzials bei der Kadernominierung.
+ * Gilt fuer jeden Spieler gleich - auch fuer die Konkurrenz im eigenen Verein.
+ */
+function benchProspectBonus(p: Player): number {
+  const base = effectiveOverall(p.attrs, p.position, p.altPositions, p.position);
+  return Math.max(0, p.potential - base) * 0.22;
 }
 
 function lineRank(pos: PositionCode): number {

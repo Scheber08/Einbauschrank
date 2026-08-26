@@ -189,37 +189,176 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   font-size: 1.6rem; font-weight: 700; color: #04220f;
   border: 2px solid rgba(255, 255, 255, 0.15);
 }
+/* Spielerportraet in der Seitenleiste. */
+.avatar-svg { display: block; margin: 0 auto 0.5rem; }
 
 /* --- Menue ------------------------------------------------------------ */
 
 .menu-wrap {
   min-height: 100%; display: grid; place-items: center; padding: 2rem 1rem;
 }
-.menu { width: min(860px, 100%); }
+.menu { width: min(880px, 100%); }
+
+.menu-foot {
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center;
+  justify-content: space-between; margin-top: 1.2rem; padding-top: 0.8rem;
+  border-top: 1px solid var(--border-soft);
+}
+/* Knopf, der wie ein Textlink aussieht - fuer Fusszeilenverweise. */
+.linklike {
+  background: none; border: none; padding: 0; color: var(--muted);
+  text-decoration: underline; cursor: pointer;
+}
+.linklike:hover { color: var(--text); }
+
+/* --- Kopfbereich ------------------------------------------------------- */
+
+.hero {
+  position: relative; overflow: hidden; margin-bottom: 1.2rem;
+  padding: clamp(1.6rem, 4vw, 2.6rem);
+  padding-bottom: clamp(5rem, 16vw, 9rem); /* Platz, damit der Rasen sichtbar bleibt */
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: #070d18;
+  animation: rise-in 420ms ease-out both;
+}
+.hero-pitch {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; object-fit: cover;
+}
+/* Die Textseite bekommt einen weichen Schleier, damit sie vor dem Bild lesbar
+   bleibt - ohne das Motiv flaechig zuzudecken. */
+.hero::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, rgba(6, 12, 24, 0.92) 0%,
+    rgba(6, 12, 24, 0.72) 42%, rgba(6, 12, 24, 0.15) 78%, rgba(6, 12, 24, 0) 100%);
+}
+
+/* Auf schmalen Schirmen wird der Kopfbereich hoch und schmal. Als Vollflaeche
+   bliebe vom Stadion nur ein Mittelausschnitt uebrig - die Flutlichter fielen
+   seitlich heraus. Darum steht es dort als breiter Streifen am unteren Rand. */
+@media (max-width: 620px) {
+  .hero { padding-bottom: 11rem; }
+  .hero-pitch { top: auto; height: 10.5rem; }
+  .hero::after {
+    background: linear-gradient(180deg, rgba(6, 12, 24, 0.94) 0%,
+      rgba(6, 12, 24, 0.85) 52%, rgba(6, 12, 24, 0.1) 74%, rgba(6, 12, 24, 0) 100%);
+  }
+}
+
+/* Flutlicht atmet leicht, einzelne Blitzlichter im Rang. */
+.lamp { animation: lamp-glow 5.5s ease-in-out infinite; }
+.beam { animation: lamp-glow 5.5s ease-in-out infinite; }
+.flash { opacity: 0; animation: flash-pop 9s linear infinite; }
+
+@keyframes lamp-glow {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
+@keyframes flash-pop {
+  0%, 96%, 100% { opacity: 0; }
+  97% { opacity: 0.95; }
+  98.5% { opacity: 0.25; }
+}
+.hero-ball {
+  position: absolute; width: 34px; height: 34px; top: 14%; left: -8%;
+  opacity: 0.5; pointer-events: none;
+  animation: ball-drift 26s linear infinite;
+}
+.hero-body { position: relative; }
+
 .logo {
   font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 800; letter-spacing: -0.03em;
   background: linear-gradient(100deg, #37d67a 10%, #2bb7ff 60%, #f5c542 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   margin-bottom: 0.1em; line-height: 1.05;
 }
-.tagline { color: var(--muted); margin-bottom: 1.6rem; }
+.tagline { color: var(--muted); margin-bottom: 1.4rem; max-width: 56ch; }
+
+.menu-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.menu-actions > button { flex: 0 1 auto; }
+
+/* --- Spielstandskarten ------------------------------------------------- */
 
 .save-card {
-  display: flex; gap: 0.9rem; align-items: center;
+  display: flex; gap: 0.9rem; align-items: center; flex-wrap: wrap;
   padding: 0.7rem 0.85rem; border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm); background: #0c1729; margin-bottom: 0.5rem;
+  transition: border-color 160ms ease, transform 160ms ease, background-color 160ms ease;
+  animation: rise-in 360ms ease-out both;
 }
-.save-card:hover { border-color: #2f4f78; }
+/* Der Textblock braucht eine Mindestbreite, sonst quetschen ihn die Knoepfe
+   auf schmalen Bildschirmen auf null - dann verschwinden Name und Verein. */
+.save-info { flex: 1 1 12rem; min-width: 0; }
+.save-actions {
+  display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-left: auto;
+}
+.save-card:hover {
+  border-color: #2f4f78; background: #0e1c33; transform: translateY(-2px);
+}
+.save-card > svg { transition: transform 220ms ease; }
+.save-card:hover > svg { transform: scale(1.08) rotate(-3deg); }
+
+.save-stats { display: flex; flex-wrap: wrap; gap: 0.75rem; color: var(--dim); }
+.save-stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+.save-stats .honour { color: var(--gold); }
+
+/* --- Was dich erwartet ------------------------------------------------- */
+
+.feature-grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.feature h4 { margin: 0.5rem 0 0.25rem; }
+.feature-icon { width: 44px; height: 44px; display: block; }
+.feature { transition: transform 160ms ease; }
+.feature:hover { transform: translateY(-2px); }
+
+/* Tabwechsel im Karrierebereich sichtbar machen. */
+.tab-pane { animation: tab-in 200ms ease-out both; }
+@keyframes tab-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .tab-pane { animation: none; } }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ball-drift {
+  from { transform: translateX(0) rotate(0deg); }
+  to { transform: translateX(120vw) rotate(900deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero, .save-card { animation: none; }
+  .hero-ball { animation: none; opacity: 0.25; }
+  .lamp, .beam, .flash { animation: none; }
+  .flash { opacity: 0; }
+  .save-card:hover, .feature:hover { transform: none; }
+  .save-card:hover > svg { transform: none; }
+}
 
 /* --- Spielbildschirm -------------------------------------------------- */
 
 .match-screen { max-width: 1100px; margin: 0 auto; padding: 1rem; width: 100%; }
 .scoreboard {
+  position: relative; overflow: hidden;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
   gap: 1rem; padding: 1rem 1.2rem;
   background: linear-gradient(180deg, #16253d, #0c1729);
   border: 1px solid var(--border); border-radius: var(--radius);
 }
+/* Angedeutete Flutlichtkegel hinter der Anzeigetafel - stellt die Verbindung
+   zum Stadionmotiv des Menues her, ohne die Zahlen zu stoeren. */
+.scoreboard::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 120% at 18% -30%, rgba(255, 238, 184, 0.13), transparent 62%),
+    radial-gradient(60% 120% at 82% -30%, rgba(255, 238, 184, 0.13), transparent 62%),
+    linear-gradient(180deg, transparent 58%, rgba(15, 77, 41, 0.32) 100%);
+}
+.scoreboard > * { position: relative; }
 .scoreboard .team {
   font-size: 1.05rem; font-weight: 640;
   display: flex; align-items: center; gap: 0.6rem; min-width: 0;
@@ -237,9 +376,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .timeline { max-height: 340px; overflow: auto; }
 .timeline .ev {
-  display: grid; grid-template-columns: 42px 1fr; gap: 0.6rem;
+  display: grid; grid-template-columns: 34px 15px 1fr; gap: 0.5rem;
   padding: 0.34rem 0.2rem; border-bottom: 1px solid var(--border-soft);
-  font-size: 0.88rem;
+  font-size: 0.88rem; align-items: center;
+}
+.timeline .ev .ev-icon { display: flex; align-items: center; justify-content: center; }
+/* Ereignisse ohne eigenes Sinnbild bekommen einen dezenten Punkt, damit die
+   Textspalte trotzdem buendig bleibt. */
+.ev-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--border);
+  display: block;
 }
 .timeline .ev .min { color: var(--dim); font-variant-numeric: tabular-nums; }
 .timeline .ev.goal { background: #10301f; }
@@ -274,6 +420,115 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .step-dots i.on { background: var(--accent-2); }
 .step-dots i.done { background: var(--accent); }
+
+/* Der jeweils neueste Tickereintrag blitzt kurz auf, damit sichtbar wird,
+   dass gerade etwas passiert ist. */
+.ev.fresh { animation: ev-in 300ms ease-out; }
+@keyframes ev-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ev.fresh { animation: none; } }
+
+/* --- Aufstellung als Feldgrafik ---------------------------------------- */
+
+.formation { margin: 0; min-width: 0; }
+.formation-head {
+  display: flex; align-items: center; gap: 0.5rem; justify-content: space-between;
+  margin-bottom: 0.4rem; min-width: 0;
+}
+.formation-name {
+  font-weight: 640; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.formation-svg {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+.formation-pair {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.pitch-player { transition: opacity 160ms ease; }
+.formation-svg:hover .pitch-player:not(.is-user) { opacity: 0.72; }
+.formation-svg:hover .pitch-player.is-user { opacity: 1; }
+
+/* --- Attributprofil ---------------------------------------------------- */
+
+.profile-split {
+  display: grid; gap: 1rem; align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.radar-wrap { display: flex; flex-direction: column; align-items: center; }
+.radar { width: 100%; max-width: 280px; height: auto; display: block; overflow: visible; }
+.radar-legend { display: flex; gap: 0.9rem; margin-top: 0.3rem; color: var(--muted); }
+.radar-legend .swatch {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+  margin-right: 4px; vertical-align: -1px;
+}
+.radar-legend .swatch.own { background: var(--accent); }
+.radar-legend .swatch.other { background: var(--muted); }
+
+/* --- Grafischer Spielverlauf ------------------------------------------- */
+
+.timeline-svg { display: block; width: 100%; height: auto; }
+.timeline-svg g > title { pointer-events: none; }
+
+/* --- Mannschaftsstaerken ----------------------------------------------- */
+
+.strength-row {
+  display: grid; grid-template-columns: 3ch 1fr 8ch 1fr 3ch;
+  align-items: center; gap: 0.4rem; margin-bottom: 0.35rem;
+}
+.strength-bar { height: 9px; border-radius: 99px; background: #0a1424; overflow: hidden; }
+.strength-bar > span { display: block; height: 100%; border-radius: 99px; }
+.strength-bar.home { display: flex; justify-content: flex-end; }
+.strength-label { text-align: center; color: var(--muted); font-size: 0.74rem; }
+
+/* --- Grosse Momente ---------------------------------------------------- */
+
+.moment {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  background: rgba(3, 8, 16, 0.72); cursor: pointer;
+  animation: moment-in 140ms ease-out;
+}
+.moment-card {
+  text-align: center; padding: 1.6rem 2.6rem; border-radius: var(--radius);
+  background: var(--bg-2); border: 2px solid var(--border);
+  box-shadow: var(--shadow); animation: moment-pop 320ms cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.moment.goal .moment-card { border-color: var(--accent); }
+.moment.user .moment-card { border-color: var(--gold); }
+.moment.warn .moment-card { border-color: var(--bad); }
+
+.moment-minute { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.08em; }
+.moment-label {
+  font-size: 2.6rem; font-weight: 820; letter-spacing: 0.04em; line-height: 1.1;
+  margin: 0.1rem 0 0.3rem;
+}
+.moment.goal .moment-label { color: var(--accent); }
+.moment.user .moment-label { color: var(--gold); }
+.moment.warn .moment-label { color: var(--bad); }
+.moment-score { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.4rem; }
+.moment-score b { font-variant-numeric: tabular-nums; }
+.moment-text { color: var(--muted); max-width: 30ch; margin: 0 auto; }
+
+@keyframes moment-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes moment-pop {
+  from { transform: scale(0.82); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moment, .moment-card { animation: none; }
+}
+
+/* Gegnerdruck: laeuft ueber die volle Breite der Szene ab. */
+.pressure-bar {
+  height: 5px; width: 100%; background: #0a1424; overflow: hidden; flex: none;
+}
+.pressure-bar > span {
+  display: block; height: 100%; transition: background-color 180ms linear;
+}
 
 .power-meter {
   height: 14px; width: 220px; border-radius: 99px; overflow: hidden;

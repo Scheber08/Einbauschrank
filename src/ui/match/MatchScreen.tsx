@@ -18,6 +18,8 @@ import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { advanceCalendar, saveCurrent } from '../../state/actions';
 import { commit, setState, useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
+import FormationPitch from '../FormationPitch';
+import MatchTimeline from './MatchTimeline';
 import { Empty, Meter, Panel, Pill, rating, ratingColor, shortName } from '../components';
 import HighlightScene from './HighlightScene';
 
@@ -30,6 +32,20 @@ const SPEEDS = [
   { label: 'Schnell', ms: 55 },
   { label: 'Sehr schnell', ms: 16 },
 ];
+
+/** Ereignisse, die eine eigene Einblendung bekommen statt nur eine Tickerzeile. */
+const BIG_MOMENTS = new Set<LiveEvent['type']>([
+  'goal', 'ownGoal', 'red', 'secondYellow', 'penaltyAwarded', 'penaltyMiss',
+]);
+
+const MOMENT_LABEL: Partial<Record<LiveEvent['type'], string>> = {
+  goal: 'TOR',
+  ownGoal: 'EIGENTOR',
+  red: 'ROTE KARTE',
+  secondYellow: 'GELB-ROT',
+  penaltyAwarded: 'ELFMETER',
+  penaltyMiss: 'ELFMETER VERSCHOSSEN',
+};
 
 export default function MatchScreen() {
   const app = useAppState();
@@ -46,6 +62,9 @@ export default function MatchScreen() {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [halftime, setHalftime] = useState<HalftimeDecision | null>(null);
   const [injury, setInjury] = useState<InjuryDecision | null>(null);
+  /** Grosses Ereignis, das die Uhr kurz anhaelt statt im Ticker unterzugehen. */
+  const [moment, setMoment] = useState<LiveEvent | null>(null);
+  const [lineupView, setLineupView] = useState<'pitch' | 'list'>('pitch');
   const [interview, setInterview] = useState<Interview | null>(null);
   const [interviewReaction, setInterviewReaction] = useState<InterviewOption | null>(null);
   const [outcome, setOutcome] = useState<MatchOutcome | null>(null);
@@ -54,6 +73,8 @@ export default function MatchScreen() {
   const engineRef = useRef<MatchEngine | null>(null);
   const rngRef = useRef<Rng | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  /** Das Spiel endete waehrend einer Einblendung - erst danach abrechnen. */
+  const finishedRef = useRef(false);
 
   const prepared = useMemo(
     () => (matchId ? prepareUserMatch(game, matchId, mode !== 'simulate') : null),
@@ -101,7 +122,7 @@ export default function MatchScreen() {
 
   // Spieluhr
   useEffect(() => {
-    if (phase !== 'running' || paused || challenge || halftime || injury) return;
+    if (phase !== 'running' || paused || challenge || halftime || injury || moment) return;
     const engine = engineRef.current;
     if (!engine) return;
 
@@ -122,6 +143,16 @@ export default function MatchScreen() {
         forceRender((v) => v + 1);
         return;
       }
+      // Ein Tor darf nicht als eine Zeile unter vielen vorbeirauschen. Die Uhr
+      // haelt kurz an, das Ereignis bekommt die Buehne - danach laeuft es von
+      // selbst weiter.
+      const big = step.events.find((e) => BIG_MOMENTS.has(e.type));
+      if (big) {
+        setMoment(big);
+        forceRender((v) => v + 1);
+        if (step.finished) { window.clearInterval(timer); finishedRef.current = true; }
+        return;
+      }
       forceRender((v) => v + 1);
       if (step.finished) {
         window.clearInterval(timer);
@@ -130,7 +161,17 @@ export default function MatchScreen() {
     }, SPEEDS[speedIndex].ms);
 
     return () => window.clearInterval(timer);
-  }, [phase, paused, challenge, halftime, injury, speedIndex, finalise]);
+  }, [phase, paused, challenge, halftime, injury, moment, speedIndex, finalise]);
+
+  // Der Moment blendet sich selbst wieder aus.
+  useEffect(() => {
+    if (!moment) return;
+    const timer = window.setTimeout(() => {
+      setMoment(null);
+      if (finishedRef.current) { finishedRef.current = false; finalise(); }
+    }, 1900);
+    return () => window.clearTimeout(timer);
+  }, [moment, finalise]);
 
   // Timeline nach unten scrollen
   useEffect(() => {
@@ -342,18 +383,57 @@ export default function MatchScreen() {
             </button>
           </div>
 
-          <div className="grid two" style={{ marginTop: '1rem' }}>
-            <div>
-              <h4>{homeClub.name}</h4>
-              <LineupList game={game} ids={prepared.homeLineup.starters.map((s) => s.playerId)}
-                positions={prepared.homeLineup.starters.map((s) => s.position)} />
-            </div>
-            <div>
-              <h4>{awayClub.name}</h4>
-              <LineupList game={game} ids={prepared.awayLineup.starters.map((s) => s.playerId)}
-                positions={prepared.awayLineup.starters.map((s) => s.position)} />
+          <div style={{ marginTop: '1rem' }}>
+            <h4 style={{ marginBottom: '0.5rem' }}>Kraefteverhaeltnis</h4>
+            <StrengthCompare
+              home={prepared.homeLineup} away={prepared.awayLineup}
+              homeShort={homeClub.short} awayShort={awayClub.short}
+            />
+          </div>
+
+          <div className="row between" style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>
+            <h4 style={{ margin: 0 }}>Aufstellungen</h4>
+            <div className="row" style={{ gap: '0.3rem' }}>
+              <span className={`chip ${lineupView === 'pitch' ? 'active' : ''}`}
+                onClick={() => setLineupView('pitch')}>Feld</span>
+              <span className={`chip ${lineupView === 'list' ? 'active' : ''}`}
+                onClick={() => setLineupView('list')}>Liste</span>
             </div>
           </div>
+
+          {lineupView === 'pitch' ? (
+            <div className="formation-pair">
+              <FormationPitch
+                slots={prepared.homeLineup.starters}
+                players={game.players}
+                colors={homeClub.colors}
+                formation={prepared.homeLineup.formation}
+                userPlayerId={game.userPlayerId}
+                label={homeClub.name}
+              />
+              <FormationPitch
+                slots={prepared.awayLineup.starters}
+                players={game.players}
+                colors={awayClub.colors}
+                formation={prepared.awayLineup.formation}
+                userPlayerId={game.userPlayerId}
+                label={awayClub.name}
+              />
+            </div>
+          ) : (
+            <div className="grid two">
+              <div>
+                <h4>{homeClub.name}</h4>
+                <LineupList game={game} ids={prepared.homeLineup.starters.map((s) => s.playerId)}
+                  positions={prepared.homeLineup.starters.map((s) => s.position)} />
+              </div>
+              <div>
+                <h4>{awayClub.name}</h4>
+                <LineupList game={game} ids={prepared.awayLineup.starters.map((s) => s.playerId)}
+                  positions={prepared.awayLineup.starters.map((s) => s.position)} />
+              </div>
+            </div>
+          )}
         </Panel>
       )}
 
@@ -363,12 +443,26 @@ export default function MatchScreen() {
           homeShort={homeClub.short} awayShort={awayClub.short} full={phase === 'done'} />
       )}
 
+      {phase !== 'setup' && engine && events.length > 0 && (
+        <Panel title="Verlauf">
+          <MatchTimeline
+            events={events}
+            minute={engine.minute}
+            fullTime={engine.scheduledEnd}
+            homeShort={homeClub.short}
+            awayShort={awayClub.short}
+          />
+        </Panel>
+      )}
+
       {phase !== 'setup' && (
         <div className="grid two">
           <Panel title="Spielverlauf">
             <div className="timeline" ref={timelineRef}>
               {events.length === 0 && <Empty text="Anpfiff steht bevor." />}
-              {events.map((e, i) => <EventRow key={i} event={e} />)}
+              {events.map((e, i) => (
+                <EventRow key={i} event={e} fresh={i === events.length - 1} />
+              ))}
             </div>
           </Panel>
 
@@ -484,6 +578,46 @@ export default function MatchScreen() {
       )}
 
       {injury && <InjuryModal decision={injury} onChoose={resolveInjury} />}
+
+      {moment && (
+        <MomentOverlay
+          event={moment}
+          homeShort={homeClub.short}
+          awayShort={awayClub.short}
+          onSkip={() => {
+            setMoment(null);
+            if (finishedRef.current) { finishedRef.current = false; finalise(); }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Kurze Einblendung fuer die grossen Momente. Ein Klick ueberspringt sie,
+ * sonst verschwindet sie von selbst.
+ */
+function MomentOverlay(
+  { event, homeShort, awayShort, onSkip }:
+  {
+    event: LiveEvent; homeShort: string; awayShort: string; onSkip: () => void;
+  },
+) {
+  const scored = event.type === 'goal' || event.type === 'ownGoal';
+  const tone = event.user ? 'user' : scored ? 'goal' : 'warn';
+  return (
+    <div className={`moment ${tone}`} onClick={onSkip}>
+      <div className="moment-card">
+        <div className="moment-minute">{event.minute}.</div>
+        <div className="moment-label">{MOMENT_LABEL[event.type] ?? 'Ereignis'}</div>
+        {event.score && (
+          <div className="moment-score">
+            {homeShort} <b>{event.score[0]}:{event.score[1]}</b> {awayShort}
+          </div>
+        )}
+        <div className="moment-text">{event.text}</div>
+      </div>
     </div>
   );
 }
@@ -618,12 +752,69 @@ function mentalityHint(m: Mentality): string {
   }
 }
 
-function EventRow({ event }: { event: LiveEvent }) {
+/** Sinnbild je Ereignisart - macht den Ticker auf einen Blick lesbar. */
+function EventIcon({ type }: { type: LiveEvent['type'] }) {
+  const common = { width: 13, height: 13, viewBox: '0 0 16 16', 'aria-hidden': true as const };
+  switch (type) {
+    case 'goal':
+    case 'ownGoal':
+      return (
+        <svg {...common}><circle cx="8" cy="8" r="6.4" fill="#f4f7fb"
+          stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
+        <path d="M8 3.6 l2.6 1.9 -1 3.1 h-3.2 l-1 -3.1 Z" fill="#16253d" /></svg>
+      );
+    case 'yellow':
+      return <svg {...common}><rect x="5" y="2.5" width="6" height="11" rx="1" fill="#f5c542" /></svg>;
+    case 'red':
+    case 'secondYellow':
+      return <svg {...common}><rect x="5" y="2.5" width="6" height="11" rx="1" fill="#ff5c6c" /></svg>;
+    case 'sub':
+      return (
+        <svg {...common}><path d="M3 5.5 h8 M9 3 l2.5 2.5 L9 8 M13 10.5 h-8 M7 8 l-2.5 2.5 L7 13"
+          stroke="var(--accent-2)" strokeWidth="1.4" fill="none"
+          strokeLinecap="round" strokeLinejoin="round" /></svg>
+      );
+    case 'injury':
+      return (
+        <svg {...common}><path d="M8 3 v10 M3 8 h10" stroke="var(--bad)"
+          strokeWidth="2.4" strokeLinecap="round" /></svg>
+      );
+    case 'save':
+      return (
+        <svg {...common}><path d="M2.5 12 q5.5 -8 11 0" stroke="var(--accent-2)"
+          strokeWidth="1.6" fill="none" strokeLinecap="round" /></svg>
+      );
+    case 'miss':
+      return (
+        <svg {...common}><circle cx="8" cy="8" r="5.4" fill="none"
+          stroke="var(--dim)" strokeWidth="1.4" />
+        <path d="M5.5 5.5 l5 5" stroke="var(--dim)" strokeWidth="1.4"
+          strokeLinecap="round" /></svg>
+      );
+    case 'chance':
+      return (
+        <svg {...common}><path d="M8 2.5 l1.7 3.9 4.1 .4 -3.1 2.8 .9 4.1 L8 11.6 4.4 13.7 l.9 -4.1 -3.1 -2.8 4.1 -.4 Z"
+          fill="none" stroke="var(--warn)" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+      );
+    case 'penaltyAwarded':
+    case 'penaltyMiss':
+      return (
+        <svg {...common}><circle cx="8" cy="8" r="2" fill="var(--warn)" />
+        <rect x="2" y="3" width="12" height="10" rx="1" fill="none"
+          stroke="var(--warn)" strokeWidth="1.2" /></svg>
+      );
+    default:
+      return <span className="ev-dot" />;
+  }
+}
+
+function EventRow({ event, fresh }: { event: LiveEvent; fresh?: boolean }) {
   const cls = event.type === 'goal' ? 'goal'
     : event.type === 'yellow' || event.type === 'red' || event.type === 'secondYellow' ? 'card' : '';
   return (
-    <div className={`ev ${cls} ${event.user ? 'user' : ''}`}>
+    <div className={`ev ${cls} ${event.user ? 'user' : ''} ${fresh ? 'fresh' : ''}`}>
       <span className="min">{event.minute > 0 ? `${event.minute}'` : ''}</span>
+      <span className="ev-icon"><EventIcon type={event.type} /></span>
       <span>
         {event.text}
         {event.type === 'goal' && event.score && (
@@ -690,6 +881,53 @@ function StatCompare({ label, h, a, pct }: { label: string; h: number; a: number
         <span className="h" style={{ width: `${hp}%` }} />
         <span className="a" style={{ width: `${100 - hp}%` }} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Direkter Vergleich der Mannschaftsstaerken vor dem Anpfiff. Die Werte
+ * berechnet die Aufstellung ohnehin fuer die Simulation - sichtbar gemacht
+ * beantworten sie die Frage, die man sich vor jedem Spiel stellt: Wie stark
+ * ist der Gegner wirklich?
+ */
+function StrengthCompare(
+  { home, away, homeShort, awayShort }:
+  {
+    home: { attack: number; midfield: number; defence: number; keeper: number };
+    away: { attack: number; midfield: number; defence: number; keeper: number };
+    homeShort: string; awayShort: string;
+  },
+) {
+  const rows = [
+    { label: 'Angriff', h: home.attack, a: away.attack },
+    { label: 'Mittelfeld', h: home.midfield, a: away.midfield },
+    { label: 'Abwehr', h: home.defence, a: away.defence },
+    { label: 'Torwart', h: home.keeper, a: away.keeper },
+  ];
+  return (
+    <div>
+      <div className="row between" style={{ marginBottom: '0.4rem' }}>
+        <span className="tiny" style={{ color: 'var(--accent)', fontWeight: 700 }}>{homeShort}</span>
+        <span className="tiny" style={{ color: 'var(--accent-2)', fontWeight: 700 }}>{awayShort}</span>
+      </div>
+      {rows.map((r) => {
+        const h = Math.round(r.h);
+        const a = Math.round(r.a);
+        return (
+          <div className="strength-row" key={r.label}>
+            <span className="mono tiny" style={{ textAlign: 'right' }}>{h}</span>
+            <div className="strength-bar home">
+              <span style={{ width: `${h}%`, background: 'var(--accent)' }} />
+            </div>
+            <span className="strength-label">{r.label}</span>
+            <div className="strength-bar">
+              <span style={{ width: `${a}%`, background: 'var(--accent-2)' }} />
+            </div>
+            <span className="mono tiny">{a}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

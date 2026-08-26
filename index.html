@@ -4,10 +4,40 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0b1220" />
-    <title>Road to Glory</title>
+
+    <title>Road to Glory - Fussball-Karrierespiel im Browser</title>
+    <meta name="description" content="Steuere einen einzelnen Fussballer von der Jugend bis zur Legende. Schluesselmomente spielst du selbst: Richtung, Kraft und Ballkontakt bestimmst du." />
+
+    <!-- Vorschau beim Teilen -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Road to Glory" />
+    <meta property="og:description" content="Eine Fussballkarriere aus der Sicht eines einzelnen Spielers - mit selbst gespielten Schluesselmomenten." />
+    <meta property="og:image" content="/vorschau.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+
+    <!--
+      Hintergrund schon vor dem Laden setzen, damit beim Oeffnen kein weisses
+      Bild aufblitzt - die Oberflaeche ist durchgehend dunkel.
+    -->
+    <style>
+      html, body { margin: 0; background: #070d18; color: #e8eefb; }
+      #root:empty::after {
+        content: 'Road to Glory';
+        display: grid; place-items: center; min-height: 100vh;
+        font: 600 1.1rem system-ui, sans-serif; color: #2f4f78; letter-spacing: 0.04em;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <p style="padding:2rem;font:1rem system-ui,sans-serif">
+        Road to Glory laeuft vollstaendig im Browser und braucht dafuer JavaScript.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

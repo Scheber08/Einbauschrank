@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <path d="M8 10 h84 v42 c0 24 -20 36 -42 46 C28 88 8 76 8 52 Z" fill="#c0392b" stroke="#7a1f16" stroke-width="4"/>
+  <path d="M14 44 q18 -12 36 0 t36 0 v12 q-18 12 -36 0 t-36 0 Z" fill="#f4f4f4"/>
+  <text x="50" y="34" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#ffffff">FCS</text>
+</svg>

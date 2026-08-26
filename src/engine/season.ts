@@ -167,9 +167,11 @@ export function scheduleRelegation(state: GameState, rng: Rng, countryId: Id) {
     const lower = leagues[i + 1];
     const upperTable = sortedTable(state, upper.id);
     const lowerTable = sortedTable(state, lower.id);
-    const upperClub = upperTable[17]?.clubId;
+    // Drittletzter der oberen Liga gegen den Dritten der unteren - gemessen an
+    // der tatsaechlichen Ligagroesse, nicht an einer festen Zwanzigerliga.
+    const upperClub = upperTable[upperTable.length - 3]?.clubId;
     const lowerClub = lowerTable[2]?.clubId;
-    if (!upperClub || !lowerClub) continue;
+    if (!upperClub || !lowerClub || upperTable.length < 4) continue;
 
     // Hinspiel beim unterklassigen Verein
     addMatch(state, {
@@ -334,21 +336,25 @@ function applyPromotionRelegation(state: GameState, countryId: Id, report: Seaso
     const lower = leagues[i + 1];
     const table = sortedTable(state, league.id);
 
-    // Direkter Abstieg: Platz 19 und 20
-    if (lower) {
-      for (const row of table.slice(18, 20)) {
+    // Die Plaetze richten sich nach der Ligagroesse, damit auch eine Liga mit
+    // achtzehn oder vierundzwanzig Vereinen richtig auf- und absteigt.
+    const size = table.length;
+
+    // Direkter Abstieg: die beiden letzten Plaetze.
+    if (lower && size >= 4) {
+      for (const row of table.slice(size - 2)) {
         moves.push({ clubId: row.clubId, toLeague: lower.id, fromLevel: league.level, up: false });
       }
     }
-    // Direkter Aufstieg: Platz 1 und 2
+    // Direkter Aufstieg: die beiden ersten Plaetze.
     if (upper) {
       for (const row of table.slice(0, 2)) {
         moves.push({ clubId: row.clubId, toLeague: upper.id, fromLevel: league.level, up: true });
       }
     }
-    // Relegation
-    if (lower) {
-      const upperClub = table[17]?.clubId;
+    // Relegation: Drittletzter gegen den Dritten der Liga darunter.
+    if (lower && size >= 4) {
+      const upperClub = table[size - 3]?.clubId;
       const lowerTable = sortedTable(state, lower.id);
       const lowerClub = lowerTable[2]?.clubId;
       if (upperClub && lowerClub) {
@@ -866,7 +872,52 @@ function resetForNewSeason(state: GameState, rng: Rng) {
     player.form = clamp(50 + rng.normal(0, 8), 30, 70);
   }
 
+  pruneOldSeasons(state);
   startSeason(state, rng);
+}
+
+/**
+ * Wie viele abgeschlossene Saisons vollstaendig im Spielstand bleiben.
+ * Drei reichen fuer jede Ansicht im Spiel und lassen Raum fuer Nachschlagen.
+ */
+const KEEP_SEASONS = 3;
+
+/**
+ * Raeumt die Rohdaten laengst vergangener Saisons ab (Konzept Abschnitt 56).
+ *
+ * Jede Saison legt rund 5.900 Spiele und ueber 10.000 Saisonstatistiken an.
+ * Ohne Aufraeumen waechst ein Spielstand ueber eine ganze Laufbahn auf ein
+ * Vielfaches an, und weil bei jedem Autosave der komplette Baum kopiert wird,
+ * wird das gegen Karriereende spuerbar traege.
+ *
+ * Erhalten bleibt alles, was das Spiel spaeter noch liest:
+ * die Abschlusstabellen, Rekorde, Auszeichnungen und die Chronik liegen
+ * ohnehin in eigenen Feldern; die eigene Statistik jeder Saison und die
+ * eigenen Spiele bleiben unangetastet. Entfernt werden nur fremde
+ * Einzelergebnisse, die keine Ansicht mehr abfragt.
+ */
+export function pruneOldSeasons(state: GameState) {
+  const cutoff = state.season - KEEP_SEASONS;
+  if (cutoff < 0) return;
+
+  for (const match of Object.values(state.matches)) {
+    if (match.season >= cutoff) continue;
+    // Eigene Partien behalten: Sie tragen die Einzelstatistik des Spielers.
+    if (match.userStats) continue;
+    delete state.matches[match.id];
+    const list = state.matchesByDate[match.date];
+    if (list) {
+      const rest = list.filter((id) => id !== match.id);
+      if (rest.length === 0) delete state.matchesByDate[match.date];
+      else state.matchesByDate[match.date] = rest;
+    }
+  }
+
+  for (const [key, entry] of Object.entries(state.seasonStats)) {
+    if (entry.season >= cutoff) continue;
+    if (entry.playerId === state.userPlayerId) continue;
+    delete state.seasonStats[key];
+  }
 }
 
 /** Prueft, ob alle Ligaspiele der Saison absolviert sind. */

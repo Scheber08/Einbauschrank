@@ -18,7 +18,8 @@ export interface CountryDef {
   wealth: number;
   /** Qualitaet der Nachwuchsarbeit. */
   youth: number;
-  leagueNames: [string, string, string];
+  /** Namen der Ligen, von der hoechsten abwaerts. Beliebig viele moeglich. */
+  leagueNames: string[];
   cupName: string;
 }
 
