@@ -4,6 +4,7 @@
  * Antwort verschiebt Moral, Trainerbeziehung, Fanbeliebtheit, oeffentliches
  * Image und Reputation.
  */
+import { t } from '../i18n';
 import { addNews } from './ids';
 import { Rng } from './rng';
 import { clamp } from './rng';
@@ -70,7 +71,7 @@ export function buildPostMatchInterview(
     hattrick: stats.goals >= 3,
     motm: stats.motm,
     poor: stats.rating < 5.8,
-    opponentName: state.clubs[opponentId]?.name ?? 'den Gegner',
+    opponentName: state.clubs[opponentId]?.name ?? t('iv.opponentFallback'),
     scoreText: `${match.homeScore}:${match.awayScore}`,
   };
 
@@ -92,57 +93,48 @@ export function buildPostMatchInterview(
 }
 
 function buildQuestion(sit: Situation, lastName: string): string {
-  if (sit.hattrick) return `Drei Tore, ${lastName}! Wie fuehlt sich dieser Abend an?`;
-  if (sit.motm && sit.won) return 'Mann des Spiels und ein Sieg. Ihr Kommentar?';
-  if (sit.scored && sit.won) return `Ihr Tor entscheidet gegen ${sit.opponentName}. Zufrieden?`;
-  if (sit.lost) return `Eine Niederlage gegen ${sit.opponentName}. Was ist schiefgelaufen?`;
-  if (sit.poor) return 'Das war heute nicht Ihr bestes Spiel. Wie ordnen Sie das ein?';
-  if (sit.drew) return 'Ein Unentschieden. Zu wenig oder in Ordnung?';
-  return 'Wie bewerten Sie Ihren Auftritt heute?';
+  if (sit.hattrick) return t('iv.q.hattrick', { last: lastName });
+  if (sit.motm && sit.won) return t('iv.q.motmWin');
+  if (sit.scored && sit.won) return t('iv.q.scoredWin', { opponent: sit.opponentName });
+  if (sit.lost) return t('iv.q.lost', { opponent: sit.opponentName });
+  if (sit.poor) return t('iv.q.poor');
+  if (sit.drew) return t('iv.q.draw');
+  return t('iv.q.default');
 }
 
 /** Drei Tonlagen: bescheiden, selbstbewusst, provokant. */
 function buildOptions(sit: Situation): InterviewOption[] {
   const humble: InterviewOption = {
     id: 'humble',
-    label: sit.lost
-      ? 'Wir arbeiten weiter, das Team kommt zurueck.'
-      : 'Das war Teamleistung, ich hatte nur meinen Anteil.',
-    tone: 'Bescheiden, teamorientiert',
+    label: t(sit.lost ? 'iv.humble.lost' : 'iv.humble.other'),
+    tone: t('iv.humble.tone'),
     effect: sit.lost
       ? { coach: 3, morale: 1, image: 2 }
       : { coach: 4, morale: 2, fans: 1, image: 3 },
-    reaction: 'Der Trainer nickt anerkennend. Solche Aussagen kommen in der Kabine gut an.',
+    reaction: t('iv.humble.reaction'),
   };
 
   const confident: InterviewOption = {
     id: 'confident',
-    label: sit.lost
-      ? 'Ich habe mein Bestes gegeben, an mir lag es nicht.'
-      : 'Ich bin in Topform und will genau so weitermachen.',
-    tone: 'Selbstbewusst, ichbezogen',
+    label: t(sit.lost ? 'iv.confident.lost' : 'iv.confident.other'),
+    tone: t('iv.confident.tone'),
     effect: sit.lost
       ? { fans: 1, reputation: 1, coach: -3, image: -2, morale: 1 }
       : { fans: 4, reputation: 3, image: -1, coach: -1, morale: 2 },
-    reaction: sit.lost
-      ? 'Die Aussage sorgt fuer Stirnrunzeln - Kritik an den Mitspielern kommt selten gut an.'
-      : 'Die Fans lieben dein Selbstvertrauen, der Trainer haette es lieber eine Nummer kleiner.',
+    reaction: t(sit.lost ? 'iv.confident.reactionLost' : 'iv.confident.reaction'),
   };
 
   const provocative: InterviewOption = {
     id: 'provocative',
-    label: sit.won
-      ? `Der Gegner war heute chancenlos gegen uns.`
-      : sit.lost
-        ? 'So kann das nicht weitergehen, da muss sich einiges aendern.'
-        : 'Ehrlich gesagt haetten wir mehr verdient gehabt.',
-    tone: 'Provokant, riskant',
+    label: t(sit.won ? 'iv.provocative.won'
+      : sit.lost ? 'iv.provocative.lost' : 'iv.provocative.draw'),
+    tone: t('iv.provocative.tone'),
     effect: sit.won
       ? { fans: 5, reputation: 3, image: -6, coach: -4 }
       : sit.lost
         ? { fans: 2, reputation: 1, image: -5, coach: -6, morale: -1 }
         : { fans: 2, image: -3, coach: -3 },
-    reaction: 'Die Schlagzeile ist dir sicher - und der Aerger im Verein womoeglich auch.',
+    reaction: t('iv.provocative.reaction'),
   };
 
   return [humble, confident, provocative];
@@ -163,8 +155,9 @@ export function applyInterviewAnswer(
   if (e.fans) state.fanRelation = clamp(state.fanRelation + e.fans, 0, 100);
   if (e.image) state.publicImage = clamp(state.publicImage + e.image, 0, 100);
 
-  addNews(state, 'media', `Interview: ${user.lastName}`,
-    `„${option.label}" - ${option.tone}.`, false);
+  addNews(state, 'media',
+    t('iv.news.title', { last: user.lastName }),
+    t('iv.news.body', { quote: option.label, tone: option.tone }), false);
 
   return option;
 }

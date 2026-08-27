@@ -9,6 +9,7 @@
  */
 import type { AttrKey } from './attributes';
 import { COUNTRIES } from './countries';
+import { t } from '../i18n';
 
 export interface Nation {
   id: string;
@@ -145,13 +146,28 @@ export function nationsByRegion(): { region: string; nations: Nation[] }[] {
 }
 
 /**
- * Anzeigename einer Nation. Unbekannte Kennungen koennen aus alten
- * Spielstaenden stammen, in denen die Nationalitaet noch ein Spielland war.
+ * Anzeigename einer Nation, in der eingestellten Sprache. Der Name in
+ * `NATIONS` bleibt der deutsche Ausgangswert und dient als Rueckfall - so
+ * bleibt die Liste auch dann lesbar, wenn ein Katalogeintrag fehlt.
+ *
+ * Unbekannte Kennungen koennen aus alten Spielstaenden stammen, in denen die
+ * Nationalitaet noch ein Spielland war.
  */
 export function nationName(id: string): string {
-  return NATION_BY_ID[id]?.name
-    ?? COUNTRIES.find((c) => c.id === id)?.name
-    ?? id;
+  const nation = NATION_BY_ID[id];
+  if (nation) return t('nation.' + id) === 'nation.' + id ? nation.name : t('nation.' + id);
+  const land = COUNTRIES.find((c) => c.id === id);
+  if (land) {
+    const ueberNation = NATIONS.find((n) => n.gameCountry === id);
+    return ueberNation ? nationName(ueberNation.id) : land.name;
+  }
+  return id;
+}
+
+/** Erdteilname in der eingestellten Sprache. */
+export function regionName(region: string): string {
+  const uebersetzt = t('region.' + region);
+  return uebersetzt === 'region.' + region ? region : uebersetzt;
 }
 
 /** Welcher Namenspool gilt fuer diese Nation? */

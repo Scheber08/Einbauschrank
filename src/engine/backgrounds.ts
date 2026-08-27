@@ -4,10 +4,10 @@ import type { BackgroundDef, BackgroundKey } from './types';
 export const BACKGROUNDS: Record<BackgroundKey, BackgroundDef> = {
   academy: {
     key: 'academy',
-    name: 'Nachwuchsakademie',
-    description: 'Du bist im Internat eines groesseren Vereins ausgebildet worden.',
-    pros: ['Gute Trainingsbedingungen', 'Hohe technische Grundwerte', 'Bessere Trainer'],
-    cons: ['Starke Konkurrenz', 'Wenig garantierte Einsatzzeit', 'Hoher Leistungsdruck'],
+    name: 'bg.academy.name',
+    description: 'bg.academy.desc',
+    pros: ['bg.academy.pro.1', 'bg.academy.pro.2', 'bg.academy.pro.3'],
+    cons: ['bg.academy.con.1', 'bg.academy.con.2', 'bg.academy.con.3'],
     attrBonus: {
       ballControl: 7, shortPass: 6, firstTouch: 6, teamwork: 5, discipline: 5,
       decisions: 4, defPositioning: 3, professionalism: 5,
@@ -21,10 +21,10 @@ export const BACKGROUNDS: Record<BackgroundKey, BackgroundDef> = {
   },
   homeClub: {
     key: 'homeClub',
-    name: 'Kleiner Heimatverein',
-    description: 'Du spielst seit der Jugend fuer den Verein deiner Heimatstadt.',
-    pros: ['Frueh Einsatzzeiten', 'Gute Beziehung zum Verein', 'Hohe Fanunterstuetzung'],
-    cons: ['Schwaechere Trainingsbedingungen', 'Geringere Aufmerksamkeit', 'Niedriges Gehalt'],
+    name: 'bg.homeClub.name',
+    description: 'bg.homeClub.desc',
+    pros: ['bg.homeClub.pro.1', 'bg.homeClub.pro.2', 'bg.homeClub.pro.3'],
+    cons: ['bg.homeClub.con.1', 'bg.homeClub.con.2', 'bg.homeClub.con.3'],
     attrBonus: {
       teamwork: 6, resilience: 5, stamina: 5, bravery: 5, discipline: 4, ambition: 3,
     },
@@ -36,10 +36,10 @@ export const BACKGROUNDS: Record<BackgroundKey, BackgroundDef> = {
   },
   street: {
     key: 'street',
-    name: 'Strassenfussballer',
-    description: 'Du hast dir alles auf dem Bolzplatz beigebracht.',
-    pros: ['Dribbling', 'Kreativitaet', 'Ballkontrolle'],
-    cons: ['Schwaches taktisches Verstaendnis', 'Geringere Disziplin', 'Wenig Erfahrung'],
+    name: 'bg.street.name',
+    description: 'bg.street.desc',
+    pros: ['bg.street.pro.1', 'bg.street.pro.2', 'bg.street.pro.3'],
+    cons: ['bg.street.con.1', 'bg.street.con.2', 'bg.street.con.3'],
     attrBonus: {
       dribbling: 12, ballControl: 8, agility: 7, balance: 6, curve: 5, vision: 4,
       discipline: -10, defPositioning: -8, teamwork: -6, professionalism: -5,
@@ -52,10 +52,10 @@ export const BACKGROUNDS: Record<BackgroundKey, BackgroundDef> = {
   },
   wonderkid: {
     key: 'wonderkid',
-    name: 'Grosses Talent',
-    description: 'Du giltst als groesstes Versprechen deines Jahrgangs.',
-    pros: ['Hohe Startwerte', 'Grosses Potenzial', 'Frueh Medienaufmerksamkeit'],
-    cons: ['Hoher Erwartungsdruck', 'Strengere Bewertung', 'Gefahr eines Karriereeinbruchs'],
+    name: 'bg.wonderkid.name',
+    description: 'bg.wonderkid.desc',
+    pros: ['bg.wonderkid.pro.1', 'bg.wonderkid.pro.2', 'bg.wonderkid.pro.3'],
+    cons: ['bg.wonderkid.con.1', 'bg.wonderkid.con.2', 'bg.wonderkid.con.3'],
     attrBonus: {
       ballControl: 6, dribbling: 5, finishing: 4, acceleration: 5, agility: 4, vision: 4,
       composure: -4, concentration: -3,
@@ -68,10 +68,10 @@ export const BACKGROUNDS: Record<BackgroundKey, BackgroundDef> = {
   },
   lateBloomer: {
     key: 'lateBloomer',
-    name: 'Spaetstarter',
-    description: 'Du kommst spaeter als andere, bringst dafuer Reife mit.',
-    pros: ['Bessere Mentalitaet', 'Hohe Disziplin', 'Schnelle Anpassung'],
-    cons: ['Niedrigeres maximales Potenzial', 'Weniger Entwicklungszeit'],
+    name: 'bg.lateBloomer.name',
+    description: 'bg.lateBloomer.desc',
+    pros: ['bg.lateBloomer.pro.1', 'bg.lateBloomer.pro.2', 'bg.lateBloomer.pro.3'],
+    cons: ['bg.lateBloomer.con.1', 'bg.lateBloomer.con.2'],
     attrBonus: {
       discipline: 10, professionalism: 10, concentration: 8, decisions: 7,
       resilience: 8, composure: 6, strength: 4,

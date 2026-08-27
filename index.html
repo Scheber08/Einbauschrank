@@ -33,9 +33,19 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Zweisprachig, weil dieser Hinweis erscheint, bevor die Umschaltung im
+      Skript ueberhaupt laufen kann. Titel und Beschreibung oben bleiben
+      deutsch und werden beim Start auf die gewaehlte Sprache gezogen; die
+      Vorschau beim Teilen liest ein Dienst aus dem rohen HTML und bleibt
+      deshalb deutsch.
+    -->
     <noscript>
-      <p style="padding:2rem;font:1rem system-ui,sans-serif">
+      <p style="padding:2rem 2rem 0;font:1rem system-ui,sans-serif" lang="de">
         Road to Glory laeuft vollstaendig im Browser und braucht dafuer JavaScript.
+      </p>
+      <p style="padding:0 2rem 2rem;font:1rem system-ui,sans-serif" lang="en">
+        Road to Glory runs entirely in your browser and needs JavaScript for that.
       </p>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>

@@ -7,26 +7,18 @@ import type { CrestClub } from '../engine/identity';
 import ClubCrest from './ClubCrest';
 import { Empty, Panel } from './components';
 import { DriftingBall, FeatureIcon, PitchBackdrop, type MenuIcon } from './MenuArt';
+import LanguageSwitch from './LanguageSwitch';
+import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 
-const FEATURES: { icon: MenuIcon; title: string; text: string }[] = [
-  {
-    icon: 'boot',
-    title: 'Eigene Schluesselmomente',
-    text: 'Richtung, Kraft und Ballkontaktpunkt bestimmst du selbst. Ein Schuss '
-      + 'ins Toreck ist eine Entscheidung, keine Wuerfelprobe.',
-  },
-  {
-    icon: 'table',
-    title: 'Lebendige Liga',
-    text: 'Drei Ligen, 60 Vereine, ein Pokal, Auf- und Abstieg. Alles laeuft '
-      + 'weiter, ob du beteiligt bist oder nicht.',
-  },
-  {
-    icon: 'trophy',
-    title: 'Vollstaendige Historie',
-    text: 'Jede Saison, jedes Tor und jeder Rekord bleibt dauerhaft gespeichert '
-      + 'und nach Wettbewerb und Verein filterbar.',
-  },
+/**
+ * Die Werbeflaeche des Hauptmenues. Nur Symbol und Schluessel stehen hier -
+ * die Texte liegen im Sprachkatalog unter `menu.feature.<key>.title/.body`.
+ */
+const FEATURES: { icon: MenuIcon; key: string }[] = [
+  { icon: 'boot', key: 'moments' },
+  { icon: 'table', key: 'league' },
+  { icon: 'trophy', key: 'history' },
 ];
 
 /**
@@ -45,6 +37,9 @@ function crestOf(save: SaveMeta): CrestClub | null {
 }
 
 export default function MainMenu() {
+  // Meldet die Ansicht an der Sprachumschaltung an, damit ein Wechsel sofort
+  // durchschlaegt statt erst beim naechsten Zustandswechsel.
+  useLocale();
   const [saves, setSaves] = useState<SaveMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -53,7 +48,7 @@ export default function MainMenu() {
     try {
       setSaves(await listSaves());
     } catch {
-      showToast('Spielstaende konnten nicht gelesen werden.', 'bad');
+      showToast(t('menu.savesUnreadable'), 'bad');
     } finally {
       setLoading(false);
     }
@@ -75,7 +70,7 @@ export default function MainMenu() {
     if (!window.confirm(`Spielstand "${save.saveName}" wirklich loeschen?`)) return;
     await deleteSave(save.saveId);
     await refresh();
-    showToast('Spielstand geloescht.', 'info');
+    showToast(t('menu.saveDeleted'), 'info');
   }
 
   async function handleExport(save: SaveMeta) {
@@ -94,9 +89,9 @@ export default function MainMenu() {
     try {
       await importSave(await file.text());
       await refresh();
-      showToast('Spielstand importiert.', 'good');
+      showToast(t('menu.saveImported'), 'good');
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Import fehlgeschlagen.', 'bad');
+      showToast(err instanceof Error ? err.message : t('menu.importFailed'), 'bad');
     }
   }
 
@@ -108,28 +103,28 @@ export default function MainMenu() {
           <DriftingBall />
           <div className="hero-body">
             <div className="logo">ROAD TO GLORY</div>
-            <p className="tagline">
-              Eine Fussballkarriere aus der Sicht eines einzelnen Spielers.
-              Vom Nachwuchstalent zur Legende - mit selbst gespielten Schluesselmomenten.
-            </p>
+            <p className="tagline">{t('app.tagline')}</p>
 
             <div className="menu-actions">
               <button className="primary" onClick={() => setState({ screen: 'create' })}>
-                Neue Karriere starten
+                {t('menu.newCareer')}
               </button>
               <button
                 onClick={() => saves[0] && void openCareer(saves[0].saveId)}
                 disabled={saves.length === 0}
               >
-                {saves[0] ? `Weiter mit ${saves[0].playerName}` : 'Zuletzt gespielt fortsetzen'}
+                {saves[0]
+                  ? t('menu.continueWith', { name: saves[0].playerName })
+                  : t('menu.continue')}
               </button>
               <button className="ghost" onClick={() => fileInput.current?.click()}>
-                Spielstand importieren
+                {t('menu.importSave')}
               </button>
               <button className="ghost" onClick={() => setState({ screen: 'data' })}>
-                Datenbanken &amp; Editor
+                {t('menu.data')}
               </button>
             </div>
+            <LanguageSwitch />
           </div>
         </header>
 
@@ -147,10 +142,10 @@ export default function MainMenu() {
           />
         </div>
 
-        <Panel title="Spielstaende">
-          {loading && <Empty text="Wird geladen..." />}
+        <Panel title={t('menu.saves')}>
+          {loading && <Empty text={t('common.loading')} />}
           {!loading && saves.length === 0 && (
-            <Empty text="Noch keine Karriere vorhanden. Starte deine erste Laufbahn." />
+            <Empty text={t('menu.noSaves')} />
           )}
           {saves.map((save, i) => (
             <div className="save-card" key={save.saveId}
@@ -160,16 +155,17 @@ export default function MainMenu() {
                 <div className="row" style={{ gap: '0.5rem' }}>
                   <strong>{save.playerName}</strong>
                   <span className="pill">{save.position}</span>
-                  <span className="pill">{save.age} Jahre</span>
-                  <span className="pill">{save.difficulty}</span>
+                  <span className="pill">{t('player.years', { n: save.age })}</span>
+                  <span className="pill">{t(`difficulty.${save.difficulty}`)}</span>
                 </div>
                 <div className="small muted">
-                  {save.clubName} - {save.leagueName} - Saison {save.season}
-                  {save.careerYears > 1 && ` - ${save.careerYears}. Karrierejahr`}
+                  {save.clubName} - {save.leagueName} - {t('menu.season', { season: save.season })}
+                  {save.careerYears > 1
+                    && ` - ${t('menu.careerYear', { n: save.careerYears })}`}
                 </div>
                 <div className="save-stats tiny">
-                  <span><b>{save.appearances}</b> Spiele</span>
-                  <span><b>{save.goals}</b> Tore</span>
+                  <span><b>{save.appearances}</b> {t('stats.apps')}</span>
+                  <span><b>{save.goals}</b> {t('stats.goals')}</span>
                   {save.honours.length > 0 && (
                     <span className="honour">{save.honours.join(' · ')}</span>
                   )}
@@ -177,37 +173,37 @@ export default function MainMenu() {
               </div>
               <div className="save-actions">
                 <button className="primary small" onClick={() => void openCareer(save.saveId)}>
-                  Laden
+                  {t('common.load')}
                 </button>
-                <button className="small ghost" title="Duplizieren" onClick={async () => {
+                <button className="small ghost" title={t('common.duplicate')} onClick={async () => {
                   await duplicateSave(save.saveId);
                   await refresh();
-                }}>Kopie</button>
-                <button className="small ghost" onClick={() => void handleExport(save)}>Export</button>
-                <button className="small danger" onClick={() => void handleDelete(save)}>Loeschen</button>
+                }}>{t('common.copy')}</button>
+                <button className="small ghost"
+                  onClick={() => void handleExport(save)}>{t('common.export')}</button>
+                <button className="small danger"
+                  onClick={() => void handleDelete(save)}>{t('common.delete')}</button>
               </div>
             </div>
           ))}
         </Panel>
 
-        <Panel title="Was dich erwartet">
+        <Panel title={t('menu.features')}>
           <div className="feature-grid">
             {FEATURES.map((f) => (
-              <div className="feature" key={f.title}>
+              <div className="feature" key={f.key}>
                 <FeatureIcon icon={f.icon} />
-                <h4>{f.title}</h4>
-                <p className="muted small">{f.text}</p>
+                <h4>{t(`menu.feature.${f.key}.title`)}</h4>
+                <p className="muted small">{t(`menu.feature.${f.key}.body`)}</p>
               </div>
             ))}
           </div>
         </Panel>
 
         <footer className="menu-foot">
-          <span className="tiny dim">
-            Alle Laender, Vereine und Personen sind frei erfunden.
-          </span>
+          <span className="tiny dim">{t('menu.disclaimer')}</span>
           <button className="linklike tiny" onClick={() => setState({ screen: 'legal' })}>
-            Impressum und Datenschutz
+            {t('menu.legal')}
           </button>
         </footer>
       </div>

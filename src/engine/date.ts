@@ -1,3 +1,4 @@
+import { getLocale, t } from '../i18n';
 /**
  * Kalender-Hilfsfunktionen. Datumsangaben werden im Spielstand als
  * ISO-String "YYYY-MM-DD" abgelegt, damit Spielstaende gut lesbar bleiben.
@@ -57,29 +58,41 @@ export function dayOfMonth(date: GameDate): number {
   return Number(date.slice(8, 10));
 }
 
-const WEEKDAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const MONTH_NAMES = [
-  'Januar', 'Februar', 'Maerz', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
-];
-const MONTH_SHORT = ['Jan', 'Feb', 'Mrz', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+/**
+ * Wochentage und Monate kommen aus dem Sprachkatalog. Die Funktionen bleiben
+ * dieselben - nur der Text darin haengt jetzt an der eingestellten Sprache.
+ */
+const WEEKDAY_NAMES = Array.from({ length: 7 }, (_, i) => `date.weekday.${i}`);
+const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => `date.month.${i + 1}`);
+const MONTH_SHORT = Array.from({ length: 12 }, (_, i) => `date.monthShort.${i + 1}`);
 
 export function weekdayName(date: GameDate): string {
-  return WEEKDAY_NAMES[weekday(date)];
+  return t(WEEKDAY_NAMES[weekday(date)]);
 }
 
 export function monthName(m: number): string {
-  return MONTH_NAMES[m - 1];
+  return t(MONTH_NAMES[m - 1]);
 }
 
 /** "Sa 12. Aug 2028" */
+/**
+ * Langform mit Wochentag. Deutsch schreibt "Sa 12. Aug 2028", Englisch
+ * "Sat 12 Aug 2028" - der Punkt nach dem Tag ist eine deutsche Eigenheit.
+ */
 export function formatDate(date: GameDate): string {
-  return `${weekdayName(date)} ${dayOfMonth(date)}. ${MONTH_SHORT[month(date) - 1]} ${year(date)}`;
+  const tag = getLocale() === 'de' ? `${dayOfMonth(date)}.` : `${dayOfMonth(date)}`;
+  return `${weekdayName(date)} ${tag} ${t(MONTH_SHORT[month(date) - 1])} ${year(date)}`;
 }
 
-/** "12.08.2028" */
+/**
+ * Kurzform. Deutsch "12.08.2028", Englisch "12/08/2028" - beide mit dem Tag
+ * voran, damit ein Datum nicht je nach Sprache etwas anderes bedeutet.
+ */
 export function formatShort(date: GameDate): string {
-  return `${String(dayOfMonth(date)).padStart(2, '0')}.${String(month(date)).padStart(2, '0')}.${year(date)}`;
+  const tag = String(dayOfMonth(date)).padStart(2, '0');
+  const monat = String(month(date)).padStart(2, '0');
+  const trenner = getLocale() === 'de' ? '.' : '/';
+  return `${tag}${trenner}${monat}${trenner}${year(date)}`;
 }
 
 /** Alter in Jahren am Stichtag. */

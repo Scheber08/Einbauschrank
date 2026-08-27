@@ -1,4 +1,6 @@
 import { AGENT_TASK_LABELS, agentAvailability } from '../../engine/agent';
+import { POSITION_LABELS } from '../../engine/attributes';
+import { competitionOutlook, positionCompetition } from '../../engine/competition';
 import { formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { clubSponsors } from '../../engine/identity';
@@ -7,27 +9,31 @@ import { acceptOffer, declineAllOffers, requestAgentTask } from '../../state/act
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import { Empty, Meter, Panel, Pill, money, salary } from '../components';
+import { feeShare } from '../../engine/finance';
+import { t, tNumber } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 export default function TransfersTab() {
+  useLocale();
   const game = useAppState().game!;
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
 
   return (
     <>
-      <Panel title="Deine Marktlage">
+      <Panel title={t('transfers.market')}>
         <div className="grid four">
-          <div className="stat"><div className="value">{money(user.marketValue)}</div><div className="label">Marktwert</div></div>
-          <div className="stat"><div className="value">{user.reputation}</div><div className="label">Reputation</div></div>
-          <div className="stat"><div className="value">{game.offers.length}</div><div className="label">Angebote</div></div>
+          <div className="stat"><div className="value">{money(user.marketValue)}</div><div className="label">{t('player.marketValue')}</div></div>
+          <div className="stat"><div className="value">{user.reputation}</div><div className="label">{t('club.reputation')}</div></div>
+          <div className="stat"><div className="value">{game.offers.length}</div><div className="label">{t('transfers.offersHeading')}</div></div>
           <div className="stat">
             <div className="value">{user.contract ? formatShort(user.contract.until).slice(6) : '-'}</div>
-            <div className="label">Vertrag bis</div>
+            <div className="label">{t('transfers.contractUntil')}</div>
           </div>
         </div>
         <div className="grid two" style={{ marginTop: '0.8rem' }}>
-          <Meter label="Beziehung zum Trainer" value={game.coachRelation} />
-          <Meter label="Beliebtheit bei den Fans" value={game.fanRelation} />
+          <Meter label={t('agent.coachRelation')} value={game.coachRelation} />
+          <Meter label={t('agent.fanRelation')} value={game.fanRelation} />
         </div>
         {game.loan && (
           <p className="small" style={{ marginBottom: 0, color: 'var(--warn)' }}>
@@ -39,13 +45,13 @@ export default function TransfersTab() {
 
       <AgentPanel />
 
-      <Panel title="Vertragsangebote" action={
+      <Panel title={t('transfers.offers')} action={
         game.offers.length > 0
-          ? <button className="small ghost" onClick={declineAllOffers}>Alle ablehnen</button>
+          ? <button className="small ghost" onClick={declineAllOffers}>{t('transfers.rejectAll')}</button>
           : undefined
       }>
         {game.offers.length === 0 && (
-          <Empty text="Aktuell liegen keine Angebote vor. Angebote entstehen nach starken Saisons." />
+          <Empty text={t('transfers.noOffers')} />
         )}
         <div className="grid two">
           {game.offers.map((offer) => {
@@ -60,6 +66,9 @@ export default function TransfersTab() {
               : 0;
             // Letzte bekannte Platzierung des Vereins fuer den Eindruck vom Niveau.
             const lastSeason = offerClub.history[offerClub.history.length - 1];
+            // Die entscheidende Frage vor einem Wechsel: Spiele ich dort?
+            const konkurrenz = positionCompetition(game, offerClub.id, user);
+            const aussicht = competitionOutlook(konkurrenz);
             return (
               <div className="panel offer-card" key={offer.id} style={{ margin: 0 }}>
                 <div className="row" style={{ gap: '0.6rem', alignItems: 'center' }}>
@@ -68,13 +77,13 @@ export default function TransfersTab() {
                     <div style={{ fontWeight: 680 }}>{offerClub.name}</div>
                     <div className="tiny dim">{league?.name} - {offerClub.city}</div>
                   </div>
-                  {offer.renewal && <Pill tone="good">Verlaengerung</Pill>}
-                  {offer.loan && <Pill tone="warn">Leihe</Pill>}
-                  {better && !offer.renewal && !offer.loan && <Pill tone="good">Hoehere Liga</Pill>}
+                  {offer.renewal && <Pill tone="good">{t('transfers.renewal')}</Pill>}
+                  {offer.loan && <Pill tone="warn">{t('transfers.loan')}</Pill>}
+                  {better && !offer.renewal && !offer.loan && <Pill tone="good">{t('transfers.higherLeague')}</Pill>}
                 </div>
 
                 <div className="tiny dim" style={{ margin: '0.5rem 0 0.1rem' }}>
-                  {offerClub.stadiumName} - {offerClub.stadiumCapacity.toLocaleString('de-DE')} Plaetze
+                  {offerClub.stadiumName} - {t('transfers.seats', { n: tNumber(offerClub.stadiumCapacity) })}
                 </div>
                 <div className="tiny dim" style={{ marginBottom: '0.5rem' }}>
                   Trainer {offerClub.managerName} - Sponsor {sponsors.shirt}
@@ -82,9 +91,9 @@ export default function TransfersTab() {
                 </div>
 
                 <div className="small" style={{ margin: '0.6rem 0' }}>
-                  <div className="row between"><span className="muted">Rolle</span><span>{offer.role}</span></div>
+                  <div className="row between"><span className="muted">{t('contract.role')}</span><span>{offer.role}</span></div>
                   <div className="row between">
-                    <span className="muted">Gehalt</span>
+                    <span className="muted">{t('contract.salary')}</span>
                     <span>
                       {salary(offer.salary)}
                       {raise !== 0 && (
@@ -94,23 +103,68 @@ export default function TransfersTab() {
                       )}
                     </span>
                   </div>
-                  <div className="row between"><span className="muted">Laufzeit</span><span>{offer.years} Jahre</span></div>
+                  <div className="row between"><span className="muted">{t('transfers.duration')}</span>
+                    <span>{t('transfers.years', { n: offer.years })}</span></div>
                   {!offer.renewal && (
-                    <div className="row between"><span className="muted">Ablöse</span><span>{money(offer.fee)}</span></div>
+                    <div className="row between">
+                      <span className="muted">{t('transfers.fee')}</span>
+                      <span>{money(offer.fee)}</span>
+                    </div>
                   )}
-                  <div className="row between"><span className="muted">Torpraemie</span>
-                    <span>{offer.goalBonus.toLocaleString('de-DE')} EUR</span></div>
+                  <div className="row between"><span className="muted">{t('contract.goalBonus')}</span>
+                    <span>{tNumber(offer.goalBonus)} EUR</span></div>
+                </div>
+
+                {/* Was die Abloese fuer DIESEN Verein bedeutet. Eine nackte Zahl
+                    sagt nichts darueber aus, ob der Verein sich streckt oder aus
+                    der Portokasse zahlt - und genau das ist die Auskunft, die
+                    einen Wechsel zu einer Entscheidung macht. */}
+                {!offer.renewal && offerClub && (() => {
+                  const anteil = feeShare(offerClub, offer.fee);
+                  const stufe = anteil >= 0.6 ? 'record'
+                    : anteil >= 0.25 ? 'heavy' : 'easy';
+                  return (
+                    <div className="tiny dim" style={{ marginTop: 4 }}>
+                      {t(`transfers.effort.${stufe}`, {
+                        club: offerClub.name,
+                        percent: Math.min(999, Math.round(anteil * 100)),
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* Ohne diese Zeile war ein Wechsel ein Gehaltsvergleich - man
+                    erfuhr erst nach der Unterschrift, ob man spielt. */}
+                <div className="offer-competition">
+                  <div className="row between tiny">
+                    <span className="muted">{t('comp.title', {
+                      position: t(POSITION_LABELS[user.position]),
+                    })}</span>
+                    <Pill tone={aussicht === 'hard' ? 'bad'
+                      : aussicht === 'tight' ? 'warn' : 'good'}>
+                      {t(`comp.outlook.${aussicht}`)}
+                    </Pill>
+                  </div>
+                  <div className="tiny dim" style={{ marginTop: 2 }}>
+                    {konkurrenz.count === 0
+                      ? t('comp.none')
+                      : t('comp.line', {
+                        n: konkurrenz.count,
+                        best: konkurrenz.best,
+                        rank: konkurrenz.rank,
+                      })}
+                  </div>
                 </div>
 
                 <div className="grid two" style={{ gap: '0.5rem' }}>
-                  <Meter label="Reputation" value={offerClub.reputation} />
-                  <Meter label="Training" value={offerClub.training} />
+                  <Meter label={t('club.reputation')} value={offerClub.reputation} />
+                  <Meter label={t('tab.training')} value={offerClub.training} />
                 </div>
 
                 <p className="tiny dim">{offer.pitch}</p>
                 <button className="primary small" style={{ width: '100%' }}
                   onClick={() => acceptOffer(offer.id)}>
-                  {offer.renewal ? 'Verlaengern' : offer.loan ? 'Leihe annehmen' : 'Angebot annehmen'}
+                  {offer.renewal ? t('transfers.extend') : offer.loan ? t('transfers.acceptLoan') : t('transfers.accept')}
                 </button>
               </div>
             );
@@ -118,7 +172,7 @@ export default function TransfersTab() {
         </div>
       </Panel>
 
-      <Panel title="Hinweis">
+      <Panel title={t('transfers.note')}>
         <p className="small muted" style={{ margin: 0 }}>
           Angebote entstehen nach jeder Saison abhaengig von Leistung, Alter und
           Reputation - oder wenn du deinen Berater losschickst. Leihen,
@@ -138,32 +192,32 @@ function AgentPanel() {
   const tasks: AgentTaskKind[] = ['findClub', 'raiseSalary', 'demandRole'];
 
   const beschreibung: Record<AgentTaskKind, string> = {
-    findClub: 'Er klopft bei Vereinen an, die zu dir passen. Braucht knapp zwei Wochen.',
-    raiseSalary: 'Er verhandelt beim aktuellen Verein nach. Misslingt es, verstimmt das den Trainer.',
-    demandRole: 'Er fordert eine groessere Rolle im Kader. Riskant, wenn die Leistung sie nicht deckt.',
+    findClub: t('agent.task.search'),
+    raiseSalary: t('agent.task.salary'),
+    demandRole: t('agent.task.role'),
   };
 
   return (
-    <Panel title="Dein Berater" action={<Pill>Provision {(agent.commission * 100).toFixed(1)} %</Pill>}>
+    <Panel title={t('transfers.agent')} action={<Pill>Provision {(agent.commission * 100).toFixed(1)} %</Pill>}>
       <div className="row between" style={{ marginBottom: '0.6rem' }}>
         <div>
           <div style={{ fontWeight: 680 }}>{agent.name}</div>
           <div className="tiny dim">
-            {agent.quality >= 80 ? 'Topberater mit besten Kontakten'
-              : agent.quality >= 60 ? 'Etablierter Berater'
-              : agent.quality >= 40 ? 'Solider Berater' : 'Berater am Anfang seiner Laufbahn'}
+            {agent.quality >= 80 ? t('agent.tier.top')
+              : agent.quality >= 60 ? t('agent.tier.established')
+              : agent.quality >= 40 ? t('agent.tier.solid') : t('agent.tier.rookie')}
           </div>
         </div>
       </div>
       <div className="grid two">
-        <Meter label="Verhandlungsgeschick" value={agent.quality} />
-        <Meter label="Vertrauensverhaeltnis" value={agent.trust} />
+        <Meter label={t('agent.negotiation')} value={agent.quality} />
+        <Meter label={t('agent.trust')} value={agent.trust} />
       </div>
 
       {agent.task ? (
         <p className="small" style={{ marginBottom: 0 }}>
-          <strong>{AGENT_TASK_LABELS[agent.task.kind]}</strong> laeuft - Rueckmeldung
-          bis {formatShort(agent.task.dueOn)}.
+          <strong>{t(AGENT_TASK_LABELS[agent.task.kind])}</strong>{' '}
+          {t('transfers.taskRunning', { date: formatShort(agent.task.dueOn) })}
         </p>
       ) : (
         <>
@@ -172,7 +226,7 @@ function AgentPanel() {
               <button key={kind} style={{ textAlign: 'left', padding: '0.6rem 0.7rem' }}
                 disabled={!availability.canRequest}
                 onClick={() => requestAgentTask(kind)}>
-                <div className="small" style={{ fontWeight: 640 }}>{AGENT_TASK_LABELS[kind]}</div>
+                <div className="small" style={{ fontWeight: 640 }}>{t(AGENT_TASK_LABELS[kind])}</div>
                 <div className="tiny dim">{beschreibung[kind]}</div>
               </button>
             ))}

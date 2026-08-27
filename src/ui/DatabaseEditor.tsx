@@ -6,7 +6,9 @@
  */
 import { useMemo, useState } from 'react';
 import type { CustomClub, CustomCompetition, CustomDatabase } from '../engine/customDb';
-import { nationsByRegion } from '../engine/nations';
+import { nationName, nationsByRegion, regionName } from '../engine/nations';
+import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 import { Empty, Panel } from './components';
 
 /** Tiefe Kopie, damit Abbrechen wirklich alles verwirft. */
@@ -20,6 +22,7 @@ export default function DatabaseEditor(
   { database, onClose, onSave }:
   { database: CustomDatabase; onClose: () => void; onSave: (db: CustomDatabase) => void },
 ) {
+  useLocale();
   const [db, setDb] = useState<CustomDatabase>(() => clone(database));
   const [compIndex, setCompIndex] = useState(0);
   const [clubIndex, setClubIndex] = useState(0);
@@ -44,7 +47,7 @@ export default function DatabaseEditor(
     if (!files || files.length === 0) return;
     const file = files[0];
     if (file.size > 512 * 1024) {
-      window.alert('Das Bild ist groesser als 512 KB. Bitte kleiner speichern.');
+      window.alert(t('editor.imageTooLarge'));
       return;
     }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -65,29 +68,27 @@ export default function DatabaseEditor(
     <div className="menu-wrap" style={{ alignItems: 'start' }}>
       <div className="menu">
         <div className="row between" style={{ marginBottom: '1rem' }}>
-          <input value={db.name} aria-label="Name der Datenbank"
+          <input value={db.name} aria-label={t('editor.dbName')}
             style={{ fontSize: '1.3rem', fontWeight: 700, flex: '1 1 12rem', maxWidth: '26rem' }}
             onChange={(e) => update((d) => { d.name = e.target.value; })} />
           <div className="row" style={{ gap: '0.4rem' }}>
             <button className="primary" disabled={!dirty || !db.name.trim()}
-              onClick={() => onSave(db)}>
-              Speichern
-            </button>
+              onClick={() => onSave(db)}>{t('common.save')}</button>
             <button className="ghost" onClick={() => {
-              if (dirty && !window.confirm('Aenderungen verwerfen?')) return;
+              if (dirty && !window.confirm(t('editor.discardChanges'))) return;
               onClose();
-            }}>Abbrechen</button>
+            }}>{t('common.cancel')}</button>
           </div>
         </div>
 
-        <Panel title="Wettbewerbe" action={
+        <Panel title={t('editor.competitions')} action={
           <button className="small ghost" onClick={() => update((d) => {
             d.competitions.push({
               id: `neu-${d.competitions.length + 1}`, kind: 'liga',
               country: d.competitions[0]?.country ?? 'eigenes',
-              name: 'Neuer Wettbewerb', level: d.competitions.length + 1, clubs: [],
+              name: t('editor.newCompetition'), level: d.competitions.length + 1, clubs: [],
             });
-          })}>Hinzufuegen</button>
+          })}>{t('common.add')}</button>
         }>
           <div className="chip-row">
             {db.competitions.map((c, i) => (
@@ -100,17 +101,16 @@ export default function DatabaseEditor(
 
           {comp && (
             <div className="grid two" style={{ marginTop: '0.8rem' }}>
-              <label>Name
-                <input value={comp.name} onChange={(e) => update((d) => {
+              <label>{t('squad.name')}<input value={comp.name} onChange={(e) => update((d) => {
                   d.competitions[compIndex].name = e.target.value;
                 })} />
               </label>
-              <label>Kennung des Landes
+              <label>{t('editor.countryId')}
                 <input value={comp.country} onChange={(e) => update((d) => {
                   d.competitions[compIndex].country = e.target.value;
                 })} />
               </label>
-              <label>Angezeigter Landesname
+              <label>{t('editor.countryName')}
                 <input value={db.countries[comp.country] ?? ''} onChange={(e) => update((d) => {
                   d.countries[d.competitions[compIndex].country] = e.target.value;
                 })} />
@@ -119,17 +119,17 @@ export default function DatabaseEditor(
                 <button className="small danger" onClick={() => update((d) => {
                   d.competitions.splice(compIndex, 1);
                   setCompIndex(0); setClubIndex(0);
-                })}>Wettbewerb entfernen</button>
+                })}>{t('editor.removeCompetition')}</button>
               </div>
-              <label>Art
+              <label>{t('editor.kind')}
                 <select value={comp.kind} onChange={(e) => update((d) => {
                   d.competitions[compIndex].kind = e.target.value as 'liga' | 'pokal';
                 })}>
-                  <option value="liga">Liga</option>
-                  <option value="pokal">Pokal</option>
+                  <option value="liga">{t('editor.league')}</option>
+                  <option value="pokal">{t('editor.cup')}</option>
                 </select>
               </label>
-              <label>Ebene (1 = hoechste)
+              <label>{t('editor.level')}
                 <input type="number" min={1} max={9} value={comp.level ?? 1}
                   onChange={(e) => update((d) => {
                     d.competitions[compIndex].level = Number(e.target.value) || 1;
@@ -140,12 +140,12 @@ export default function DatabaseEditor(
         </Panel>
 
         {comp && (
-          <Panel title={`Vereine in ${comp.name}`} action={
+          <Panel title={t('editor.clubsIn', { name: comp.name })} action={
             <button className="small ghost" onClick={() => update((d) => {
-              d.competitions[compIndex].clubs.push({ name: 'Neuer Verein', squad: [] });
-            })}>Verein hinzufuegen</button>
+              d.competitions[compIndex].clubs.push({ name: t('editor.newClub'), squad: [] });
+            })}>{t('editor.addClub')}</button>
           }>
-            {comp.clubs.length === 0 && <Empty text="Noch keine Vereine in diesem Wettbewerb." />}
+            {comp.clubs.length === 0 && <Empty text={t('editor.noClubs')} />}
             <div className="chip-row">
               {comp.clubs.map((c, i) => (
                 <span key={i} className={`chip ${i === clubIndex ? 'active' : ''}`}
@@ -160,48 +160,47 @@ export default function DatabaseEditor(
             <button className="small danger" onClick={() => update((d) => {
               d.competitions[compIndex].clubs.splice(clubIndex, 1);
               setClubIndex(0);
-            })}>Verein entfernen</button>
+            })}>{t('editor.removeClub')}</button>
           }>
             <div className="grid two">
-              <label>Name
-                <input value={club.name} onChange={(e) => update((d) => {
+              <label>{t('squad.name')}<input value={club.name} onChange={(e) => update((d) => {
                   d.competitions[compIndex].clubs[clubIndex].name = e.target.value;
                 })} />
               </label>
-              <label>Kuerzel
+              <label>{t('editor.short')}
                 <input value={club.short ?? ''} maxLength={4} onChange={(e) => update((d) => {
                   d.competitions[compIndex].clubs[clubIndex].short = e.target.value;
                 })} />
               </label>
-              <label>Stadt
+              <label>{t('editor.city')}
                 <input value={club.city ?? ''} onChange={(e) => update((d) => {
                   d.competitions[compIndex].clubs[clubIndex].city = e.target.value;
                 })} />
               </label>
-              <label>Stadion
+              <label>{t('editor.stadium')}
                 <input value={club.stadium ?? ''} onChange={(e) => update((d) => {
                   d.competitions[compIndex].clubs[clubIndex].stadium = e.target.value;
                 })} />
               </label>
-              <label>Kapazitaet
+              <label>{t('editor.capacity')}
                 <input type="number" value={club.capacity ?? ''} onChange={(e) => update((d) => {
                   d.competitions[compIndex].clubs[clubIndex].capacity = Number(e.target.value) || undefined;
                 })} />
               </label>
-              <label>Ruf (1-100)
+              <label>{t('editor.reputation')}
                 <input type="number" min={1} max={100} value={club.reputation ?? ''}
                   onChange={(e) => update((d) => {
                     d.competitions[compIndex].clubs[clubIndex].reputation = Number(e.target.value) || undefined;
                   })} />
               </label>
-              <label>Farbe 1
+              <label>{t('editor.color1')}
                 <input type="color" value={club.colors?.[0] ?? '#2f4f78'}
                   onChange={(e) => update((d) => {
                     const c = d.competitions[compIndex].clubs[clubIndex];
                     c.colors = [e.target.value, c.colors?.[1] ?? '#ffffff'];
                   })} />
               </label>
-              <label>Farbe 2
+              <label>{t('editor.color2')}
                 <input type="color" value={club.colors?.[1] ?? '#ffffff'}
                   onChange={(e) => update((d) => {
                     const c = d.competitions[compIndex].clubs[clubIndex];
@@ -215,7 +214,7 @@ export default function DatabaseEditor(
                 <img src={db.images[club.crest]} alt="" width={48} height={48}
                   style={{ borderRadius: 6, background: '#0c1729' }} />
               )}
-              <label style={{ flex: 1 }}>Wappen
+              <label style={{ flex: 1 }}>{t('editor.crest')}
                 <select value={club.crest ?? ''} onChange={(e) => update((d) => {
                   d.competitions[compIndex].clubs[clubIndex].crest = e.target.value || undefined;
                 })}>
@@ -234,16 +233,16 @@ export default function DatabaseEditor(
             <div className="row between" style={{ marginTop: '1rem', marginBottom: '0.4rem' }}>
               <strong className="small">Kader ({club.squad.length})</strong>
               <button className="small ghost" onClick={() => update((d) => {
-                d.competitions[compIndex].clubs[clubIndex].squad.push({ name: 'Neuer Spieler' });
-              })}>Spieler hinzufuegen</button>
+                d.competitions[compIndex].clubs[clubIndex].squad.push({ name: t('editor.newPlayer') });
+              })}>{t('editor.addPlayer')}</button>
             </div>
             <div className="scroll" style={{ maxHeight: 320 }}>
               <table>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th style={{ width: 90 }}>Position</th>
-                    <th style={{ width: 130 }}>Herkunft</th>
+                    <th>{t('squad.name')}</th>
+                    <th style={{ width: 90 }}>{t('squad.position')}</th>
+                    <th style={{ width: 130 }}>{t('editor.origin')}</th>
                     <th style={{ width: 40 }} />
                   </tr>
                 </thead>
@@ -269,11 +268,11 @@ export default function DatabaseEditor(
                           d.competitions[compIndex].clubs[clubIndex].squad[i].nation =
                             e.target.value || undefined;
                         })}>
-                          <option value="">wuerfeln</option>
+                          <option value="">{t('editor.rollOrigin')}</option>
                           {nationsByRegion().map((g) => (
-                            <optgroup key={g.region} label={g.region}>
+                            <optgroup key={g.region} label={regionName(g.region)}>
                               {g.nations.map((n) => (
-                                <option key={n.id} value={n.id}>{n.name}</option>
+                                <option key={n.id} value={n.id}>{nationName(n.id)}</option>
                               ))}
                             </optgroup>
                           ))}
@@ -289,7 +288,7 @@ export default function DatabaseEditor(
                 </tbody>
               </table>
               {club.squad.length === 0 && (
-                <Empty text="Kein Kader hinterlegt - das Spiel erzeugt dann alle Namen selbst." />
+                <Empty text={t('editor.noSquad')} />
               )}
             </div>
           </Panel>

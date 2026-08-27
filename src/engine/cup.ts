@@ -2,14 +2,21 @@
 import type { GameDate } from './date';
 import { Rng } from './rng';
 import type { Club, Id, Match } from './types';
+import { t } from '../i18n';
 
+/**
+ * Die Pokalrunden als Schluessel. Der angezeigte Name kommt aus dem
+ * Sprachkatalog - frueher stand hier der deutsche Text, und an drei Stellen
+ * wurde mit `=== 'Finale'` dagegen verglichen. Solche Vergleiche waeren mit
+ * der Uebersetzung stillschweigend falsch geworden.
+ */
 export const CUP_ROUNDS = [
-  'Vorrunde',
-  'Sechzehntelfinale',
-  'Achtelfinale',
-  'Viertelfinale',
-  'Halbfinale',
-  'Finale',
+  'round.preliminary',
+  'round.r32',
+  'round.r16',
+  'round.quarter',
+  'round.semi',
+  'round.final',
 ] as const;
 
 export type CupRound = (typeof CUP_ROUNDS)[number];
@@ -35,7 +42,7 @@ export function drawFirstRound(
     const aLevel = levelOf(a);
     const bLevel = levelOf(b);
     const [home, away] = aLevel >= bLevel ? [a, b] : [b, a];
-    matches.push(makeCupMatch(makeId(), competitionId, season, 1, 'Vorrunde', date, home.id, away.id));
+    matches.push(makeCupMatch(makeId(), competitionId, season, 1, t('round.preliminary'), date, home.id, away.id));
   }
   return { matches, byes };
 }
@@ -44,10 +51,11 @@ export function drawRound(
   rng: Rng, competitionId: Id, season: number, roundIndex: number,
   clubIds: Id[], clubs: Record<Id, Club>, date: GameDate, makeId: () => Id,
 ): Match[] {
-  const roundName = CUP_ROUNDS[Math.min(roundIndex - 1, CUP_ROUNDS.length - 1)];
+  const roundIdx = Math.min(roundIndex - 1, CUP_ROUNDS.length - 1);
+  const roundName = t(CUP_ROUNDS[roundIdx]);
   const pool = rng.shuffle(clubIds.slice());
   const matches: Match[] = [];
-  const isFinal = roundName === 'Finale';
+  const isFinal = roundIdx === CUP_ROUNDS.length - 1;
 
   for (let i = 0; i < pool.length; i += 2) {
     const a = pool[i];

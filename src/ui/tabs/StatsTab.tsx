@@ -3,8 +3,11 @@ import { seasonLabel } from '../../engine/date';
 import { collectStats, recordList, sumStats } from '../../engine/stats';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
+import { t } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 export default function StatsTab() {
+  useLocale();
   const game = useAppState().game!;
   const [seasonFilter, setSeasonFilter] = useState<number | 'all'>('all');
   const [compFilter, setCompFilter] = useState<string | 'all'>('all');
@@ -45,29 +48,29 @@ export default function StatsTab() {
 
   return (
     <>
-      <Panel title="Filter">
+      <Panel title={t('stats.filter')}>
         <div className="row" style={{ gap: '1rem', alignItems: 'flex-start' }}>
           <div style={{ minWidth: 130 }}>
-            <label>Saison</label>
+            <label>{t('stats.season')}</label>
             <select value={String(seasonFilter)}
               onChange={(e) => setSeasonFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
-              <option value="all">Gesamte Karriere</option>
+              <option value="all">{t('stats.wholeCareer')}</option>
               {seasons.map((s) => <option key={s} value={s}>{seasonLabel(s)}</option>)}
             </select>
           </div>
           <div style={{ minWidth: 170 }}>
-            <label>Wettbewerb</label>
+            <label>{t('stats.competition')}</label>
             <select value={compFilter} onChange={(e) => setCompFilter(e.target.value)}>
-              <option value="all">Alle Wettbewerbe</option>
+              <option value="all">{t('stats.allCompetitions')}</option>
               {competitions.map((c) => (
                 <option key={c} value={c}>{game.competitions[c]?.name ?? c}</option>
               ))}
             </select>
           </div>
           <div style={{ minWidth: 170 }}>
-            <label>Verein</label>
+            <label>{t('stats.club')}</label>
             <select value={clubFilter} onChange={(e) => setClubFilter(e.target.value)}>
-              <option value="all">Alle Vereine</option>
+              <option value="all">{t('stats.allClubs')}</option>
               {clubs.map((c) => (
                 <option key={c} value={c}>{game.clubs[c]?.name ?? c}</option>
               ))}
@@ -76,72 +79,72 @@ export default function StatsTab() {
         </div>
       </Panel>
 
-      <Panel title="Bilanz">
-        {total.appearances === 0 && <Empty text="Fuer diese Auswahl liegen keine Daten vor." />}
+      <Panel title={t('stats.record')}>
+        {total.appearances === 0 && <Empty text={t('empty.noDataForSelection')} />}
         {total.appearances > 0 && (
           <>
             <div className="grid four">
-              <div className="stat"><div className="value">{total.appearances}</div><div className="label">Spiele</div></div>
-              <div className="stat"><div className="value">{total.goals}</div><div className="label">Tore</div></div>
-              <div className="stat"><div className="value">{total.assists}</div><div className="label">Vorlagen</div></div>
+              <div className="stat"><div className="value">{total.appearances}</div><div className="label">{t('stats.apps')}</div></div>
+              <div className="stat"><div className="value">{total.goals}</div><div className="label">{t('stats.goals')}</div></div>
+              <div className="stat"><div className="value">{total.assists}</div><div className="label">{t('stats.assists')}</div></div>
               <div className="stat">
                 <div className="value" style={{ color: ratingColor(avg) }}>{rating(avg)}</div>
-                <div className="label">Schnittnote</div>
+                <div className="label">{t('stats.avgRating')}</div>
               </div>
             </div>
             <div className="grid four" style={{ marginTop: '0.7rem' }}>
-              <div className="stat"><div className="value">{total.starts}</div><div className="label">Startelf</div></div>
-              <div className="stat"><div className="value">{total.minutes}</div><div className="label">Minuten</div></div>
-              <div className="stat"><div className="value">{total.motm}</div><div className="label">Spieler des Spiels</div></div>
+              <div className="stat"><div className="value">{total.starts}</div><div className="label">{t('stats.starts')}</div></div>
+              <div className="stat"><div className="value">{total.minutes}</div><div className="label">{t('stats.minutes')}</div></div>
+              <div className="stat"><div className="value">{total.motm}</div><div className="label">{t('stats.motm')}</div></div>
               <div className="stat">
                 <div className="value">{total.shots > 0 ? Math.round(total.goals / total.shots * 100) : 0}%</div>
-                <div className="label">Torquote</div>
+                <div className="label">{t('stats.goalRate')}</div>
               </div>
             </div>
 
             <div className="grid two" style={{ marginTop: '1rem' }}>
               <div>
-                <h4>Offensive</h4>
-                <StatRow label="Schuesse" value={total.shots} />
-                <StatRow label="Schuesse aufs Tor" value={total.shotsOnTarget} />
-                <StatRow label="Schluesselpaesse" value={total.keyPasses} />
-                <StatRow label="Heimtore" value={total.homeGoals} />
-                <StatRow label="Auswaertstore" value={total.awayGoals} />
-                <StatRow label="Dribblings" value={`${total.dribblesCompleted}/${total.dribbles}`} />
+                <h4>{t('stats.offence')}</h4>
+                <StatRow label={t('stats.shots')} value={total.shots} />
+                <StatRow label={t('stats.shotsOnTarget')} value={total.shotsOnTarget} />
+                <StatRow label={t('stats.keyPasses')} value={total.keyPasses} />
+                <StatRow label={t('stats.homeGoals')} value={total.homeGoals} />
+                <StatRow label={t('stats.awayGoals')} value={total.awayGoals} />
+                <StatRow label={t('stats.dribbles')} value={`${total.dribblesCompleted}/${total.dribbles}`} />
               </div>
               <div>
-                <h4>Defensive und Disziplin</h4>
-                <StatRow label="Zweikaempfe gewonnen"
+                <h4>{t('stats.defenceDiscipline')}</h4>
+                <StatRow label={t('stats.duelsWon')}
                   value={`${total.duelsWon}/${total.duels}`} />
-                <StatRow label="Graetschen" value={total.tackles} />
-                <StatRow label="Abgefangene Baelle" value={total.interceptions} />
-                <StatRow label="Gelbe Karten" value={total.yellowCards} />
-                <StatRow label="Rote Karten" value={total.redCards} />
-                <StatRow label="Passquote" value={total.passes > 0
+                <StatRow label={t('stats.tackles')} value={total.tackles} />
+                <StatRow label={t('stats.interceptions')} value={total.interceptions} />
+                <StatRow label={t('stats.yellowCards')} value={total.yellowCards} />
+                <StatRow label={t('stats.redCards')} value={total.redCards} />
+                <StatRow label={t('stats.passRate')} value={total.passes > 0
                   ? `${Math.round(total.passesCompleted / total.passes * 100)}%` : '-'} />
-                {total.saves > 0 && <StatRow label="Paraden" value={total.saves} />}
-                {total.cleanSheets > 0 && <StatRow label="Ohne Gegentor" value={total.cleanSheets} />}
+                {total.saves > 0 && <StatRow label={t('stats.saves')} value={total.saves} />}
+                {total.cleanSheets > 0 && <StatRow label={t('stats.cleanSheets')} value={total.cleanSheets} />}
               </div>
             </div>
           </>
         )}
       </Panel>
 
-      <Panel title="Saison fuer Saison">
-        {bySeason.length === 0 && <Empty text="Noch keine abgeschlossenen Saisons." />}
+      <Panel title={t('stats.bySeason')}>
+        {bySeason.length === 0 && <Empty text={t('empty.noSeasons')} />}
         {bySeason.length > 0 && (
           <div className="scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Saison</th>
-                  <th>Wettbewerb</th>
-                  <th>Verein</th>
+                  <th>{t('stats.season')}</th>
+                  <th>{t('stats.competition')}</th>
+                  <th>{t('stats.club')}</th>
                   <th className="num">Sp</th>
                   <th className="num">Min</th>
-                  <th className="num">Tore</th>
+                  <th className="num">{t('stats.goals')}</th>
                   <th className="num">Vorl.</th>
-                  <th className="num">Note</th>
+                  <th className="num">{t('stats.rating')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -168,8 +171,8 @@ export default function StatsTab() {
       </Panel>
 
       <div className="grid two">
-        <Panel title="Rekordbuch">
-          {records.length === 0 && <Empty text="Noch keine Rekorde eingetragen." />}
+        <Panel title={t('stats.recordBook')}>
+          {records.length === 0 && <Empty text={t('empty.noRecords')} />}
           {records.map((r) => (
             <div className="row between small" key={r.key} style={{ padding: '0.25rem 0' }}>
               <span>
@@ -184,9 +187,9 @@ export default function StatsTab() {
           ))}
         </Panel>
 
-        <Panel title="Auszeichnungen">
+        <Panel title={t('stats.awards')}>
           {game.awards.filter((a) => a.playerId === game.userPlayerId).length === 0 && (
-            <Empty text="Noch keine Auszeichnungen gewonnen." />
+            <Empty text={t('empty.noAwards')} />
           )}
           {game.awards.filter((a) => a.playerId === game.userPlayerId).slice().reverse().map((a) => (
             <div className="row between small" key={a.id} style={{ padding: '0.25rem 0' }}>

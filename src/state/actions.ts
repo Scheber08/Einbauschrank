@@ -8,6 +8,9 @@ import {
 import { applyLifeChoice, type LifeEvent } from '../engine/events';
 import { addCareerEvent, addNews } from '../engine/ids';
 import { calcMarketValue } from '../engine/playerGen';
+import { bookSigning } from '../engine/finance';
+import { dropCaptaincyOnTransfer } from '../engine/captain';
+import { t, tDecimal, tNumber } from '../i18n';
 import { Rng } from '../engine/rng';
 import { seedRelationships } from '../engine/relationships';
 import { acceptLoan } from '../engine/loan';
@@ -20,7 +23,7 @@ import type { AgentTaskKind, TrainingFocus, TrainingIntensity } from '../engine/
 import { commit, getState, setState, showToast } from './store';
 
 export async function startNewCareer(opts: NewGameOptions) {
-  setState({ busy: 'Fussballwelt wird erzeugt...' });
+  setState({ busy: t('act.creatingWorld') });
   // Kurze Pause, damit die Oberflaeche den Ladehinweis zeichnen kann.
   await new Promise((r) => setTimeout(r, 30));
   const game = createNewGame(opts);
@@ -30,11 +33,11 @@ export async function startNewCareer(opts: NewGameOptions) {
 }
 
 export async function loadCareer(saveId: string) {
-  setState({ busy: 'Spielstand wird geladen...' });
+  setState({ busy: t('act.loading') });
   const game = await loadGame(saveId);
   if (!game) {
     setState({ busy: null });
-    showToast('Spielstand konnte nicht geladen werden.', 'bad');
+    showToast(t('act.loadFailed'), 'bad');
     return;
   }
   rememberLastSave(saveId);
@@ -55,7 +58,7 @@ export async function saveCurrent(silent = false) {
   if (!game) return;
   await saveGame(game);
   rememberLastSave(game.saveId);
-  if (!silent) showToast('Spielstand gespeichert.', 'good');
+  if (!silent) showToast(t('act.saved'), 'good');
 }
 
 export function backToMenu() {
@@ -200,7 +203,7 @@ export function acceptOffer(offerId: string) {
       createObjectives(game);
       commit();
       void saveCurrent(true);
-      showToast(`Leihe zu ${club.name} vereinbart.`, 'good');
+      showToast(t('act.loanAgreed', { club: club.name }), 'good');
     }
     return;
   }
@@ -218,19 +221,31 @@ export function acceptOffer(offerId: string) {
       releaseClause: offer.releaseClause,
     };
     game.offers = [];
-    addCareerEvent(game, 'contract', `Vertrag bei ${club.name} verlaengert`,
-      `Neuer Vertrag bis ${game.season + offer.years}. Rolle: ${offer.role}, `
-      + `Gehalt ${offer.salary.toLocaleString('de-DE')} Euro pro Woche.`,
+    addCareerEvent(game, 'contract', t('act.renewed.title', { club: club.name }),
+      t('act.renewed.body', {
+        until: game.season + offer.years,
+        role: t(`role.${offer.role}`),
+        salary: tNumber(offer.salary),
+      }),
       { clubId: club.id });
     addNews(game, 'contract', `${user.lastName} verlaengert bei ${club.name}`,
-      `Die Zukunft ist geklaert: neuer Vertrag bis ${game.season + offer.years}.`, true);
+      t('act.renewed.news', { until: game.season + offer.years }), true);
     commit();
     void saveCurrent(true);
-    showToast(`Vertrag bei ${club.name} verlaengert.`, 'good');
+    showToast(t('act.renewed.toast', { club: club.name }), 'good');
     return;
   }
 
   const oldClub = userClub(game);
+  // Die Binde bleibt beim alten Verein - sonst haette die neue Mannschaft
+  // am ersten Tag zwei Spielfuehrer.
+  dropCaptaincyOnTransfer(user);
+  // Der Wechsel kostet den neuen Verein Geld und bringt es dem alten. Ohne
+  // diese Buchung waere das Budget nur eine Schranke fuer die KI, waehrend der
+  // eigene Transfer die Wirtschaft unberuehrt liesse - und ein Verein koennte
+  // den Spieler beliebig oft fuer dieselben Mittel holen.
+  bookSigning(club, oldClub, offer.fee, null, offer.salary,
+    user.contract ? user.contract.salary : 0);
   user.clubId = club.id;
   user.contract = {
     clubId: club.id,
@@ -255,17 +270,21 @@ export function acceptOffer(offerId: string) {
   seedRelationships(game, relRng);
   game.rngState = relRng.state;
 
-  addCareerEvent(game, 'transfer', `Wechsel zu ${club.name}`,
-    `Von ${oldClub?.name ?? 'vereinslos'} zu ${club.name} gewechselt. `
-    + `Rolle: ${offer.role}, Gehalt ${offer.salary.toLocaleString('de-DE')} Euro pro Woche.`,
+  addCareerEvent(game, 'transfer', t('act.transfer.title', { club: club.name }),
+    t('act.transfer.body', {
+      from: oldClub?.name ?? t('act.noClub'),
+      to: club.name,
+      role: t(`role.${offer.role}`),
+      salary: tNumber(offer.salary),
+    }),
     { clubId: club.id });
   addNews(game, 'transfer', `${user.lastName} wechselt zu ${club.name}`,
-    `Der Transfer ist perfekt. Ablöse etwa ${(offer.fee / 1_000_000).toFixed(1)} Millionen Euro.`, true);
+    t('act.transfer.newsBody', { fee: tDecimal(offer.fee / 1_000_000) }), true);
 
   createObjectives(game);
   commit();
   void saveCurrent(true);
-  showToast(`Wechsel zu ${club.name} abgeschlossen.`, 'good');
+  showToast(t('act.transfer.toast', { club: club.name }), 'good');
 }
 
 /** Veroeffentlicht einen eigenen Beitrag (Konzept Abschnitt 40). */
@@ -277,8 +296,8 @@ export function postSocial(optionId: string) {
   game.rngState = rng.state;
   commit();
   void saveCurrent(true);
-  if (option?.text) showToast('Beitrag veroeffentlicht.', 'good');
-  else showToast('Du haeltst dich zurueck.', 'info');
+  if (option?.text) showToast(t('act.posted'), 'good');
+  else showToast(t('act.stayedQuiet'), 'info');
 }
 
 /** Beauftragt den Berater (Konzept Abschnitt 35). */
@@ -289,12 +308,12 @@ export function requestAgentTask(kind: AgentTaskKind) {
   ensureAgent(game, rng);
   game.rngState = rng.state;
   if (!startAgentTask(game, kind)) {
-    showToast('Dein Berater kann das gerade nicht uebernehmen.', 'bad');
+    showToast(t('act.agentBusy'), 'bad');
     return;
   }
   commit();
   void saveCurrent(true);
-  showToast('Auftrag erteilt. Dein Berater meldet sich.', 'info');
+  showToast(t('act.agentBriefed'), 'info');
 }
 
 /** Freiwilliger Ruecktritt vom aktiven Sport (Konzept Abschnitt 2). */
@@ -303,15 +322,20 @@ export function retireCareer() {
   if (!game || game.retirement) return;
   const user = game.players[game.userPlayerId];
   const summary = retireUser(game, 'choice');
-  addCareerEvent(game, 'title', 'Ende der Laufbahn',
-    `${summary.appearances} Pflichtspiele, ${summary.goals} Tore, ${summary.honours} Titel. `
-    + `Abschluss als ${summary.status}.`, {});
-  addNews(game, 'season', `${user?.lastName ?? 'Der Spieler'} beendet die Karriere`,
-    `Nach ${summary.appearances} Pflichtspielen ist Schluss. Bilanz: ${summary.goals} Tore, `
-    + `${summary.assists} Vorlagen, ${summary.honours} Titel.`, true);
+  addCareerEvent(game, 'title', t('act.retire.title'),
+    t('act.retire.body', {
+      apps: summary.appearances, goals: summary.goals,
+      honours: summary.honours, status: summary.status,
+    }), {});
+  addNews(game, 'season',
+    t('act.retire.news', { last: user?.lastName ?? t('act.thePlayer') }),
+    t('act.retire.newsBody', {
+      apps: summary.appearances, goals: summary.goals,
+      assists: summary.assists, honours: summary.honours,
+    }), true);
   commit();
   void saveCurrent(true);
-  showToast(`Laufbahn beendet - ${summary.status}.`, 'good');
+  showToast(t('act.retire.toast', { status: summary.status }), 'good');
 }
 
 export function declineAllOffers() {
@@ -320,12 +344,12 @@ export function declineAllOffers() {
   const user = game.players[game.userPlayerId];
   game.offers = [];
   if (user) {
-    addNews(game, 'transfer', `${user.lastName} bleibt`,
-      'Alle vorliegenden Angebote wurden abgelehnt. Der Fokus liegt auf dem aktuellen Verein.', false);
+    addNews(game, 'transfer', t('act.declined.title', { last: user.lastName }),
+      t('act.declined.body'), false);
   }
   game.coachRelation = Math.min(100, game.coachRelation + 4);
   commit();
-  showToast('Angebote abgelehnt.', 'info');
+  showToast(t('act.declined.toast'), 'info');
 }
 
 /** Vertragsverlaengerung beim aktuellen Verein. */
@@ -343,9 +367,10 @@ export function renewContract(years: number) {
   user.contract.until = makeDate(game.season + years, 6, 30);
   game.rngState = rng.state;
 
-  addCareerEvent(game, 'contract', 'Vertrag verlaengert',
-    `Neuer Vertrag bei ${club.name} bis ${game.season + years}.`, { clubId: club.id });
+  addCareerEvent(game, 'contract', t('act.extend.title'),
+    t('act.extend.body', { club: club.name, until: game.season + years }),
+    { clubId: club.id });
   commit();
   void saveCurrent(true);
-  showToast('Vertrag verlaengert.', 'good');
+  showToast(t('act.extend.toast'), 'good');
 }

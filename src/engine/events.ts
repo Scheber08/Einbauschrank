@@ -4,6 +4,7 @@
  * die Moral, Fitness, oeffentliches Image, Fanbeliebtheit und die
  * Trainerbeziehung beeinflussen.
  */
+import { t } from '../i18n';
 import { addNews } from './ids';
 import { Rng, clamp } from './rng';
 import type { GameState } from './types';
@@ -34,138 +35,244 @@ export interface LifeEvent {
   options: LifeOption[];
 }
 
-type EventTemplate = Omit<LifeEvent, 'id'>;
+/** Vorlage im Pool: nur Kennungen und Wirkung, kein Text. */
+interface EventTemplate {
+  key: string;
+  options: { id: string; effect: LifeEffect; hasNews?: boolean }[];
+}
 
+/**
+ * Der Vorrat an Ereignissen. Hier stehen nur Kennung und Wirkung - Titel,
+ * Beschreibung und die Antwortmoeglichkeiten liegen im Sprachkatalog unter
+ * `life.<key>.*`. So bleibt der Pool ueberschaubar und zweisprachig.
+ */
 const EVENT_POOL: EventTemplate[] = [
   {
-    category: 'Sponsor',
-    title: 'Sponsorentermin',
-    description: 'Ein Ausruester bittet dich zu einem Werbedreh. Der Termin liegt '
-      + 'mitten in der Trainingswoche.',
+    key: 'sponsorentermin',
     options: [
       {
-        id: 'attend', label: 'Termin wahrnehmen',
-        description: 'Gut fuers Image und die Sponsoren, kostet aber Trainingszeit.',
-        effect: { image: 4, fans: 2, sharpness: -3, fitness: -2 },
-        news: 'nimmt einen Werbetermin wahr und zeigt sich medienwirksam.',
+        id: 'attend',
+        effect: {image:4,fans:2,sharpness:-3,fitness:-2},
+        hasNews: true,
       },
       {
-        id: 'decline', label: 'Absagen und trainieren',
-        description: 'Fokus auf den Sport. Der Trainer sieht das gern.',
-        effect: { coach: 3, sharpness: 2, image: -2 },
+        id: 'decline',
+        effect: {coach:3,sharpness:2,image:-2},
       },
     ],
   },
   {
-    category: 'Team',
-    title: 'Mannschaftsabend',
-    description: 'Die Mannschaft plant einen gemeinsamen Abend. Kommst du mit?',
+    key: 'mannschaftsabend',
     options: [
       {
-        id: 'join', label: 'Mitgehen',
-        description: 'Staerkt den Teamgeist und deine Moral, kostet etwas Frische.',
-        effect: { morale: 5, fitness: -3 },
-        news: 'staerkt beim Mannschaftsabend den Zusammenhalt.',
+        id: 'join',
+        effect: {morale:5,fitness:-3},
+        hasNews: true,
       },
       {
-        id: 'early', label: 'Kurz vorbeischauen',
-        description: 'Ein guter Mittelweg.',
-        effect: { morale: 2 },
+        id: 'early',
+        effect: {morale:2},
       },
       {
-        id: 'skip', label: 'Zu Hause bleiben',
-        description: 'Erholung, aber die Kollegen vermissen dich.',
-        effect: { fitness: 2, morale: -2 },
+        id: 'skip',
+        effect: {fitness:2,morale:-2},
       },
     ],
   },
   {
-    category: 'Charity',
-    title: 'Charity-Aktion',
-    description: 'Ein Kinderhospital bittet um deine Unterstuetzung fuer eine '
-      + 'Spendenaktion.',
+    key: 'charity-aktion',
     options: [
       {
-        id: 'help', label: 'Unterstuetzen',
-        description: 'Sehr gut fuer Image und Ansehen bei den Fans.',
-        effect: { image: 6, fans: 5, morale: 1 },
-        news: 'engagiert sich fuer den guten Zweck und wird dafuer gefeiert.',
+        id: 'help',
+        effect: {image:6,fans:5,morale:1},
+        hasNews: true,
       },
       {
-        id: 'ignore', label: 'Dankend ablehnen',
-        description: 'Keine Zeit gerade. Bleibt ohne Folgen - fast.',
-        effect: { image: -2 },
+        id: 'ignore',
+        effect: {image:-2},
       },
     ],
   },
   {
-    category: 'Training',
-    title: 'Zusatztraining',
-    description: 'Du koenntest freiwillige Extraschichten einlegen, um an deinen '
-      + 'Schwaechen zu arbeiten.',
+    key: 'zusatztraining',
     options: [
       {
-        id: 'extra', label: 'Extraschichten einlegen',
-        description: 'Verbessert deine Spielpraxis, kostet aber Kraft.',
-        effect: { sharpness: 5, coach: 2, fitness: -5 },
-        news: 'bleibt nach dem Training laenger auf dem Platz.',
+        id: 'extra',
+        effect: {sharpness:5,coach:2,fitness:-5},
+        hasNews: true,
       },
       {
-        id: 'rest', label: 'Lieber regenerieren',
-        description: 'Der Koerper dankt es dir.',
-        effect: { fitness: 6, sharpness: -1 },
+        id: 'rest',
+        effect: {fitness:6,sharpness:-1},
       },
     ],
   },
   {
-    category: 'Medien',
-    title: 'Beitrag in den sozialen Medien',
-    description: 'Nach den letzten Spielen diskutieren die Fans hitzig. Reagierst '
-      + 'du oeffentlich?',
+    key: 'beitrag-in-den-sozialen-medi',
     options: [
       {
-        id: 'positive', label: 'Fans positiv einstimmen',
-        description: 'Ein motivierender Beitrag kommt gut an.',
-        effect: { fans: 4, image: 2 },
-        news: 'richtet aufbauende Worte an die Fans.',
+        id: 'positive',
+        effect: {fans:4,image:2},
+        hasNews: true,
       },
       {
-        id: 'provoke', label: 'Kritiker anzaehlen',
-        description: 'Sorgt fuer Wirbel - und Aerger im Verein.',
-        effect: { fans: 3, image: -5, coach: -4, morale: 1 },
-        news: 'legt sich in den sozialen Medien mit Kritikern an.',
+        id: 'provoke',
+        effect: {fans:3,image:-5,coach:-4,morale:1},
+        hasNews: true,
       },
       {
-        id: 'quiet', label: 'Nichts posten',
-        description: 'Ruhe bewahren und den Ball flach halten.',
-        effect: { coach: 1 },
+        id: 'quiet',
+        effect: {coach:1},
       },
     ],
   },
   {
-    category: 'Erholung',
-    title: 'Freies Wochenende',
-    description: 'Der Trainer gibt zwei Tage frei. Wie nutzt du sie?',
+    key: 'freies-wochenende',
     options: [
       {
-        id: 'family', label: 'Zeit mit der Familie',
-        description: 'Kopf frei bekommen, gut fuer die Moral.',
-        effect: { morale: 4, fitness: 2 },
+        id: 'family',
+        effect: {morale:4,fitness:2},
       },
       {
-        id: 'gym', label: 'Ins Fitnessstudio',
-        description: 'Diszipliniert, aber du gonnst dir keine Pause.',
-        effect: { sharpness: 3, coach: 1, fitness: -1 },
-        news: 'verzichtet auf die freien Tage und arbeitet an der Fitness.',
+        id: 'gym',
+        effect: {sharpness:3,coach:1,fitness:-1},
+        hasNews: true,
+      },
+    ],
+  },
+  {
+    key: 'krankenbesuch',
+    options: [
+      {
+        id: 'visit',
+        effect: {morale:3,coach:3,fitness:-1},
+        hasNews: true,
+      },
+      {
+        id: 'message',
+        effect: {morale:1},
+      },
+    ],
+  },
+  {
+    key: 'fanpost',
+    options: [
+      {
+        id: 'answer',
+        effect: {fans:5,image:3,sharpness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'later',
+        effect: {sharpness:1,fans:-1},
+      },
+    ],
+  },
+  {
+    key: 'nachwuchsrat',
+    options: [
+      {
+        id: 'mentor',
+        effect: {coach:4,morale:2,sharpness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'busy',
+        effect: {sharpness:2,coach:-2},
+      },
+    ],
+  },
+  {
+    key: 'boulevard',
+    options: [
+      {
+        id: 'openly',
+        effect: {image:5,fans:3,coach:-3},
+        hasNews: true,
+      },
+      {
+        id: 'refuse',
+        effect: {coach:2,image:-3},
+      },
+      {
+        id: 'lawyer',
+        effect: {image:1,fans:-2,morale:-1},
+      },
+    ],
+  },
+  {
+    key: 'kabinenstreit',
+    options: [
+      {
+        id: 'mediate',
+        effect: {coach:5,morale:2},
+        hasNews: true,
+      },
+      {
+        id: 'sideA',
+        effect: {morale:3,coach:-3},
+      },
+      {
+        id: 'stayout',
+        effect: {morale:-2,sharpness:1},
+      },
+    ],
+  },
+  {
+    key: 'jugendverein',
+    options: [
+      {
+        id: 'go',
+        effect: {fans:6,image:4,morale:3,fitness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'send',
+        effect: {fans:2,image:1},
+      },
+    ],
+  },
+  {
+    key: 'ernaehrung',
+    options: [
+      {
+        id: 'strict',
+        effect: {fitness:5,sharpness:2,morale:-2},
+        hasNews: true,
+      },
+      {
+        id: 'balanced',
+        effect: {fitness:2,morale:1},
+      },
+      {
+        id: 'ignore',
+        effect: {morale:3,fitness:-3},
       },
     ],
   },
 ];
 
 /** Baut ein zufaelliges Ereignis mit eindeutiger ID. */
+/**
+ * Baut ein Ereignis aus dem Pool. Die Texte kommen dabei in der aktuell
+ * eingestellten Sprache dazu - der Pool selbst haelt nur Kennungen.
+ */
 export function buildLifeEvent(rng: Rng, idSeed: number): LifeEvent {
   const template = rng.pick(EVENT_POOL);
-  return { ...template, id: `ev-${idSeed}` };
+  const k = template.key;
+  return {
+    id: `ev-${idSeed}`,
+    category: t(`life.${k}.category`),
+    title: t(`life.${k}.title`),
+    description: t(`life.${k}.body`),
+    options: template.options.map((o) => ({
+      id: o.id,
+      label: t(`life.${k}.${o.id}.label`),
+      description: t(`life.${k}.${o.id}.desc`),
+      effect: o.effect,
+      news: o.hasNews ? t(`life.${k}.${o.id}.news`) : undefined,
+    })),
+  };
 }
 
 /** Wendet die gewaehlte Option an und meldet sie gegebenenfalls. */
@@ -185,8 +292,11 @@ export function applyLifeChoice(
   if (e.coach) state.coachRelation = clamp(state.coachRelation + e.coach, 0, 100);
 
   if (option.news) {
-    addNews(state, 'social', `${event.title}: ${user.lastName}`,
-      `${user.firstName} ${user.lastName} ${option.news}`, false);
+    addNews(state, 'social',
+      t('life.news.title', { title: event.title, last: user.lastName }),
+      t('life.news.body', {
+        name: `${user.firstName} ${user.lastName}`, text: option.news,
+      }), false);
   }
 
   return option;

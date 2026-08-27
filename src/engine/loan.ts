@@ -6,12 +6,15 @@
  * Stammverein zurueck - mit dem Vertrag, den er dort hatte.
  */
 import { COUNTRY_BY_ID } from './countries';
+import { buildWageIndex, canSign } from './finance';
+import { dropCaptaincyOnTransfer } from './captain';
 import { computeOverall } from './attributes';
 import { ageOn, makeDate } from './date';
 import { addCareerEvent, addNews } from './ids';
 import { calcSalary } from './playerGen';
 import { Rng, clamp } from './rng';
 import type { GameState, TransferOffer } from './types';
+import { t, tDecimal } from '../i18n';
 
 /** Wie viele Einsaetze als "zu wenig" gelten, um eine Leihe zu rechtfertigen. */
 const FEW_APPEARANCES = 9;
@@ -38,12 +41,21 @@ export function generateLoanOffers(state: GameState, rng: Rng) {
 
   // Vereine eine Klasse tiefer (oder in derselben, falls schon unterste Liga),
   // die einen Spieler dieses Kalibers gebrauchen koennen.
+  // Auch eine Leihe kostet den aufnehmenden Verein Gehalt. Eine Abloese faellt
+  // nicht an, deshalb wird nur der Gehaltsrahmen geprueft - mit etwas mehr
+  // Toleranz als bei einem Kauf, weil eine Leihe fuer eine Saison gilt und
+  // typischerweise nur ein Teil des Gehalts uebernommen wird.
+  const gehaelter = buildWageIndex(state);
   const targets = Object.values(state.clubs).filter((c) => {
     if (c.id === user.clubId) return false;
     const level = state.competitions[c.leagueId]?.level ?? 3;
     if (level < homeLevel) return false;
     if (level > homeLevel + 1) return false;
-    return c.reputation <= ability * 1.15 + 12 && c.reputation >= ability * 0.45;
+    if (!(c.reputation <= ability * 1.15 + 12 && c.reputation >= ability * 0.45)) return false;
+    const country = COUNTRY_BY_ID[c.countryId];
+    const gehalt = Math.round(
+      calcSalary(ability, age, level, c.reputation, country?.wealth ?? 1) * 0.85);
+    return canSign(c, gehaelter.get(c.id) ?? 0, 0, gehalt, 1.3);
   });
   if (targets.length === 0) return;
 
@@ -63,17 +75,14 @@ export function generateLoanOffers(state: GameState, rng: Rng) {
       years: 1,
       role: 'Stammspieler',
       goalBonus: Math.round(salary * 0.2),
-      pitch: `${club.name} will dich fuer eine Saison ausleihen und verspricht `
-        + 'regelmaessige Einsatzzeit. Danach kehrst du zurueck.',
+      pitch: t('loan.pitch', { club: club.name }),
       expiresOn: makeDate(state.season + 1, 8, 20),
       leagueLevel: level,
       loan: true,
     } satisfies TransferOffer);
   }
 
-  addNews(state, 'transfer', 'Angebote fuer eine Leihe',
-    'Vereine bieten dir eine Saison mit regelmaessiger Spielzeit an. '
-    + 'Dein Stammverein bleibt bestehen.', true);
+  addNews(state, 'transfer', t('loan.offers.title'), t('loan.offers.body'), true);
 }
 
 /** Wechselt den Spieler leihweise zum aufnehmenden Verein. */
@@ -91,7 +100,9 @@ export function acceptLoan(state: GameState, offer: TransferOffer): boolean {
     until: makeDate(state.season + 1, 6, 30),
   };
 
-  const parentName = state.clubs[user.clubId]?.name ?? 'deinem Verein';
+  const parentName = state.clubs[user.clubId]?.name ?? t('loan.yourClub');
+  // Auch eine Leihe nimmt die Binde: Beim aufnehmenden Verein ist man Gast.
+  dropCaptaincyOnTransfer(user);
   user.clubId = club.id;
   user.contract = {
     clubId: club.id,
@@ -105,11 +116,10 @@ export function acceptLoan(state: GameState, offer: TransferOffer): boolean {
   state.coachRelation = 55;
   state.fanRelation = 50;
 
-  addNews(state, 'transfer', `Leihe zu ${club.name}`,
-    `Du sammelst eine Saison lang Spielpraxis bei ${club.name}. `
-    + `Danach geht es zurueck zu ${parentName}.`, true);
-  addCareerEvent(state, 'transfer', `Leihe zu ${club.name}`,
-    `Von ${parentName} bis zum Saisonende ausgeliehen.`, { clubId: club.id });
+  addNews(state, 'transfer', t('loan.start.title', { club: club.name }),
+    t('loan.start.news', { club: club.name, parent: parentName }), true);
+  addCareerEvent(state, 'transfer', t('loan.start.title', { club: club.name }),
+    t('loan.start.body', { parent: parentName }), { clubId: club.id });
   return true;
 }
 
@@ -147,12 +157,11 @@ export function checkLoanReturn(state: GameState, rng: Rng): boolean {
   state.coachRelation = clamp(55 + (ueberzeugt ? 12 : -5) + rng.float(-3, 3), 0, 100);
   state.fanRelation = 50;
 
-  addNews(state, 'transfer', `Rueckkehr zu ${parent.name}`,
+  addNews(state, 'transfer', t('loan.back.title', { club: parent.name }),
     ueberzeugt
-      ? `${apps} Einsaetze mit einem Schnitt von ${avg.toFixed(2)} - die Leihe hat sich gelohnt. `
-        + 'Der Trainer rechnet mit dir.'
-      : 'Die Leihe ist beendet. Jetzt gilt es, sich hier wieder aufzudraengen.', true);
-  addCareerEvent(state, 'transfer', `Rueckkehr zu ${parent.name}`,
-    `Nach der Leihe zurueck im Stammverein (${apps} Einsaetze).`, { clubId: parent.id });
+      ? t('loan.back.convincedFull', { apps, avg: tDecimal(avg) })
+      : t('loan.back.plain'), true);
+  addCareerEvent(state, 'transfer', t('loan.back.title', { club: parent.name }),
+    t('loan.back.body', { apps }), { clubId: parent.id });
   return true;
 }

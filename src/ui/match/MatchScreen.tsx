@@ -22,15 +22,18 @@ import FormationPitch from '../FormationPitch';
 import MatchTimeline from './MatchTimeline';
 import { Empty, Meter, Panel, Pill, rating, ratingColor, shortName } from '../components';
 import HighlightScene from './HighlightScene';
+import { t, tNumber } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 type Mode = 'simulate' | 'ownHighlights' | 'allHighlights';
 type Phase = 'setup' | 'running' | 'done';
 
+/** Katalogschluessel je Tempostufe - uebersetzt wird bei der Anzeige. */
 const SPEEDS = [
-  { label: 'Langsam', ms: 260 },
-  { label: 'Normal', ms: 130 },
-  { label: 'Schnell', ms: 55 },
-  { label: 'Sehr schnell', ms: 16 },
+  { label: 'match.speed.slow', ms: 260 },
+  { label: 'match.speed.normal', ms: 130 },
+  { label: 'match.speed.fast', ms: 55 },
+  { label: 'match.speed.veryFast', ms: 16 },
 ];
 
 /** Ereignisse, die eine eigene Einblendung bekommen statt nur eine Tickerzeile. */
@@ -38,16 +41,18 @@ const BIG_MOMENTS = new Set<LiveEvent['type']>([
   'goal', 'ownGoal', 'red', 'secondYellow', 'penaltyAwarded', 'penaltyMiss',
 ]);
 
-const MOMENT_LABEL: Partial<Record<LiveEvent['type'], string>> = {
-  goal: 'TOR',
-  ownGoal: 'EIGENTOR',
-  red: 'ROTE KARTE',
-  secondYellow: 'GELB-ROT',
-  penaltyAwarded: 'ELFMETER',
-  penaltyMiss: 'ELFMETER VERSCHOSSEN',
+/** Schluessel je Grossereignis - der Text kommt aus dem Sprachkatalog. */
+const MOMENT_KEY: Partial<Record<LiveEvent['type'], string>> = {
+  goal: 'moment.goal',
+  ownGoal: 'moment.ownGoal',
+  red: 'moment.red',
+  secondYellow: 'moment.secondYellow',
+  penaltyAwarded: 'moment.penaltyAwarded',
+  penaltyMiss: 'moment.penaltyMiss',
 };
 
 export default function MatchScreen() {
+  useLocale();
   const app = useAppState();
   const game = app.game!;
   // Beim Betreten festhalten: nach Spielende wird pendingMatchId geleert,
@@ -238,8 +243,8 @@ export default function MatchScreen() {
   if (!match || !homeClub || !awayClub || !prepared) {
     return (
       <div className="match-screen">
-        <Panel><Empty text="Kein Spiel gefunden." /></Panel>
-        <button onClick={() => setState({ screen: 'career' })}>Zurueck</button>
+        <Panel><Empty text={t('empty.noMatch')} /></Panel>
+        <button onClick={() => setState({ screen: 'career' })}>{t('common.back')}</button>
       </div>
     );
   }
@@ -261,7 +266,7 @@ export default function MatchScreen() {
           <div className="score">{score[0]}:{score[1]}</div>
           <div className="clock">
             {phase === 'setup' ? formatDate(match.date)
-              : phase === 'done' ? 'Abpfiff'
+              : phase === 'done' ? t('match.fullTime')
               : `${engine?.minute ?? 0}. Minute`}
           </div>
         </div>
@@ -276,18 +281,18 @@ export default function MatchScreen() {
           <Pill>{competition?.name}</Pill>
           <Pill>{match.roundName ?? `${match.matchday}. Spieltag`}</Pill>
           <Pill>{homeClub.stadiumName}</Pill>
-          <Pill>{attendance.toLocaleString('de-DE')} Zuschauer</Pill>
+          <Pill>{t('ms.attendance', { n: tNumber(attendance) })}</Pill>
           {importance.label && <Pill tone="warn">{importance.label}</Pill>}
         </div>
         {phase === 'running' && mode !== 'simulate' && (
           <div className="row">
             <button className="small ghost" onClick={() => setPaused((p) => !p)}>
-              {paused ? 'Fortsetzen' : 'Pause'}
+              {paused ? t('match.resume') : t('match.pause')}
             </button>
             <div className="chip-row">
               {SPEEDS.map((s, i) => (
                 <span key={s.label} className={`chip ${speedIndex === i ? 'active' : ''}`}
-                  onClick={() => setSpeedIndex(i)}>{s.label}</span>
+                  onClick={() => setSpeedIndex(i)}>{t(s.label)}</span>
               ))}
             </div>
           </div>
@@ -295,7 +300,7 @@ export default function MatchScreen() {
       </div>
 
       {phase === 'running' && mode !== 'simulate' && (prepared.userInLineup || prepared.userOnBench) && (
-        <Panel title="Deine Ausrichtung">
+        <Panel title={t('ms.yourApproach')}>
           <div className="row between">
             <MentalityRow value={mentality} onChange={changeMentality} />
             <span className="tiny dim">{mentalityHint(mentality)}</span>
@@ -304,14 +309,14 @@ export default function MatchScreen() {
       )}
 
       {phase === 'setup' && (
-        <Panel title="Wie moechtest du dieses Spiel erleben?">
+        <Panel title={t('ms.howToExperience')}>
           <div className="row" style={{ marginBottom: '0.9rem' }}>
-            {prepared.userInLineup && <Pill tone="good">Du stehst in der Startelf</Pill>}
-            {!prepared.userInLineup && prepared.userOnBench && <Pill tone="warn">Du sitzt auf der Bank</Pill>}
+            {prepared.userInLineup && <Pill tone="good">{t('squad.youStart')}</Pill>}
+            {!prepared.userInLineup && prepared.userOnBench && <Pill tone="warn">{t('squad.youAreBenched')}</Pill>}
             {!prepared.userInLineup && !prepared.userOnBench && (
               <Pill tone="bad">
-                {user.injury ? `Verletzt: ${user.injury.name}`
-                  : user.suspension > 0 ? 'Gesperrt' : 'Nicht im Kader'}
+                {user.injury ? t('match.injuredWith', { injury: t(user.injury.name) })
+                  : user.suspension > 0 ? t('squad.suspended') : t('match.notInSquad')}
               </Pill>
             )}
           </div>
@@ -326,11 +331,11 @@ export default function MatchScreen() {
 
           {(prepared.userInLineup || prepared.userOnBench) && (
             <div style={{ marginBottom: '0.9rem' }}>
-              <label>Deine Verfassung</label>
+              <label>{t('match.yourCondition')}</label>
               <div className="grid three">
-                <Meter label="Fitness" value={user.fitness} />
-                <Meter label="Form" value={user.form} />
-                <Meter label="Spielpraxis" value={user.sharpness} />
+                <Meter label={t('player.fitness')} value={user.fitness} />
+                <Meter label={t('player.form')} value={user.form} />
+                <Meter label={t('training.sharpness')} value={user.sharpness} />
               </div>
               {user.fitness < 65 && (
                 <p className="tiny" style={{ color: 'var(--warn)', margin: '0.1rem 0 0' }}>
@@ -349,7 +354,7 @@ export default function MatchScreen() {
 
           {(prepared.userInLineup || prepared.userOnBench) && (
             <div style={{ marginBottom: '0.9rem' }}>
-              <label>Ausrichtung fuer dieses Spiel (jederzeit aenderbar)</label>
+              <label>{t('match.stanceTitle')}</label>
               <div className="row between">
                 <MentalityRow value={mentality} onChange={changeMentality} />
                 <span className="tiny dim">{mentalityHint(mentality)}</span>
@@ -359,7 +364,7 @@ export default function MatchScreen() {
 
           <div className="grid three">
             <button style={{ textAlign: 'left', padding: '0.8rem' }} onClick={() => start('simulate')}>
-              <div style={{ fontWeight: 680 }}>Komplett simulieren</div>
+              <div style={{ fontWeight: 680 }}>{t('match.simulateAll')}</div>
               <div className="tiny muted">
                 Das Spiel wird berechnet. Du erhaeltst Ergebnis, Bewertung und Statistik.
               </div>
@@ -367,7 +372,7 @@ export default function MatchScreen() {
             <button className="primary" style={{ textAlign: 'left', padding: '0.8rem' }}
               disabled={!prepared.userInLineup && !prepared.userOnBench}
               onClick={() => start('ownHighlights')}>
-              <div style={{ fontWeight: 680 }}>Nur eigene Highlights</div>
+              <div style={{ fontWeight: 680 }}>{t('match.ownHighlightsOnly')}</div>
               <div className="tiny" style={{ opacity: 0.85 }}>
                 Der zentrale Modus: Du spielst jede Schluesselszene deines Spielers selbst.
               </div>
@@ -375,7 +380,7 @@ export default function MatchScreen() {
             <button style={{ textAlign: 'left', padding: '0.8rem' }}
               disabled={!prepared.userInLineup && !prepared.userOnBench}
               onClick={() => start('allHighlights')}>
-              <div style={{ fontWeight: 680 }}>Alle wichtigen Szenen</div>
+              <div style={{ fontWeight: 680 }}>{t('match.allScenes')}</div>
               <div className="tiny muted">
                 Wie oben, aber du bist auch ohne Ball gefragt: mehr Zweikaempfe und
                 Klaerungen gegnerischer Grosschancen.
@@ -384,7 +389,7 @@ export default function MatchScreen() {
           </div>
 
           <div style={{ marginTop: '1rem' }}>
-            <h4 style={{ marginBottom: '0.5rem' }}>Kraefteverhaeltnis</h4>
+            <h4 style={{ marginBottom: '0.5rem' }}>{t('match.balanceOfPlay')}</h4>
             <StrengthCompare
               home={prepared.homeLineup} away={prepared.awayLineup}
               homeShort={homeClub.short} awayShort={awayClub.short}
@@ -392,12 +397,12 @@ export default function MatchScreen() {
           </div>
 
           <div className="row between" style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>
-            <h4 style={{ margin: 0 }}>Aufstellungen</h4>
+            <h4 style={{ margin: 0 }}>{t('match.lineups')}</h4>
             <div className="row" style={{ gap: '0.3rem' }}>
               <span className={`chip ${lineupView === 'pitch' ? 'active' : ''}`}
-                onClick={() => setLineupView('pitch')}>Feld</span>
+                onClick={() => setLineupView('pitch')}>{t('match.pitchView')}</span>
               <span className={`chip ${lineupView === 'list' ? 'active' : ''}`}
-                onClick={() => setLineupView('list')}>Liste</span>
+                onClick={() => setLineupView('list')}>{t('match.listView')}</span>
             </div>
           </div>
 
@@ -444,7 +449,7 @@ export default function MatchScreen() {
       )}
 
       {phase !== 'setup' && engine && events.length > 0 && (
-        <Panel title="Verlauf">
+        <Panel title={t('ms.course')}>
           <MatchTimeline
             events={events}
             minute={engine.minute}
@@ -457,39 +462,39 @@ export default function MatchScreen() {
 
       {phase !== 'setup' && (
         <div className="grid two">
-          <Panel title="Spielverlauf">
+          <Panel title={t('ms.timeline')}>
             <div className="timeline" ref={timelineRef}>
-              {events.length === 0 && <Empty text="Anpfiff steht bevor." />}
+              {events.length === 0 && <Empty text={t('empty.kickoffSoon')} />}
               {events.map((e, i) => (
                 <EventRow key={i} event={e} fresh={i === events.length - 1} />
               ))}
             </div>
           </Panel>
 
-          <Panel title="Deine Leistung">
+          <Panel title={t('ms.yourPerformance')}>
             {!userStats || userStats.minutes === 0 ? (
-              <Empty text="Du bist noch nicht im Spiel." />
+              <Empty text={t('empty.notOnPitchYet')} />
             ) : (
               <>
                 <div className="grid four">
-                  <div className="stat"><div className="value">{userStats.goals}</div><div className="label">Tore</div></div>
-                  <div className="stat"><div className="value">{userStats.assists}</div><div className="label">Vorlagen</div></div>
-                  <div className="stat"><div className="value">{userStats.minutes}</div><div className="label">Minuten</div></div>
+                  <div className="stat"><div className="value">{userStats.goals}</div><div className="label">{t('stats.goals')}</div></div>
+                  <div className="stat"><div className="value">{userStats.assists}</div><div className="label">{t('stats.assists')}</div></div>
+                  <div className="stat"><div className="value">{userStats.minutes}</div><div className="label">{t('stats.minutes')}</div></div>
                   <div className="stat">
                     <div className="value" style={{ color: ratingColor(userStats.rating) }}>
                       {phase === 'done' ? rating(userStats.rating) : '-'}
                     </div>
-                    <div className="label">Note</div>
+                    <div className="label">{t('stats.rating')}</div>
                   </div>
                 </div>
                 <div className="small" style={{ marginTop: '0.7rem' }}>
-                  <StatLine label="Schuesse" value={`${userStats.shotsOnTarget}/${userStats.shots}`} />
-                  <StatLine label="Paesse" value={`${userStats.passesCompleted}/${userStats.passes}`} />
-                  <StatLine label="Schluesselpaesse" value={userStats.keyPasses} />
-                  <StatLine label="Zweikaempfe" value={`${userStats.duelsWon}/${userStats.duels}`} />
-                  {userStats.tackles > 0 && <StatLine label="Graetschen" value={userStats.tackles} />}
-                  {userStats.saves > 0 && <StatLine label="Paraden" value={userStats.saves} />}
-                  {userStats.yellowCards > 0 && <StatLine label="Gelbe Karten" value={userStats.yellowCards} />}
+                  <StatLine label={t('stats.shots')} value={`${userStats.shotsOnTarget}/${userStats.shots}`} />
+                  <StatLine label={t('match.passes')} value={`${userStats.passesCompleted}/${userStats.passes}`} />
+                  <StatLine label={t('stats.keyPasses')} value={userStats.keyPasses} />
+                  <StatLine label={t('ms.duels')} value={`${userStats.duelsWon}/${userStats.duels}`} />
+                  {userStats.tackles > 0 && <StatLine label={t('stats.tackles')} value={userStats.tackles} />}
+                  {userStats.saves > 0 && <StatLine label={t('stats.saves')} value={userStats.saves} />}
+                  {userStats.yellowCards > 0 && <StatLine label={t('stats.yellowCards')} value={userStats.yellowCards} />}
                 </div>
               </>
             )}
@@ -502,7 +507,7 @@ export default function MatchScreen() {
                   </p>
                 )}
                 {outcome.motmId === game.userPlayerId && (
-                  <p className="pill good">Spieler des Spiels</p>
+                  <p className="pill good">{t('match.motm')}</p>
                 )}
                 {outcome.userInputQuality !== null && (
                   <p className="tiny dim">
@@ -517,7 +522,7 @@ export default function MatchScreen() {
                     border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
                     background: '#0c1729',
                   }}>
-                    <div className="tiny dim">Interview nach dem Spiel</div>
+                    <div className="tiny dim">{t('match.interview')}</div>
                     <div style={{ fontWeight: 620, margin: '0.2rem 0 0.6rem' }}>
                       „{interview.question}"
                     </div>
@@ -539,7 +544,7 @@ export default function MatchScreen() {
                     border: '1px solid var(--border-soft)', borderRadius: 'var(--radius-sm)',
                     background: '#0c1729',
                   }}>
-                    <div className="tiny dim">Deine Antwort</div>
+                    <div className="tiny dim">{t('match.yourAnswer')}</div>
                     <div className="small" style={{ fontStyle: 'italic', marginBottom: '0.3rem' }}>
                       „{interviewReaction.label}"
                     </div>
@@ -550,7 +555,7 @@ export default function MatchScreen() {
 
                 <button className="primary" style={{ width: '100%', marginTop: '0.5rem' }}
                   onClick={leave}>
-                  {interview && !interviewReaction ? 'Interview ueberspringen und zurueck' : 'Zurueck zur Karriere'}
+                  {interview && !interviewReaction ? t('match.skipInterview') : t('match.backToCareer')}
                 </button>
               </div>
             )}
@@ -573,6 +578,7 @@ export default function MatchScreen() {
           decision={halftime}
           homeShort={homeClub.short}
           awayShort={awayClub.short}
+          leadership={user.attrs.leadership}
           onChoose={resolveHalftime}
         />
       )}
@@ -610,7 +616,7 @@ function MomentOverlay(
     <div className={`moment ${tone}`} onClick={onSkip}>
       <div className="moment-card">
         <div className="moment-minute">{event.minute}.</div>
-        <div className="moment-label">{MOMENT_LABEL[event.type] ?? 'Ereignis'}</div>
+        <div className="moment-label">{t(MOMENT_KEY[event.type] ?? 'match.event')}</div>
         {event.score && (
           <div className="moment-score">
             {homeShort} <b>{event.score[0]}:{event.score[1]}</b> {awayShort}
@@ -632,7 +638,7 @@ function InjuryModal(
     <div className="modal-overlay">
       <div className="modal">
         <div className="row between" style={{ marginBottom: '0.4rem' }}>
-          <h2 style={{ margin: 0 }}>Verletzung ({decision.minute}.)</h2>
+          <h2 style={{ margin: 0 }}>{t('match.injuryAt', { minute: decision.minute })}</h2>
           <span className={`pill ${sevTone}`}>{decision.severity}</span>
         </div>
         <p className="muted">
@@ -643,14 +649,14 @@ function InjuryModal(
         <div className="grid two" style={{ marginTop: '0.6rem' }}>
           <button className="primary" style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
             onClick={() => onChoose('off')}>
-            <div style={{ fontWeight: 680 }}>Auswechseln lassen</div>
+            <div style={{ fontWeight: 680 }}>{t('match.halftimeSubOff')}</div>
             <div className="tiny" style={{ opacity: 0.85 }}>
               Sicher. Etwa {decision.estimatedDays} Tage Pause, normale Genesung.
             </div>
           </button>
           <button style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
             onClick={() => onChoose('play')}>
-            <div style={{ fontWeight: 680 }}>Auf die Zaehne beissen</div>
+            <div style={{ fontWeight: 680 }}>{t('match.halftimeFightOn')}</div>
             <div className="tiny muted">
               Weiterspielen mit Leistungseinbruch. Geht es gut, kommst du
               glimpflich davon - sonst wird es schlimmer.
@@ -669,9 +675,11 @@ function InjuryModal(
 }
 
 function HalftimeModal(
-  { decision, homeShort, awayShort, onChoose }:
+  { decision, homeShort, awayShort, leadership, onChoose }:
   {
     decision: HalftimeDecision; homeShort: string; awayShort: string;
+    /** Fuehrungsstaerke des eigenen Spielers - sie traegt die Ansprache. */
+    leadership: number;
     onChoose: (id: string) => void;
   },
 ) {
@@ -683,15 +691,12 @@ function HalftimeModal(
     <div className="modal-overlay">
       <div className="modal">
         <div className="row between" style={{ marginBottom: '0.4rem' }}>
-          <h2 style={{ margin: 0 }}>Halbzeit</h2>
+          <h2 style={{ margin: 0 }}>{t('match.halftime')}</h2>
           <span className={`pill ${tone}`}>{homeShort} {h}:{a} {awayShort}</span>
         </div>
         <p className="muted" style={{ fontStyle: 'italic' }}>„{decision.coachMessage}"</p>
         {!decision.onPitch && (
-          <p className="tiny dim">
-            Du sitzt auf der Bank - deine Ansage wirkt gedaempfter, aber du kannst
-            die Mannschaft trotzdem einstellen.
-          </p>
+          <p className="tiny dim">{t('match.halftimeFromBench')}</p>
         )}
         <div className="grid two" style={{ marginTop: '0.6rem' }}>
           {decision.options.map((o) => (
@@ -700,6 +705,17 @@ function HalftimeModal(
               onClick={() => onChoose(o.id)}>
               <div style={{ fontWeight: 680, marginBottom: 2 }}>{o.label}</div>
               <div className="tiny muted">{o.description}</div>
+              {/* Die Ansprache skaliert mit der eigenen Fuehrungsstaerke
+                  (Faktor (Fuehrung - 55) / 100 in der Spielsimulation). Ohne
+                  diesen Hinweis waehlt man blind: Bei niedriger Fuehrung ist
+                  die Ansprache schwaecher als das schlichte Anlaufen. */}
+              {o.leadership && (
+                <div className="tiny" style={{ marginTop: 4, color: leadership >= 55 ? 'var(--good, #7ce6a5)' : 'var(--bad, #c86)' }}>
+                  {t(leadership >= 70 ? 'match.rally.strong'
+                    : leadership >= 55 ? 'match.rally.ok' : 'match.rally.weak',
+                    { value: leadership })}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -717,7 +733,7 @@ function MentalityRow(
     <div className="chip-row">
       {MENTALITY_ORDER.map((m) => (
         <span key={m} className={`chip ${value === m ? 'active' : ''}`}
-          onClick={() => onChange(m)}>{MENTALITY_LABELS[m]}</span>
+          onClick={() => onChange(m)}>{t(MENTALITY_LABELS[m])}</span>
       ))}
     </div>
   );
@@ -725,11 +741,11 @@ function MentalityRow(
 
 function InterviewEffects({ effect }: { effect: InterviewOption['effect'] }) {
   const items: { label: string; value: number }[] = [
-    { label: 'Moral', value: effect.morale ?? 0 },
-    { label: 'Trainer', value: effect.coach ?? 0 },
-    { label: 'Fans', value: effect.fans ?? 0 },
-    { label: 'Image', value: effect.image ?? 0 },
-    { label: 'Reputation', value: effect.reputation ?? 0 },
+    { label: t('player.morale'), value: effect.morale ?? 0 },
+    { label: t('player.coach'), value: effect.coach ?? 0 },
+    { label: t('player.fans'), value: effect.fans ?? 0 },
+    { label: t('player.image'), value: effect.image ?? 0 },
+    { label: t('club.reputation'), value: effect.reputation ?? 0 },
   ].filter((i) => i.value !== 0);
   if (items.length === 0) return null;
   return (
@@ -745,10 +761,10 @@ function InterviewEffects({ effect }: { effect: InterviewOption['effect'] }) {
 
 function mentalityHint(m: Mentality): string {
   switch (m) {
-    case 'attack': return 'Mehr Abschluesse und Dribblings, hoher Kraftverbrauch.';
-    case 'contain': return 'Mehr Zweikaempfe und Klaerungen, weniger im Angriff.';
-    case 'conserve': return 'Zurueckhaltung, schont die Fitness fuer spaeter.';
-    default: return 'Ausgeglichene Beteiligung in Angriff und Abwehr.';
+    case 'attack': return t('match.stance.attackDesc');
+    case 'contain': return t('match.stance.defendDesc');
+    case 'conserve': return t('match.stance.holdDesc');
+    default: return t('match.stance.balancedDesc');
   }
 }
 
@@ -843,7 +859,7 @@ function TeamStatsPanel(
   },
 ) {
   const rows: { label: string; h: number; a: number; pct?: boolean }[] = [
-    { label: 'Schuesse', h: home.shots, a: away.shots },
+    { label: t('stats.shots'), h: home.shots, a: away.shots },
     { label: 'aufs Tor', h: home.shotsOnTarget, a: away.shotsOnTarget },
   ];
   if (full) {
@@ -851,16 +867,16 @@ function TeamStatsPanel(
     const totalPass = home.passes + away.passes;
     if (totalPass > 0) {
       const hp = Math.round((home.passes / totalPass) * 100);
-      rows.push({ label: 'Ballbesitz', h: hp, a: 100 - hp, pct: true });
+      rows.push({ label: t('match.possession'), h: hp, a: 100 - hp, pct: true });
     }
-    if (home.fouls + away.fouls > 0) rows.push({ label: 'Fouls', h: home.fouls, a: away.fouls });
-    if (home.cards + away.cards > 0) rows.push({ label: 'Karten', h: home.cards, a: away.cards });
+    if (home.fouls + away.fouls > 0) rows.push({ label: t('match.fouls'), h: home.fouls, a: away.fouls });
+    if (home.cards + away.cards > 0) rows.push({ label: t('match.cards'), h: home.cards, a: away.cards });
   }
   return (
-    <Panel title="Spielstatistik">
+    <Panel title={t('ms.matchStats')}>
       <div className="row between" style={{ marginBottom: '0.55rem' }}>
         <span className="tiny" style={{ color: 'var(--accent)', fontWeight: 700 }}>{homeShort}</span>
-        <span className="tiny dim">{full ? 'Endstand' : 'live'}</span>
+        <span className="tiny dim">{full ? t('match.finalScore') : 'live'}</span>
         <span className="tiny" style={{ color: 'var(--accent-2)', fontWeight: 700 }}>{awayShort}</span>
       </div>
       {rows.map((r) => <StatCompare key={r.label} {...r} />)}
@@ -900,10 +916,10 @@ function StrengthCompare(
   },
 ) {
   const rows = [
-    { label: 'Angriff', h: home.attack, a: away.attack },
-    { label: 'Mittelfeld', h: home.midfield, a: away.midfield },
-    { label: 'Abwehr', h: home.defence, a: away.defence },
-    { label: 'Torwart', h: home.keeper, a: away.keeper },
+    { label: t('squad.attack'), h: home.attack, a: away.attack },
+    { label: t('squad.midfield'), h: home.midfield, a: away.midfield },
+    { label: t('squad.defence'), h: home.defence, a: away.defence },
+    { label: t('match.keeper'), h: home.keeper, a: away.keeper },
   ];
   return (
     <div>

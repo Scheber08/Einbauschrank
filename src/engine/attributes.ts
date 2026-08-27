@@ -38,37 +38,37 @@ export type AttrKey = (typeof ALL_ATTRS)[number];
 export type Attributes = Record<AttrKey, number>;
 
 export const ATTR_LABELS: Record<AttrKey, string> = {
-  ballControl: 'Ballkontrolle', dribbling: 'Dribbling', shortPass: 'Kurze Paesse',
-  longPass: 'Lange Paesse', crossing: 'Flanken', finishing: 'Abschluss',
-  shotPower: 'Schusskraft', longShots: 'Fernschuesse', volleys: 'Volleys',
-  penalties: 'Elfmeter', freeKicks: 'Freistoesse', curve: 'Effet',
-  heading: 'Kopfballtechnik', firstTouch: 'Erster Kontakt', weakFoot: 'Schwacher Fuss',
+  ballControl: 'attr.ballControl', dribbling: 'attr.dribbling', shortPass: 'attr.shortPass',
+  longPass: 'attr.longPass', crossing: 'attr.crossing', finishing: 'attr.finishing',
+  shotPower: 'attr.shotPower', longShots: 'attr.longShots', volleys: 'attr.volleys',
+  penalties: 'attr.penalties', freeKicks: 'attr.freeKicks', curve: 'attr.curve',
+  heading: 'attr.heading', firstTouch: 'attr.firstTouch', weakFoot: 'attr.weakFoot',
 
-  acceleration: 'Beschleunigung', pace: 'Geschwindigkeit', stamina: 'Ausdauer',
-  strength: 'Kraft', jumping: 'Sprungkraft', agility: 'Beweglichkeit',
-  balance: 'Balance', reactions: 'Reaktion', robustness: 'Robustheit',
+  acceleration: 'attr.acceleration', pace: 'attr.pace', stamina: 'attr.stamina',
+  strength: 'attr.strength', jumping: 'attr.jumping', agility: 'attr.agility',
+  balance: 'attr.balance', reactions: 'attr.reactions', robustness: 'attr.robustness',
 
-  vision: 'Uebersicht', decisions: 'Entscheidungen', concentration: 'Konzentration',
-  anticipation: 'Antizipation', composure: 'Ruhe', bravery: 'Mut',
-  teamwork: 'Teamwork', leadership: 'Fuehrungsstaerke', discipline: 'Disziplin',
-  ambition: 'Ehrgeiz', professionalism: 'Professionalitaet', resilience: 'Belastbarkeit',
+  vision: 'attr.vision', decisions: 'attr.decisions', concentration: 'attr.concentration',
+  anticipation: 'attr.anticipation', composure: 'attr.composure', bravery: 'attr.bravery',
+  teamwork: 'attr.teamwork', leadership: 'attr.leadership', discipline: 'attr.discipline',
+  ambition: 'attr.ambition', professionalism: 'attr.professionalism', resilience: 'attr.resilience',
 
-  defPositioning: 'Stellungsspiel', tackling: 'Zweikampf', slideTackle: 'Graetsche',
-  marking: 'Manndeckung', interception: 'Abfangen', pressing: 'Pressing',
-  defHeading: 'Defensivkopfball', blocking: 'Blocken',
+  defPositioning: 'attr.defPositioning', tackling: 'attr.tackling', slideTackle: 'attr.slideTackle',
+  marking: 'attr.marking', interception: 'attr.interception', pressing: 'attr.pressing',
+  defHeading: 'attr.defHeading', blocking: 'attr.blocking',
 
-  reflexes: 'Reflexe', handling: 'Fangen', deflecting: 'Abwehren',
-  gkPositioning: 'Stellungsspiel (TW)', rushingOut: 'Herauslaufen', oneOnOne: 'Eins gegen eins',
-  crossHandling: 'Flankenbeherrschung', goalKicks: 'Abschlaege', throwing: 'Abwuerfe',
-  communication: 'Kommunikation',
+  reflexes: 'attr.reflexes', handling: 'attr.handling', deflecting: 'attr.deflecting',
+  gkPositioning: 'attr.gkPositioning', rushingOut: 'attr.rushingOut', oneOnOne: 'attr.oneOnOne',
+  crossHandling: 'attr.crossHandling', goalKicks: 'attr.goalKicks', throwing: 'attr.throwing',
+  communication: 'attr.communication',
 };
 
 export const ATTR_GROUPS: { key: string; label: string; attrs: readonly AttrKey[] }[] = [
-  { key: 'technical', label: 'Technik', attrs: TECHNICAL_ATTRS },
-  { key: 'physical', label: 'Koerper', attrs: PHYSICAL_ATTRS },
-  { key: 'mental', label: 'Mental', attrs: MENTAL_ATTRS },
-  { key: 'defensive', label: 'Defensive', attrs: DEFENSIVE_ATTRS },
-  { key: 'goalkeeping', label: 'Torwart', attrs: GK_ATTRS },
+  { key: 'technical', label: 'attrGroup.technical', attrs: TECHNICAL_ATTRS },
+  { key: 'physical', label: 'attrGroup.physical', attrs: PHYSICAL_ATTRS },
+  { key: 'mental', label: 'attrGroup.mental', attrs: MENTAL_ATTRS },
+  { key: 'defensive', label: 'attrGroup.defensive', attrs: DEFENSIVE_ATTRS },
+  { key: 'goalkeeping', label: 'attrGroup.goalkeeping', attrs: GK_ATTRS },
 ];
 
 // --- Positionen (Konzept Abschnitt 14.3) --------------------------------
@@ -77,16 +77,16 @@ export const POSITIONS = ['TW', 'IV', 'LV', 'RV', 'DM', 'ZM', 'OM', 'LA', 'RA', 
 export type PositionCode = (typeof POSITIONS)[number];
 
 export const POSITION_LABELS: Record<PositionCode, string> = {
-  TW: 'Torwart',
-  IV: 'Innenverteidiger',
-  LV: 'Linker Aussenverteidiger',
-  RV: 'Rechter Aussenverteidiger',
-  DM: 'Defensives Mittelfeld',
-  ZM: 'Zentrales Mittelfeld',
-  OM: 'Offensives Mittelfeld',
-  LA: 'Linker Fluegel',
-  RA: 'Rechter Fluegel',
-  ST: 'Mittelstuermer',
+  TW: 'pos.TW',
+  IV: 'pos.IV',
+  LV: 'pos.LV',
+  RV: 'pos.RV',
+  DM: 'pos.DM',
+  ZM: 'pos.ZM',
+  OM: 'pos.OM',
+  LA: 'pos.LA',
+  RA: 'pos.RA',
+  ST: 'pos.ST',
 };
 
 /** Grobe Zuordnung fuer Simulation und Aufstellung. */
@@ -125,23 +125,23 @@ export const POSITION_WEIGHTS: Record<PositionCode, Weights> = {
     reactions: 7, agility: 5, jumping: 4, concentration: 6, composure: 5, bravery: 3,
   },
   IV: {
-    defPositioning: 10, marking: 9, tackling: 9, defHeading: 8, blocking: 6,
+    defPositioning: 10, marking: 9, tackling: 9, slideTackle: 4, defHeading: 8, blocking: 6,
     interception: 7, strength: 7, jumping: 6, anticipation: 7, concentration: 6,
     decisions: 5, composure: 4, pace: 4, acceleration: 3, shortPass: 4, longPass: 3,
     ballControl: 3, leadership: 3, bravery: 4, reactions: 4,
   },
   LV: {
-    defPositioning: 7, marking: 7, tackling: 7, interception: 6, pressing: 5,
+    defPositioning: 7, marking: 7, tackling: 7, slideTackle: 4, interception: 6, pressing: 5,
     pace: 8, acceleration: 7, stamina: 8, crossing: 7, shortPass: 5, ballControl: 5,
     dribbling: 4, teamwork: 5, anticipation: 5, decisions: 4, agility: 4, balance: 3,
   },
   RV: {
-    defPositioning: 7, marking: 7, tackling: 7, interception: 6, pressing: 5,
+    defPositioning: 7, marking: 7, tackling: 7, slideTackle: 4, interception: 6, pressing: 5,
     pace: 8, acceleration: 7, stamina: 8, crossing: 7, shortPass: 5, ballControl: 5,
     dribbling: 4, teamwork: 5, anticipation: 5, decisions: 4, agility: 4, balance: 3,
   },
   DM: {
-    defPositioning: 8, interception: 8, tackling: 8, marking: 6, pressing: 6,
+    defPositioning: 8, interception: 8, tackling: 8, slideTackle: 3, marking: 6, pressing: 6,
     shortPass: 8, longPass: 6, ballControl: 6, firstTouch: 5, vision: 5,
     decisions: 7, concentration: 6, teamwork: 7, stamina: 7, strength: 5,
     anticipation: 6, composure: 5,

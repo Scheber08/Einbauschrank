@@ -73,14 +73,14 @@ export type TacticStyle =
   | 'wingPlay' | 'direct' | 'longBall' | 'buildUp';
 
 export const TACTIC_LABELS: Record<TacticStyle, string> = {
-  possession: 'Ballbesitz',
-  counter: 'Konter',
-  highPress: 'Hohes Pressing',
-  deepBlock: 'Tiefes Verteidigen',
-  wingPlay: 'Fluegelspiel',
-  direct: 'Direktes Spiel',
-  longBall: 'Lange Baelle',
-  buildUp: 'Kontrollierter Aufbau',
+  possession: 'tactic.possession',
+  counter: 'tactic.counter',
+  highPress: 'tactic.highPress',
+  deepBlock: 'tactic.deepBlock',
+  wingPlay: 'tactic.wingPlay',
+  direct: 'tactic.direct',
+  longBall: 'tactic.longBall',
+  buildUp: 'tactic.buildUp',
 };
 
 // --- Spieler ------------------------------------------------------------
@@ -594,6 +594,12 @@ export interface GameState {
 
   training: TrainingPlan;
   objectives: SeasonObjective[];
+
+  /**
+   * Bereits ausgesprochene Hinweise auf ein Vertragsende, damit dieselbe
+   * Erinnerung nicht mehrfach im Postfach landet.
+   */
+  contractReminders?: string[];
 
   /** Beziehung zum Trainer des aktuellen Vereins, 0-100. */
   coachRelation: number;

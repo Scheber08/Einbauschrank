@@ -11,9 +11,11 @@ import { effectiveOverall, computeOverall } from './attributes';
 import { COUNTRIES, COUNTRY_BY_ID } from './countries';
 import { ageOn } from './date';
 import { addCareerEvent, addNews } from './ids';
+import { checkCapMilestones } from './milestones';
 import {
   NATIONS, NATION_BY_ID, gameCountryOfNation, nationName, nationOfGameCountry,
 } from './nations';
+import { t } from '../i18n';
 import { Rng, clamp } from './rng';
 import type { GameState, Id, Player, WncResult } from './types';
 
@@ -88,7 +90,10 @@ export function evaluateNomination(state: GameState): boolean {
 
   // Guter Spieler auf einer nicht ueberlaufenen Position wird nominiert.
   const score = ability + (user.form - 50) / 4 + (user.reputation - 40) / 8 - (rank - 1) * 6;
-  const threshold = 58 + nationReputation(user.nationality) / 10;
+  // Nationaltrainer waehlen auch nach Auftreten aus: Wer als Vorbild gilt,
+  // wird eher berufen als ein gleich starker Spieler mit schlechtem Ruf.
+  const threshold = 58 + nationReputation(user.nationality) / 10
+    - (state.publicImage - 50) / 12;
   return score >= threshold;
 }
 
@@ -174,6 +179,12 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
   const nominated = state.nationalNominated && !!userNation;
   let userCaps = 0;
   let userGoals = 0;
+  /**
+   * Wie weit die eigene Nation kam - als stabiler Schluessel, nicht als
+   * fertiger Text. Frueher stand hier "Sieg", und die Oberflaeche verglich
+   * genau dagegen; mit der Uebersetzung waere dieser Vergleich stillschweigend
+   * falsch geworden.
+   */
   let userReached: string | undefined;
 
   // Traegt die Beteiligung des Spielers ein, wenn seine Nation spielt.
@@ -205,8 +216,8 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
         if (ga > gb) teams[i].points += 3;
         else if (gb > ga) teams[j].points += 3;
         else { teams[i].points++; teams[j].points++; }
-        recordUser(teams[i].nation, 'Gruppenphase', ga > gb);
-        recordUser(teams[j].nation, 'Gruppenphase', gb > ga);
+        recordUser(teams[i].nation, 'group', ga > gb);
+        recordUser(teams[j].nation, 'group', gb > ga);
       }
     }
     teams.sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf);
@@ -229,14 +240,14 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
     return winners;
   };
 
-  const quarter = koRound(advancers, 'Viertelfinale');
-  const semi = koRound(quarter, 'Halbfinale');
+  const quarter = koRound(advancers, 'quarter');
+  const semi = koRound(quarter, 'semi');
   const finalists = semi;
-  const champion = koRound(finalists, 'Finale')[0];
+  const champion = koRound(finalists, 'final')[0];
   const runnerUp = finalists.find((n) => n.id !== champion.id) ?? finalists[0];
 
   // Erreichte der Nutzer das Finale und gewann?
-  if (nominated && userNation === champion.id) userReached = 'Sieg';
+  if (nominated && userNation === champion.id) userReached = 'won';
 
   const result: WncResult = {
     year: state.season,
@@ -250,22 +261,26 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
 
   // In den Spielstand eintragen.
   state.wncHistory.push(result);
+  const capsVorher = state.nationalCaps;
   state.nationalCaps += userCaps;
+  checkCapMilestones(state, capsVorher, state.nationalCaps, rng);
   state.nationalGoals += userGoals;
 
-  addNews(state, 'national', `${champion.name} gewinnt den World Nations Cup ${state.season}`,
-    `Im Finale setzte sich ${champion.name} gegen ${runnerUp.name} durch.`, true);
+  addNews(state, 'national',
+    t('nat.wnc.news', { champion: champion.name, season: state.season }),
+    t('nat.wnc.newsBody', { champion: champion.name, runnerUp: runnerUp.name }), true);
 
   if (nominated && user) {
     if (userNation === champion.id) {
-      state.honours.push({ season: state.season, label: 'World Nations Cup gewonnen' });
-      addCareerEvent(state, 'title', 'World Nations Cup gewonnen',
-        `Mit der Nationalmannschaft von ${champion.name} den World Nations Cup geholt - `
-        + `der groesste Erfolg einer Karriere.`);
+      state.honours.push({ season: state.season, label: t('honour.wnc') });
+      addCareerEvent(state, 'title', t('nat.wnc.wonTitle'),
+        t('nat.wnc.wonBody', { nation: champion.name }));
     } else if (userReached) {
-      addCareerEvent(state, 'national', `World Nations Cup: ${userReached}`,
-        `Mit der Nationalmannschaft beim World Nations Cup ${state.season} bis zum `
-        + `${userReached} gekommen (${userCaps} Spiele, ${userGoals} Tore).`);
+      const runde = t(`wnc.round.${userReached}`);
+      addCareerEvent(state, 'national', t('nat.wnc.eventTitle', { round: runde }),
+        t('wnc.careerEvent', {
+          season: state.season, round: runde, caps: userCaps, goals: userGoals,
+        }));
     }
   }
 
@@ -285,12 +300,12 @@ export function updateNationalStatus(state: GameState) {
 
   if (nominated && !wasNominated) {
     const land = nationName(user.nationality);
-    addNews(state, 'national', 'Nationalmannschaft: Berufung',
-      `${user.firstName} ${user.lastName} wird erstmals fuer ${land} nominiert.`,
-      true);
-    addCareerEvent(state, 'national', 'Erste Nominierung',
-      `Berufung in die Nationalmannschaft von ${land} mit `
-      + `${ageOn(user.birthDate, state.date)} Jahren.`);
+    addNews(state, 'national', t('nat.call.news'),
+      t('nat.call.newsBody', {
+        name: `${user.firstName} ${user.lastName}`, nation: land,
+      }), true);
+    addCareerEvent(state, 'national', t('nat.call.title'),
+      t('nat.call.body', { nation: land, age: ageOn(user.birthDate, state.date) }));
   }
 }
 

@@ -5,10 +5,13 @@ import { userClub } from '../../engine/game';
 import { selectLineup } from '../../engine/lineup';
 import { clubSponsors } from '../../engine/identity';
 import { nationCode, nationName } from '../../engine/nations';
+import { t, tNumber } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 import { RELATION_LABELS, relationList } from '../../engine/relationships';
+import { wageBill, wageRoom } from '../../engine/finance';
 import { derbyKind, derbyLabel, rivalsOf } from '../../engine/rivalry';
 import { squadOf } from '../../engine/worldGen';
-import { DIFFICULTY_SETTINGS } from '../../engine/types';
+import { TACTIC_LABELS, DIFFICULTY_SETTINGS } from '../../engine/types';
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import FormationPitch from '../FormationPitch';
@@ -17,6 +20,7 @@ import { Empty, Meter, Panel, Pill, money, shortName } from '../components';
 type SortKey = 'position' | 'ability' | 'age' | 'form' | 'value';
 
 export default function SquadTab() {
+  useLocale();
   const game = useAppState().game!;
   const club = userClub(game);
   const [sort, setSort] = useState<SortKey>('position');
@@ -36,6 +40,18 @@ export default function SquadTab() {
 
   const starterIds = new Set(lineup?.starters.map((s) => s.playerId) ?? []);
   const sponsors = club ? clubSponsors(club) : { shirt: '-', kit: '-' };
+  // Wie viel Gehalt der Verein noch vergeben kann - als Stufe, nicht als
+  // Zahl: Die genaue Summe waere eine Auskunft, die ein Spieler nicht haette.
+  const kassenlage = (() => {
+    if (!club) return { stufe: 'plenty' as const, eng: false };
+    const last = wageBill(game, club.id);
+    const raum = wageRoom(club, last);
+    const anteil = raum / Math.max(1, club.wageBudget);
+    if (anteil <= 0) return { stufe: 'none' as const, eng: true };
+    if (anteil < 0.06) return { stufe: 'tight' as const, eng: true };
+    if (anteil < 0.18) return { stufe: 'some' as const, eng: false };
+    return { stufe: 'plenty' as const, eng: false };
+  })();
   const rivals = useMemo(
     () => (club ? rivalsOf(game, club.id) : []),
     [club, game.clubs, game.version],
@@ -59,39 +75,40 @@ export default function SquadTab() {
     });
   }, [squad, sort, game.date]);
 
-  if (!club) return <Panel><Empty text="Kein Verein." /></Panel>;
+  if (!club) return <Panel><Empty text={t('empty.noClub')} /></Panel>;
 
   return (
     <>
       <Panel title={club.name} action={
         <div className="row">
           <Pill>{club.formation}</Pill>
-          <Pill>Reputation {club.reputation}</Pill>
+          <Pill>{t('club.reputation')} {club.reputation}</Pill>
         </div>
       }>
         <div className="grid four">
-          <div className="stat"><div className="value">{squad.length}</div><div className="label">Kadergroesse</div></div>
+          <div className="stat"><div className="value">{squad.length}</div>
+            <div className="label">{t('squad.size')}</div></div>
           <div className="stat">
             <div className="value">{lineup ? Math.round(lineup.attack) : '-'}</div>
-            <div className="label">Angriff</div>
+            <div className="label">{t('squad.attack')}</div>
           </div>
           <div className="stat">
             <div className="value">{lineup ? Math.round(lineup.midfield) : '-'}</div>
-            <div className="label">Mittelfeld</div>
+            <div className="label">{t('squad.midfield')}</div>
           </div>
           <div className="stat">
             <div className="value">{lineup ? Math.round(lineup.defence) : '-'}</div>
-            <div className="label">Abwehr</div>
+            <div className="label">{t('squad.defence')}</div>
           </div>
         </div>
         {lineup && (
           <div style={{ marginTop: '0.9rem' }}>
             <div className="row between" style={{ marginBottom: '0.4rem' }}>
-              <span className="tiny dim">Voraussichtliche Startelf</span>
+              <span className="tiny dim">{t('squad.expectedEleven')}</span>
               <span className="tiny dim">
-                {starterIds.has(game.userPlayerId) ? 'Du stehst in der Startelf'
-                  : benchIds.has(game.userPlayerId) ? 'Du sitzt auf der Bank'
-                  : 'Du bist derzeit nicht im Kader'}
+                {starterIds.has(game.userPlayerId) ? t('squad.youStart')
+                  : benchIds.has(game.userPlayerId) ? t('squad.youAreBenched')
+                  : t('squad.youAreOut')}
               </span>
             </div>
             <div style={{ maxWidth: 340, margin: '0 auto' }}>
@@ -108,23 +125,34 @@ export default function SquadTab() {
 
         <div className="grid two" style={{ marginTop: '0.9rem' }}>
           <div>
-            <Meter label="Trainingsanlagen" value={club.training} />
-            <Meter label="Nachwuchsarbeit" value={club.youth} />
+            <Meter label={t('club.trainingFacilities')} value={club.training} />
+            <Meter label={t('club.youthWork')} value={club.youth} />
           </div>
           <div className="small muted">
-            <div className="row between"><span>Trainer</span><span>{club.managerName}</span></div>
-            <div className="row between"><span>Stadion</span><span>{club.stadiumName}</span></div>
-            <div className="row between"><span>Kapazitaet</span>
-              <span>{club.stadiumCapacity.toLocaleString('de-DE')}</span></div>
-            <div className="row between"><span>Spielstil</span><span>{club.tacticStyle}</span></div>
-            <div className="row between"><span>Trikotsponsor</span><span>{sponsors.shirt}</span></div>
-            <div className="row between"><span>Ausruester</span><span>{sponsors.kit}</span></div>
+            <div className="row between"><span>{t('club.manager')}</span><span>{club.managerName}</span></div>
+            <div className="row between"><span>{t('club.stadium')}</span><span>{club.stadiumName}</span></div>
+            <div className="row between"><span>{t('club.capacity')}</span>
+              <span>{tNumber(club.stadiumCapacity)}</span></div>
+            <div className="row between"><span>{t('club.playStyle')}</span>
+              <span>{t(TACTIC_LABELS[club.tacticStyle])}</span></div>
+            <div className="row between"><span>{t('club.shirtSponsor')}</span><span>{sponsors.shirt}</span></div>
+            <div className="row between"><span>{t('club.kitMaker')}</span><span>{sponsors.kit}</span></div>
+            {/* Die Kassenlage entscheidet, ob der Verein eine Gehaltsforderung
+                erfuellen und ueberhaupt noch einkaufen kann. Ohne diese Zeile
+                waere das eine unsichtbare Wand: Der Berater kaeme mit leeren
+                Haenden zurueck, ohne dass man je haette wissen koennen, warum. */}
+            <div className="row between"><span>{t('club.wageRoom')}</span>
+              <span className={kassenlage.eng ? 'bad' : undefined}>
+                {t(`club.wageRoom.${kassenlage.stufe}`)}
+              </span></div>
+            <div className="row between"><span>{t('club.transferFunds')}</span>
+              <span>{money(club.budget)}</span></div>
           </div>
         </div>
 
         {rivals.length > 0 && (
           <div style={{ marginTop: '0.9rem', paddingTop: '0.7rem', borderTop: '1px solid var(--border-soft)' }}>
-            <div className="tiny dim" style={{ marginBottom: '0.4rem' }}>Rivalen</div>
+            <div className="tiny dim" style={{ marginBottom: '0.4rem' }}>{t('club.rivals')}</div>
             <div className="row" style={{ gap: '0.6rem', flexWrap: 'wrap' }}>
               {rivals.map((r) => (
                 <div key={r.id} className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
@@ -142,12 +170,13 @@ export default function SquadTab() {
 
       <RelationshipsPanel />
 
-      <Panel title="Kader" action={
+      <Panel title={t('squad.title')} action={
         <div className="chip-row">
-          {([['position', 'Position'], ['ability', 'Staerke'], ['age', 'Alter'],
-            ['form', 'Form'], ['value', 'Wert']] as [SortKey, string][]).map(([key, label]) => (
+          {([['position', 'squad.position'], ['ability', 'squad.overall'],
+            ['age', 'squad.age'], ['form', 'squad.form'],
+            ['value', 'squad.value']] as [SortKey, string][]).map(([key, label]) => (
             <span key={key} className={`chip ${sort === key ? 'active' : ''}`}
-              onClick={() => setSort(key)}>{label}</span>
+              onClick={() => setSort(key)}>{t(label)}</span>
           ))}
         </div>
       }>
@@ -156,15 +185,15 @@ export default function SquadTab() {
             <thead>
               <tr>
                 <th style={{ width: 30 }}>#</th>
-                <th>Name</th>
-                <th style={{ width: 34 }}>Land</th>
-                <th>Pos</th>
-                <th className="num">Alter</th>
-                <th className="num">Staerke</th>
-                <th className="num">Form</th>
-                <th className="num">Fit</th>
-                <th className="num">Wert</th>
-                <th>Status</th>
+                <th>{t('squad.name')}</th>
+                <th style={{ width: 34 }}>{t('squad.country')}</th>
+                <th>{t('squad.position')}</th>
+                <th className="num">{t('squad.age')}</th>
+                <th className="num">{t('squad.overall')}</th>
+                <th className="num">{t('squad.form')}</th>
+                <th className="num">{t('squad.fitness')}</th>
+                <th className="num">{t('squad.value')}</th>
+                <th>{t('squad.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -187,11 +216,11 @@ export default function SquadTab() {
                     <td className="num mono">{Math.round(p.fitness)}</td>
                     <td className="num tiny dim">{money(p.marketValue)}</td>
                     <td className="tiny">
-                      {p.injury ? <span className="pill bad">{p.injury.name}</span>
-                        : p.suspension > 0 ? <span className="pill warn">Gesperrt</span>
-                        : starterIds.has(p.id) ? <span className="pill good">Startelf</span>
-                        : benchIds.has(p.id) ? <span className="pill">Bank</span>
-                        : <span className="dim">Tribuene</span>}
+                      {p.injury ? <span className="pill bad">{t(p.injury.name)}</span>
+                        : p.suspension > 0 ? <span className="pill warn">{t('squad.suspended')}</span>
+                        : starterIds.has(p.id) ? <span className="pill good">{t('squad.starter')}</span>
+                        : benchIds.has(p.id) ? <span className="pill">{t('squad.bench')}</span>
+                        : <span className="dim">{t('squad.stand')}</span>}
                     </td>
                   </tr>
                 );
@@ -217,7 +246,7 @@ function RelationshipsPanel() {
     : kind === 'rival' || kind === 'conflict' ? 'bad' : undefined);
 
   return (
-    <Panel title="Beziehungen im Team">
+    <Panel title={t('squad.relations')}>
       <p className="tiny dim" style={{ marginTop: 0 }}>
         Gute Freunde bieten sich im Spiel haeufiger an, ein starkes Umfeld hebt deine Moral.
         Beziehungen entwickeln sich mit gemeinsamer Spielzeit.
@@ -234,7 +263,8 @@ function RelationshipsPanel() {
                 <span className="tiny dim"> · {p.position}</span>
               </span>
               <Pill tone={tone(r.kind) as 'good' | 'bad' | undefined}>
-                {RELATION_LABELS[r.kind]} {r.value > 0 ? `+${Math.round(r.value)}` : Math.round(r.value)}
+                {t(RELATION_LABELS[r.kind])}{' '}
+                {r.value > 0 ? `+${Math.round(r.value)}` : Math.round(r.value)}
               </Pill>
             </div>
           );

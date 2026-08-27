@@ -13,6 +13,7 @@ import {
 import type {
   Challenge, ChallengeResult, ChallengeTarget, LiveEvent, StepResult,
 } from './matchTypes';
+import { t } from '../i18n';
 import type { MatchImportance } from './rivalry';
 import { Rng, clamp } from './rng';
 import {
@@ -105,11 +106,12 @@ const MAX_USER_CHALLENGES_ALL = 12;
 /** Spielausrichtung des eigenen Spielers waehrend der Partie. */
 export type Mentality = 'attack' | 'balanced' | 'contain' | 'conserve';
 
+/** Katalogschluessel je Ausrichtung - uebersetzt wird bei der Anzeige. */
 export const MENTALITY_LABELS: Record<Mentality, string> = {
-  attack: 'Nach vorne',
-  balanced: 'Ausbalanciert',
-  contain: 'Defensiv',
-  conserve: 'Kraefte schonen',
+  attack: 'me.stance.attack',
+  balanced: 'me.stance.balanced',
+  contain: 'me.stance.contain',
+  conserve: 'me.stance.conserve',
 };
 
 interface MentalityEffect {
@@ -363,7 +365,7 @@ export class MatchEngine {
 
   private name(playerId: Id): string {
     const p = this.squadById.get(playerId);
-    return p ? `${p.firstName.charAt(0)}. ${p.lastName}` : 'Unbekannt';
+    return p ? `${p.firstName.charAt(0)}. ${p.lastName}` : t('me.unknownPlayer');
   }
 
   private emit(evts: LiveEvent[], e: Omit<LiveEvent, 'score'>) {
@@ -413,7 +415,7 @@ export class MatchEngine {
     if (this.minute === 0) {
       this.emit(evts, {
         minute: 0, type: 'kickoff', side: null,
-        text: `Anpfiff: ${this.setup.homeClub.name} gegen ${this.setup.awayClub.name}`,
+        text: t('live.kickoff', { home: this.setup.homeClub.name, away: this.setup.awayClub.name }),
       });
     }
 
@@ -423,7 +425,7 @@ export class MatchEngine {
     if (this.minute === 46) {
       this.emit(evts, {
         minute: 45, type: 'halftime', side: null,
-        text: `Halbzeit: ${this.homeScore}:${this.awayScore}`,
+        text: t('live.halftime', { score: `${this.homeScore}:${this.awayScore}` }),
       });
       // Bei einem interaktiven Spiel entscheidet der Spieler in der Pause.
       if (this.setup.interactive && this.userSide && !this.halftimeDone) {
@@ -479,38 +481,38 @@ export class MatchEngine {
     let options: HalftimeOption[];
 
     const pushOption: HalftimeOption = {
-      id: 'push', label: 'Volle Offensive',
-      description: 'Nach vorne werfen. Mehr Torgefahr, aber hinten wird es riskant und kostet Kraft.',
+      id: 'push', label: t('me.ht.push.label'),
+      description: t('me.ht.push.desc'),
       attackMod: 1.16, defenceMod: 0.9, effortMod: 1.2, moraleDelta: 1,
     };
     const holdOption: HalftimeOption = {
-      id: 'hold', label: 'Kompakt verteidigen',
-      description: 'Das Ergebnis absichern. Weniger Torgefahr, dafuer defensive Stabilitaet.',
+      id: 'hold', label: t('me.ht.hold.label'),
+      description: t('me.ht.hold.desc'),
       attackMod: 0.9, defenceMod: 1.15, effortMod: 1.0, moraleDelta: 0,
     };
     const balancedOption: HalftimeOption = {
-      id: 'balanced', label: 'So weitermachen',
-      description: 'Am Plan festhalten und geduldig bleiben.',
+      id: 'balanced', label: t('me.ht.balanced.label'),
+      description: t('me.ht.balanced.desc'),
       attackMod: 1.0, defenceMod: 1.0, effortMod: 1.0, moraleDelta: 0,
     };
     const rallyOption: HalftimeOption = {
-      id: 'rally', label: 'Mannschaft mitreissen',
-      description: 'Die Mitspieler aufrichten. Wirkung haengt von deiner Fuehrungsstaerke ab.',
+      id: 'rally', label: t('me.ht.rally.label'),
+      description: t('me.ht.rally.desc'),
       attackMod: 1.1, defenceMod: 1.05, effortMod: 1.05, moraleDelta: 3, leadership: true,
     };
 
     if (diff > 0) {
       coachMessage = diff >= 2
-        ? 'Starke erste Haelfte! Jetzt nichts mehr anbrennen lassen.'
-        : 'Knappe Fuehrung. Wie gehen wir die zweite Haelfte an?';
+        ? t('me.ht.leadBig')
+        : t('me.ht.leadNarrow');
       options = [holdOption, balancedOption, pushOption, rallyOption];
     } else if (diff < 0) {
       coachMessage = diff <= -2
-        ? 'Das reicht so nicht. Wir brauchen eine Reaktion.'
-        : 'Wir liegen zurueck. Es ist noch nichts verloren.';
+        ? t('me.ht.behindBig')
+        : t('me.ht.behindNarrow');
       options = [pushOption, rallyOption, balancedOption, holdOption];
     } else {
-      coachMessage = 'Ausgeglichene erste Haelfte. Die zweite entscheidet.';
+      coachMessage = t('me.ht.level');
       options = [balancedOption, pushOption, holdOption, rallyOption];
     }
 
@@ -547,7 +549,7 @@ export class MatchEngine {
     const evts: LiveEvent[] = [];
     this.emit(evts, {
       minute: this.minute, type: 'note', side: decision.userSide, user: true,
-      text: `Halbzeit: ${option.label}.`,
+      text: t('live.halftimeChoice', { choice: option.label }),
     });
     this.events.push(...evts);
     return evts;
@@ -560,19 +562,19 @@ export class MatchEngine {
       this.fullTime = 120 + this.rng.int(1, 4);
       this.emit(evts, {
         minute: this.minute, type: 'extraTime', side: null,
-        text: 'Es geht in die Verlaengerung.',
+        text: t('live.extraTime'),
       });
       return;
     }
     if (this.setup.knockout && drawn && this.extraTime) {
       this.emit(evts, {
         minute: this.minute, type: 'shootout', side: null,
-        text: 'Das Spiel wird im Elfmeterschiessen entschieden.',
+        text: t('live.shootout'),
       });
     }
     this.emit(evts, {
       minute: this.minute, type: 'fulltime', side: null,
-      text: `Abpfiff: ${this.setup.homeClub.name} ${this.homeScore}:${this.awayScore} ${this.setup.awayClub.name}`,
+      text: t('live.fulltime', { home: this.setup.homeClub.name, away: this.setup.awayClub.name, score: `${this.homeScore}:${this.awayScore}` }),
     });
     this.finished = true;
   }
@@ -805,8 +807,8 @@ export class MatchEngine {
 
     this.startChallenge({
       ...this.baseChallenge(defSide, 'duel'),
-      title: 'Klaerung',
-      hint: 'Wirf dich im richtigen Moment in den Schuss. Zu frueh und der Gegner zieht vorbei.',
+      title: t('me.ch.clearance.title'),
+      hint: t('me.ch.clearance.hint'),
       distance: chance.distance,
       offset: chance.offset,
       pressure: 0.6,
@@ -855,8 +857,8 @@ export class MatchEngine {
         minute: this.minute, type: 'miss', side,
         playerId: shooter.player.id,
         text: blocked
-          ? `${this.name(shooter.player.id)} wird im letzten Moment geblockt.`
-          : `${this.name(shooter.player.id)} zielt zu ungenau.`,
+          ? t('live.shotBlockedLate', { player: this.name(shooter.player.id) })
+          : t('live.shotWide', { player: this.name(shooter.player.id) }),
       });
       return;
     }
@@ -905,7 +907,7 @@ export class MatchEngine {
       this.emit(evts, {
         minute: this.minute, type: 'save', side,
         playerId: shooter.player.id,
-        text: `${this.name(shooter.player.id)} scheitert am Torhueter.`,
+        text: t('live.keeperSave', { player: this.name(shooter.player.id) }),
       });
     }
   }
@@ -933,7 +935,7 @@ export class MatchEngine {
       playerId: shooter.player.id,
       assistId: creator?.player.id,
       user: shooter.player.id === this.setup.userPlayerId,
-      text: `TOR fuer ${this.clubName(side)}! ${this.name(shooter.player.id)}${assistText}.`,
+      text: t('live.goal', { club: this.clubName(side), scorer: this.name(shooter.player.id), assist: assistText }),
     });
   }
 
@@ -947,7 +949,7 @@ export class MatchEngine {
 
     this.emit(evts, {
       minute: this.minute, type: 'penaltyAwarded', side,
-      text: `Elfmeter fuer ${this.clubName(side)}!`,
+      text: t('live.penalty', { club: this.clubName(side) }),
     });
 
     const userId = this.setup.userPlayerId;
@@ -988,7 +990,7 @@ export class MatchEngine {
       this.emit(evts, {
         minute: this.minute, type: 'penaltyMiss', side,
         playerId: taker.player.id,
-        text: `${this.name(taker.player.id)} vergibt den Elfmeter!`,
+        text: t('live.penaltyMissed', { player: this.name(taker.player.id) }),
       });
     }
   }
@@ -1022,8 +1024,8 @@ export class MatchEngine {
 
     this.startChallenge({
       ...this.baseChallenge(side, 'dribble'),
-      title: 'Dribbling',
-      hint: 'Setze die Finte im richtigen Moment an. Zu frueh reagiert der Gegner, zu spaet ist der Weg zu.',
+      title: t('me.ch.dribble.title'),
+      hint: t('me.ch.dribble.hint'),
       distance,
       offset,
       pressure: this.withImportance(clamp(0.35 + opponent.rating / 180, 0.2, 0.95)),
@@ -1058,7 +1060,7 @@ export class MatchEngine {
 
     this.emit(evts, {
       minute: this.minute, type: 'note', side,
-      text: `Gefaehrlicher Freistoss fuer ${this.clubName(side)} aus etwa ${Math.round(distance)} Metern.`,
+      text: t('live.freeKick', { club: this.clubName(side), m: Math.round(distance) }),
     });
 
     const userId = this.setup.userPlayerId;
@@ -1071,8 +1073,8 @@ export class MatchEngine {
         const xg = clamp(expectedGoals(distance, offset) * 1.35, 0.02, 0.22);
         this.startChallenge({
           ...this.baseChallenge(side, 'freeKick'),
-          title: 'Freistoss',
-          hint: 'Ueber die Mauer oder aussen herum. Seitlicher Ballkontakt erzeugt den noetigen Effet.',
+          title: t('me.ch.freeKick.title'),
+          hint: t('me.ch.freeKick.hint'),
           distance,
           offset,
           pressure: 0.15,
@@ -1105,12 +1107,12 @@ export class MatchEngine {
       if (gk) this.statOf(gk.player.id, this.other(side), 'TW').saves++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side, playerId: taker.player.id,
-        text: `${this.name(taker.player.id)} zwingt den Torwart per Freistoss zur Parade.`,
+        text: t('live.freeKickForcesSave', { player: this.name(taker.player.id) }),
       });
     } else {
       this.emit(evts, {
         minute: this.minute, type: 'miss', side, playerId: taker.player.id,
-        text: `Der Freistoss von ${this.name(taker.player.id)} findet den Weg nicht ins Tor.`,
+        text: t('live.freeKickMissed', { player: this.name(taker.player.id) }),
       });
     }
   }
@@ -1139,8 +1141,8 @@ export class MatchEngine {
       id: `ch-${this.minute}-duel`,
       kind: 'duel',
       minute: this.minute,
-      title: 'Defensivzweikampf',
-      hint: 'Warte den richtigen Moment ab. Zu frueh und der Gegner geht vorbei, zu spaet gibt es ein Foul.',
+      title: t('me.ch.duel.title'),
+      hint: t('me.ch.duel.hint'),
       distance: this.rng.float(22, 45),
       offset: this.rng.normal(0, 14),
       pressure: 0.5,
@@ -1201,17 +1203,17 @@ export class MatchEngine {
       : chance.kind === 'header' ? 'header'
       : chance.kind === 'oneOnOne' ? 'oneOnOne' : 'shot';
     const titles: Record<string, string> = {
-      shot: 'Torschuss',
-      longShot: 'Distanzschuss',
-      header: 'Kopfball',
-      oneOnOne: 'Eins gegen eins',
+      shot: t('me.ch.shot.title'),
+      longShot: t('me.ch.longShot.title'),
+      header: t('me.ch.header.title'),
+      oneOnOne: t('me.ch.oneOnOne.title'),
     };
     const hints: Record<string, string> = {
-      shot: 'Ziel, Kraft und Ballkontakt bestimmen den Abschluss.',
-      longShot: 'Aus dieser Entfernung braucht es viel Kraft oder viel Effet.',
-      freeKick: 'Der Ball muss ueber die Mauer: tief am Ball treffen und mit Effet ins Eck ziehen.',
-      header: 'Kurzer Weg, wenig Zeit. Der Kontaktpunkt entscheidet ueber die Flugbahn.',
-      oneOnOne: 'Nur noch der Torwart. Ruhe bewahren.',
+      shot: t('me.ch.shot.hint'),
+      longShot: t('me.ch.longShot.hint'),
+      freeKick: t('me.ch.freeKickShot.hint'),
+      header: t('me.ch.header.hint'),
+      oneOnOne: t('me.ch.oneOnOne.hint'),
     };
     return {
       ...this.baseChallenge(side, kind),
@@ -1231,11 +1233,22 @@ export class MatchEngine {
   private buildPassTargets(side: Side, preferred: OnPitchPlayer): ChallengeTarget[] {
     const pool = this.onPitch[side]
       .filter((o) => o.slot !== 'TW' && o.player.id !== this.setup.userPlayerId);
-    // Gute Freunde bieten sich dem Spieler haeufiger an (Konzept Abschnitt 30).
+    // Gute Freunde bieten sich dem Spieler haeufiger an, Rivalen seltener
+    // (Konzept Abschnitt 30).
+    //
+    // Das `Math.max(0, ...)` hier hat die halbe Kabine stumm geschaltet: Ein
+    // Rivale, den die Kaderliste ausdruecklich als solchen ausweist und dessen
+    // Verhaeltnis mit jedem Spiel weiter abrutscht, bot sich exakt so oft an
+    // wie ein beliebiger Mitspieler. Damit war die negative Haelfte des
+    // Beziehungssystems reine Anzeige.
+    //
+    // Der bevorzugte Anspielpunkt bleibt unberuehrt - wer frei steht, steht
+    // frei, auch wenn man sich nicht mag.
     const rel = this.setup.relationships;
     const rest = pool.filter((o) => o.player.id !== preferred.player.id);
     const others = rel
-      ? this.sampleWeighted(rest, 3, (o) => 1 + Math.max(0, rel[o.player.id] ?? 0) / 25)
+      ? this.sampleWeighted(rest, 3,
+        (o) => clamp(1 + (rel[o.player.id] ?? 0) / 30, 0.25, 4))
       : this.rng.sample(rest, 3);
     const chosen = [preferred, ...others];
     return chosen.filter(Boolean).map((o, i) => {
@@ -1274,8 +1287,8 @@ export class MatchEngine {
   ): Challenge {
     return {
       ...this.baseChallenge(side, 'pass'),
-      title: 'Torvorlage',
-      hint: 'Waehle den Mitspieler, ziehe die Richtung und dosiere die Kraft.',
+      title: t('me.ch.assist.title'),
+      hint: t('me.ch.assist.hint'),
       distance: chance.distance,
       offset: chance.offset,
       pressure: this.withImportance(
@@ -1290,8 +1303,8 @@ export class MatchEngine {
   private buildPenaltyChallenge(side: Side): Challenge {
     return {
       ...this.baseChallenge(side, 'penalty'),
-      title: 'Elfmeter',
-      hint: 'Platziert und flach oder hart und hoch. Der Torwart liest deine Koerperhaltung.',
+      title: t('me.ch.penalty.title'),
+      hint: t('me.ch.penalty.hint'),
       distance: 11,
       offset: 0,
       pressure: 0.35,
@@ -1308,8 +1321,8 @@ export class MatchEngine {
   ): Challenge {
     return {
       ...this.baseChallenge(defSide, 'save'),
-      title: 'Torwartparade',
-      hint: 'Erkenne die Flugbahn und waehle Richtung und Hoehe.',
+      title: t('me.ch.save.title'),
+      hint: t('me.ch.save.hint'),
       distance: chance.distance,
       offset: chance.offset,
       pressure: 0.5,
@@ -1347,8 +1360,8 @@ export class MatchEngine {
   private buildPenaltySaveChallenge(defSide: Side, taker: OnPitchPlayer): Challenge {
     return {
       ...this.baseChallenge(defSide, 'penaltySave'),
-      title: 'Elfmeter halten',
-      hint: 'Waehle Ecke und Hoehe. Ein guter Schuetze verraet wenig.',
+      title: t('me.ch.penaltySave.title'),
+      hint: t('me.ch.penaltySave.hint'),
       distance: 11,
       offset: 0,
       pressure: 0.4,
@@ -1449,14 +1462,14 @@ export class MatchEngine {
         if (gk) this.statOf(gk.player.id, defSide, 'TW').saves++;
         this.emit(evts, {
           minute: this.minute, type: 'save', side, playerId: user.player.id, user: true,
-          text: `${this.name(user.player.id)} zwingt den Torhueter zur Parade.`,
+          text: t('live.userForcesSave', { player: this.name(user.player.id) }),
         });
         break;
       case 'post':
         st.shotsOnTarget++;
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: `${this.name(user.player.id)} trifft nur das Aluminium!`,
+          text: t('live.woodwork', { player: this.name(user.player.id) }),
         });
         break;
       case 'blocked': {
@@ -1467,14 +1480,14 @@ export class MatchEngine {
         }
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: `Der Abschluss von ${this.name(user.player.id)} wird geblockt.`,
+          text: t('live.shotBlocked', { player: this.name(user.player.id) }),
         });
         break;
       }
       default:
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: `${this.name(user.player.id)} setzt den Ball daneben.`,
+          text: t('live.userWide', { player: this.name(user.player.id) }),
         });
     }
   }
@@ -1493,7 +1506,7 @@ export class MatchEngine {
       if (result.outcome === 'saved') st.shotsOnTarget++;
       this.emit(evts, {
         minute: this.minute, type: 'penaltyMiss', side, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} scheitert vom Elfmeterpunkt!`,
+        text: t('live.userPenaltyMissed', { player: this.name(user.player.id) }),
       });
     }
   }
@@ -1512,7 +1525,7 @@ export class MatchEngine {
         this.scoreGoal(side, user, null, evts, ctx.xg >= 0.27);
         this.emit(evts, {
           minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-          text: `Ein Freistosstreffer von ${this.name(user.player.id)}!`,
+          text: t('live.freeKickGoal', { player: this.name(user.player.id) }),
         });
         break;
       case 'saved': {
@@ -1521,27 +1534,27 @@ export class MatchEngine {
         if (gk) this.statOf(gk.player.id, defSide, 'TW').saves++;
         this.emit(evts, {
           minute: this.minute, type: 'save', side, playerId: user.player.id, user: true,
-          text: `Der Freistoss von ${this.name(user.player.id)} wird pariert.`,
+          text: t('live.freeKickSaved', { player: this.name(user.player.id) }),
         });
         break;
       }
       case 'blocked':
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: `Die Mauer blockt den Freistoss von ${this.name(user.player.id)}.`,
+          text: t('live.freeKickWall', { player: this.name(user.player.id) }),
         });
         break;
       case 'post':
         st.shotsOnTarget++;
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: `${this.name(user.player.id)} trifft per Freistoss den Pfosten!`,
+          text: t('live.freeKickPost', { player: this.name(user.player.id) }),
         });
         break;
       default:
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: `Der Freistoss von ${this.name(user.player.id)} geht am Tor vorbei.`,
+          text: t('live.freeKickWide', { player: this.name(user.player.id) }),
         });
     }
   }
@@ -1559,7 +1572,7 @@ export class MatchEngine {
       st.duelsWon++;
       this.emit(evts, {
         minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} setzt sich im Dribbling durch.`,
+        text: t('live.dribblePast', { player: this.name(user.player.id) }),
       });
       // Nach dem gewonnenen Dribbling entsteht eine bessere Situation.
       this.continueAttack(side, evts, {
@@ -1580,7 +1593,7 @@ export class MatchEngine {
       }
       this.emit(evts, {
         minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} wird im Dribbling gefoult.`,
+        text: t('live.fouledDribbling', { player: this.name(user.player.id) }),
       });
       // Aus dem Foul kann ein gefaehrlicher Freistoss entstehen.
       if (ctx.distance < 30 && this.rng.chance(0.45)) this.awardFreeKick(side, evts);
@@ -1590,7 +1603,7 @@ export class MatchEngine {
     st.possessionLost++;
     this.emit(evts, {
       minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-      text: `${this.name(user.player.id)} verliert den Ball im Dribbling.`,
+      text: t('live.dribbleLost', { player: this.name(user.player.id) }),
     });
   }
 
@@ -1607,7 +1620,7 @@ export class MatchEngine {
       st.blocks++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side: defSide, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} wirft sich in den Schuss und klaert!`,
+        text: t('live.blockClear', { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1620,7 +1633,7 @@ export class MatchEngine {
       } else {
         this.emit(evts, {
           minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-          text: `${this.name(user.player.id)} kommt zu spaet und foult.`,
+          text: t('live.lateFoul', { player: this.name(user.player.id) }),
         });
       }
       return;
@@ -1629,7 +1642,7 @@ export class MatchEngine {
     // Block misslungen: der Schuss laeuft ganz normal weiter.
     this.emit(evts, {
       minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-      text: `${this.name(user.player.id)} rutscht am Ball vorbei.`,
+      text: t('live.slipPast', { player: this.name(user.player.id) }),
     });
     if (shooter) {
       const creator = ctx.assistId
@@ -1653,7 +1666,7 @@ export class MatchEngine {
       st.possessionLost++;
       this.emit(evts, {
         minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} verliert den Ball im Aufbau.`,
+        text: t('live.lostInBuildup', { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1680,7 +1693,7 @@ export class MatchEngine {
       // Kein Tor: der Schluesselpass zaehlt trotzdem.
       this.emit(evts, {
         minute: this.minute, type: 'chance', side, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} legt stark auf, aber der Abschluss bringt nichts ein.`,
+        text: t('live.assistWasted', { player: this.name(user.player.id) }),
       });
     }
   }
@@ -1697,7 +1710,7 @@ export class MatchEngine {
       st.tackles++;
       this.emit(evts, {
         minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} klaert die Situation stark.`,
+        text: t('live.strongClear', { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1710,7 +1723,7 @@ export class MatchEngine {
       } else {
         this.emit(evts, {
           minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-          text: `${this.name(user.player.id)} stoppt den Gegner mit einem Foul.`,
+          text: t('live.stopsWithFoul', { player: this.name(user.player.id) }),
         });
       }
       return;
@@ -1719,7 +1732,7 @@ export class MatchEngine {
     // Zweikampf verloren - der Angriff laeuft weiter.
     this.emit(evts, {
       minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-      text: `${this.name(user.player.id)} wird ueberlaufen.`,
+      text: t('live.beaten', { player: this.name(user.player.id) }),
     });
     this.continueAttack(ctx.attackingSide, evts);
   }
@@ -1749,7 +1762,7 @@ export class MatchEngine {
       if (shooterStats) shooterStats.penaltiesMissed++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side: defSide, playerId: user.player.id, user: true,
-        text: `${this.name(user.player.id)} haelt den Elfmeter!`,
+        text: t('live.penaltySaved', { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1786,7 +1799,7 @@ export class MatchEngine {
       this.sendOff(playerId, side);
       this.emit(evts, {
         minute: this.minute, type: 'red', side, playerId, user: isUser,
-        text: `Rote Karte fuer ${this.name(playerId)}!`,
+        text: t('live.red', { player: this.name(playerId) }),
       });
       return;
     }
@@ -1799,13 +1812,13 @@ export class MatchEngine {
       this.sendOff(playerId, side);
       this.emit(evts, {
         minute: this.minute, type: 'secondYellow', side, playerId, user: isUser,
-        text: `Gelb-Rot fuer ${this.name(playerId)}.`,
+        text: t('live.secondYellow', { player: this.name(playerId) }),
       });
     } else {
       st.yellowCards++;
       this.emit(evts, {
         minute: this.minute, type: 'yellow', side, playerId, user: isUser,
-        text: `Gelbe Karte fuer ${this.name(playerId)}.`,
+        text: t('live.yellow', { player: this.name(playerId) }),
       });
     }
   }
@@ -1836,7 +1849,7 @@ export class MatchEngine {
           };
           this.emit(evts, {
             minute: this.minute, type: 'injury', side, playerId: p.id, user: true,
-            text: `${this.name(p.id)} bleibt nach einer Aktion angeschlagen liegen.`,
+            text: t('live.knockDown', { player: this.name(p.id) }),
           });
           return;
         }
@@ -1845,7 +1858,7 @@ export class MatchEngine {
         this.emit(evts, {
           minute: this.minute, type: 'injury', side, playerId: p.id,
           user: false,
-          text: `${this.name(p.id)} muss verletzt behandelt werden.`,
+          text: t('live.needsTreatment', { player: this.name(p.id) }),
         });
         this.substitute(side, o, evts, true);
         return;
@@ -1866,7 +1879,7 @@ export class MatchEngine {
       this.injuries.push({ playerId: this.setup.userPlayerId!, days: decision.estimatedDays });
       this.emit(evts, {
         minute: this.minute, type: 'injury', side, playerId: this.setup.userPlayerId!, user: true,
-        text: `${this.name(this.setup.userPlayerId!)} kann nicht weitermachen und wird ausgewechselt.`,
+        text: t('live.cannotContinue', { player: this.name(this.setup.userPlayerId!) }),
       });
       if (user) this.substitute(side, user, evts, true);
       this.events.push(...evts);
@@ -1883,7 +1896,7 @@ export class MatchEngine {
       : decision.severity === 'mittel' ? 0.008 : 0.004;
     this.emit(evts, {
       minute: this.minute, type: 'note', side, playerId: this.setup.userPlayerId!, user: true,
-      text: `${this.name(this.setup.userPlayerId!)} beisst auf die Zaehne und macht weiter.`,
+      text: t('live.playsOn', { player: this.name(this.setup.userPlayerId!) }),
     });
     this.events.push(...evts);
     return evts;
@@ -1902,7 +1915,7 @@ export class MatchEngine {
     this.aggravationRisk = 0;
     this.emit(evts, {
       minute: this.minute, type: 'injury', side: this.userSide!, playerId: user.player.id, user: true,
-      text: `Die Verletzung von ${this.name(user.player.id)} wird schlimmer - jetzt ist Schluss.`,
+      text: t('live.injuryWorse', { player: this.name(user.player.id) }),
     });
     this.substitute(this.userSide!, user, evts, true);
   }
@@ -1926,11 +1939,25 @@ export class MatchEngine {
       this.considerUserOn(side, evts);
       return;
     }
-    // Schluesselspieler bleiben laenger drauf.
+    // Wer eine tragende Rolle hat, bleibt laenger drauf.
+    //
+    // Vorher galt das nur fuer Schluesselspieler und Mannschaftsfuehrer.
+    // Gemessen: Ein Spieler, der 37 von 37 Ligaspielen von Anfang an machte,
+    // kam trotzdem im Schnitt nach 67,6 Minuten herunter - gleich starke
+    // computergesteuerte Spieler standen 88 Minuten auf dem Platz. Damit war
+    // jede Auszeichnung, die Summen zaehlt, ausser Reichweite.
     if (userIsSubbed && this.setup.userPlayerId) {
       const role = worst.player.contract?.role;
-      if ((role === 'Schluesselspieler' || role === 'Mannschaftsfuehrer') && fitness > 48
-        && !this.rng.chance(0.3)) {
+      const tragend = role === 'Schluesselspieler' || role === 'Mannschaftsfuehrer';
+      const stamm = role === 'Stammspieler';
+      // Der Schutz ist gestuft: Ein Schluesselspieler bleibt fast immer drauf,
+      // ein Stammspieler meistens - aber beide gehen runter, wenn die Kraefte
+      // wirklich nachlassen.
+      if (tragend && fitness > 48 && !this.rng.chance(0.3)) {
+        this.considerUserOn(side, evts);
+        return;
+      }
+      if (stamm && fitness > 56 && !this.rng.chance(0.45)) {
         this.considerUserOn(side, evts);
         return;
       }
@@ -2013,7 +2040,7 @@ export class MatchEngine {
       minute: this.minute, type: 'sub', side,
       playerId: incoming.id,
       user: incoming.id === this.setup.userPlayerId || out.player.id === this.setup.userPlayerId,
-      text: `Wechsel bei ${this.clubName(side)}: ${this.name(incoming.id)} kommt fuer ${this.name(out.player.id)}.`,
+      text: t('live.substitution', { club: this.clubName(side), on: this.name(incoming.id), off: this.name(out.player.id) }),
     });
   }
 

@@ -12,11 +12,13 @@ import { leaguesOfCountry, tableKey } from './season';
 import { sortTable } from './table';
 import type { Competition, GameState, Id, Match } from './types';
 import { qualifyForChampionsCup } from './international';
+import { t } from '../i18n';
 
 export const CT_ID = 'ct';
 export const CT_NAME = 'Continental Trophy';
 const KO_BASE = 200;
-const ROUNDS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'] as const;
+/** K.-o.-Runden als Katalogschluessel, nicht als fertiger Text. */
+const ROUNDS = ['round.r16', 'round.quarter', 'round.semi', 'round.final'] as const;
 
 /** Termine der vier Runden - versetzt zu den Spielen des Champions Cup. */
 function trophyDates(season: number): GameDate[] {
@@ -96,17 +98,20 @@ export function startTrophy(state: GameState, _rng: unknown, prevSeason: number 
   const dates = trophyDates(state.season);
   // Gesetzt: Der Erstplatzierte trifft auf den Letzten des Teilnehmerfelds.
   for (let i = 0; i < 8; i++) {
-    addMatch(state, ctMatch(state, KO_BASE, 'Achtelfinale', dates[0],
+    addMatch(state, ctMatch(state, KO_BASE, t('round.r16'), dates[0],
       qualifiers[i], qualifiers[15 - i]));
   }
   state.cupState[CT_ID] = { round: 1, alive: qualifiers.slice(), finished: false };
 
   const userClubId = state.players[state.userPlayerId]?.clubId;
   if (userClubId && qualifiers.includes(userClubId)) {
-    addNews(state, 'season', `${state.clubs[userClubId]?.name} in der ${CT_NAME}`,
-      'Dein Verein spielt im zweiten europaeischen Wettbewerb.', true);
-    addCareerEvent(state, 'international', 'Europapokal',
-      `Mit ${state.clubs[userClubId]?.name} in der ${CT_NAME} vertreten.`,
+    addNews(state, 'season',
+      t('eu.trophy.news', { club: state.clubs[userClubId]?.name ?? '', competition: CT_NAME }),
+      t('eu.trophy.newsBody'), true);
+    addCareerEvent(state, 'international', t('eu.trophy.eventTitle'),
+      t('eu.trophy.eventBody', {
+        club: state.clubs[userClubId]?.name ?? '', competition: CT_NAME,
+      }),
       { competitionId: CT_ID });
   }
 }
@@ -141,10 +146,11 @@ export function advanceTrophy(state: GameState): boolean {
   }
 
   const nextRound = info.round + 1;
-  const roundName = ROUNDS[Math.min(nextRound - 1, ROUNDS.length - 1)];
+  const roundIdx = Math.min(nextRound - 1, ROUNDS.length - 1);
+  const roundName = t(ROUNDS[roundIdx]);
   const dates = trophyDates(state.season);
   const date = dates[Math.min(nextRound - 1, dates.length - 1)];
-  const isFinal = roundName === 'Finale';
+  const isFinal = roundIdx === ROUNDS.length - 1;
 
   for (let i = 0; i < winners.length; i += 2) {
     if (!winners[i + 1]) break;
@@ -156,8 +162,9 @@ export function advanceTrophy(state: GameState): boolean {
 
   const userClubId = state.players[state.userPlayerId]?.clubId;
   if (userClubId && winners.includes(userClubId)) {
-    addNews(state, 'season', `${CT_NAME}: ${roundName}`,
-      `Dein Verein steht im ${roundName} der ${CT_NAME}.`, true);
+    addNews(state, 'season',
+      t('eu.phase.news', { competition: CT_NAME, round: roundName }),
+      t('eu.phase.newsBodyThe', { round: roundName, competition: CT_NAME }), true);
   }
   return true;
 }
@@ -167,16 +174,18 @@ function recordWinner(state: GameState, clubId: Id) {
   if (!club) return;
   club.history.push({
     season: state.season, competitionId: CT_ID, played: 0, won: 0, drawn: 0, lost: 0,
-    goalsFor: 0, goalsAgainst: 0, points: 0, note: `${CT_NAME}-Sieger`,
+    goalsFor: 0, goalsAgainst: 0, points: 0, note: t('honour.winner', { competition: CT_NAME }),
   });
-  addNews(state, 'season', `${club.name} gewinnt die ${CT_NAME}`,
-    `${club.name} sichert sich den zweiten europaeischen Titel der Saison.`, true);
+  addNews(state, 'season',
+    t('eu.trophy.wonNews', { club: club.name, competition: CT_NAME }),
+    t('eu.trophy.wonNewsBody', { club: club.name }), true);
 
   const user = state.players[state.userPlayerId];
   if (user && user.clubId === clubId) {
-    state.honours.push({ season: state.season, label: `${CT_NAME}-Sieger` });
-    addCareerEvent(state, 'title', `${CT_NAME} gewonnen`,
-      `Die ${CT_NAME} mit ${club.name} geholt.`, { clubId, competitionId: CT_ID });
+    state.honours.push({ season: state.season, label: t('honour.winner', { competition: CT_NAME }) });
+    addCareerEvent(state, 'title', t('eu.trophy.wonTitle', { competition: CT_NAME }),
+      t('eu.trophy.wonBody', { competition: CT_NAME, club: club.name }),
+      { clubId, competitionId: CT_ID });
   }
 }
 

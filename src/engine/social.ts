@@ -7,6 +7,7 @@
  */
 import { clamp, Rng } from './rng';
 import type { GameState, Id, PlayerMatchStats, SocialPost, SocialDraft } from './types';
+import { t, tDecimal } from '../i18n';
 
 /** Wie viele Beitraege im Verlauf behalten werden. */
 const FEED_LIMIT = 60;
@@ -59,24 +60,29 @@ export function socialAfterMatch(
   // Feed soll die Saison begleiten, nicht nur die Ausreisser.
   if (stats.goals >= 2) {
     push(state, {
-      author: 'Fanclub Nordkurve', kind: 'fan',
-      text: `${stats.goals} Tore von ${user.lastName} gegen ${opponentName}. Was fuer ein Auftritt!`,
+      author: t('soc.author.fanclub'), kind: 'fan',
+      text: t('soc.brace', {
+        n: stats.goals, last: user.lastName, opponent: opponentName,
+      }),
       likes: rng.int(400, 2500),
     });
     growFollowers(state, rng.int(300, 900));
   } else if (strong) {
     push(state, {
-      author: 'Sportredaktion', kind: 'media',
-      text: `Note ${stats.rating.toFixed(1)} fuer ${user.lastName} beim ${scoreText} gegen ${opponentName}.`,
+      author: t('soc.author.media'), kind: 'media',
+      text: t('soc.strong', {
+        rating: tDecimal(stats.rating, 1), last: user.lastName,
+        score: scoreText, opponent: opponentName,
+      }),
       likes: rng.int(120, 900),
     });
     growFollowers(state, rng.int(80, 350));
   } else if (weak) {
     push(state, {
-      author: 'Fanforum', kind: 'critic',
-      text: lost
-        ? `Schwacher Auftritt von ${user.lastName} beim ${scoreText}. Da geht mehr.`
-        : `${user.lastName} blieb beim ${scoreText} blass. Glueck gehabt.`,
+      author: t('soc.author.forum'), kind: 'critic',
+      text: t(lost ? 'soc.weakLost' : 'soc.weakOther', {
+        last: user.lastName, score: scoreText,
+      }),
       likes: rng.int(50, 600),
     });
     growFollowers(state, rng.int(-120, 40));
@@ -85,23 +91,23 @@ export function socialAfterMatch(
     type Stimme = { author: string; kind: SocialPost['kind']; text: string };
     const stimmen: Stimme[] = won
       ? [
-        { author: 'Fanclub Nordkurve', kind: 'fan',
-          text: `Dreier eingefahren, ${scoreText} gegen ${opponentName}. Weiter so!` },
-        { author: 'Sportredaktion', kind: 'media',
-          text: `${user.lastName} mit ordentlicher Leistung beim ${scoreText}.` },
+        { author: t('soc.author.fanclub'), kind: 'fan',
+          text: t('soc.wonFan', { score: scoreText, opponent: opponentName }) },
+        { author: t('soc.author.media'), kind: 'media',
+          text: t('soc.wonMedia', { last: user.lastName, score: scoreText }) },
       ]
       : lost
         ? [
-          { author: 'Fanforum', kind: 'critic',
-            text: `${scoreText} gegen ${opponentName}. So wird das nichts mit den Zielen.` },
-          { author: 'Fanclub Nordkurve', kind: 'fan',
-            text: `Schwerer Nachmittag. Kopf hoch, ${user.lastName} - naechste Woche wieder.` },
+          { author: t('soc.author.forum'), kind: 'critic',
+            text: t('soc.lostCritic', { score: scoreText, opponent: opponentName }) },
+          { author: t('soc.author.fanclub'), kind: 'fan',
+            text: t('soc.lostFan', { last: user.lastName }) },
         ]
         : [
-          { author: 'Sportredaktion', kind: 'media',
-            text: `Teilung der Punkte beim ${scoreText}. ${user.lastName} unauffaellig.` },
-          { author: 'Fanforum', kind: 'critic',
-            text: `Ein Punkt gegen ${opponentName} ist zu wenig.` },
+          { author: t('soc.author.media'), kind: 'media',
+            text: t('soc.drawMedia', { score: scoreText, last: user.lastName }) },
+          { author: t('soc.author.forum'), kind: 'critic',
+            text: t('soc.drawCritic', { opponent: opponentName }) },
         ];
     const s2 = rng.pick(stimmen);
     push(state, { ...s2, likes: rng.int(30, 400) });
@@ -126,66 +132,58 @@ type DraftKind = 'winScored' | 'winStrong' | 'lost' | 'lostPoor';
 function buildDraft(kind: DraftKind, opponent: string, score: string, rng: Rng): SocialDraft {
   const gemeinsam = {
     id: 'humble',
-    label: 'Dem Team danken',
-    tone: 'bescheiden',
+    label: t('soc.opt.humble'),
+    tone: t('soc.tone.humble'),
     effect: { image: 3, fans: 1, teamMood: 3 },
-    text: rng.pick([
-      'Der Sieg gehoert der Mannschaft. Danke fuer die Unterstuetzung!',
-      'Solche Abende gehen nur zusammen. Starke Leistung, Jungs.',
-      'Drei Punkte fuer das Team - und fuer euch da draussen.',
-    ]),
+    text: t(rng.pick(['soc.humble.1', 'soc.humble.2', 'soc.humble.3'])),
   };
   switch (kind) {
     case 'winScored':
       return {
-        prompt: `Du hast beim ${score} gegen ${opponent} getroffen. Sagst du etwas dazu?`,
+        prompt: t('soc.prompt.winScored', { score, opponent }),
         options: [
           gemeinsam,
-          { id: 'confident', label: 'Selbstbewusst auftreten', tone: 'selbstbewusst',
+          { id: 'confident', label: t('soc.opt.confident'), tone: t('soc.tone.confident'),
             effect: { image: -1, fans: 5, reputation: 1, teamMood: -1 },
-            text: 'Dafuer arbeite ich jeden Tag. Und da kommt noch mehr.' },
-          { id: 'silent', label: 'Nichts posten', tone: 'zurueckhaltend', effect: {}, text: '' },
+            text: t('soc.text.confident') },
+          { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
     case 'winStrong':
       return {
-        prompt: `Starker Auftritt beim ${score} gegen ${opponent}.`,
+        prompt: t('soc.prompt.winStrong', { score, opponent }),
         options: [
           gemeinsam,
-          { id: 'fans', label: 'Den Fans widmen', tone: 'nahbar',
+          { id: 'fans', label: t('soc.opt.fans'), tone: t('soc.tone.close'),
             effect: { fans: 6, image: 2 },
-            text: 'Diese Unterstuetzung traegt uns. Danke, dass ihr da wart!' },
-          { id: 'silent', label: 'Nichts posten', tone: 'zurueckhaltend', effect: {}, text: '' },
+            text: t('soc.text.fans') },
+          { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
     case 'lostPoor':
       return {
-        prompt: `Schwaches Spiel beim ${score} gegen ${opponent}. Die Kritik ist deutlich.`,
+        prompt: t('soc.prompt.lostPoor', { score, opponent }),
         options: [
-          { id: 'owning', label: 'Fehler eingestehen', tone: 'selbstkritisch',
+          { id: 'owning', label: t('soc.opt.owning'), tone: t('soc.tone.selfCritical'),
             effect: { image: 5, fans: 3, teamMood: 2 },
-            text: 'Das war heute zu wenig von mir. Ich nehme das an und arbeite daran.' },
-          { id: 'defiant', label: 'Kritik zurueckweisen', tone: 'trotzig',
+            text: t('soc.text.owning') },
+          { id: 'defiant', label: t('soc.opt.defiant'), tone: t('soc.tone.defiant'),
             effect: { image: -6, fans: -4, teamMood: -2 },
-            text: 'Von aussen laesst sich leicht reden. Ich weiss, was ich kann.' },
-          { id: 'silent', label: 'Nichts posten', tone: 'zurueckhaltend', effect: {}, text: '' },
+            text: t('soc.text.defiant') },
+          { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
     default:
       return {
-        prompt: `Niederlage beim ${score} gegen ${opponent}.`,
+        prompt: t('soc.prompt.lost', { score, opponent }),
         options: [
-          { id: 'rally', label: 'Mannschaft aufbauen', tone: 'geschlossen',
+          { id: 'rally', label: t('soc.opt.rally'), tone: t('soc.tone.united'),
             effect: { teamMood: 5, image: 2, fans: 1 },
-            text: rng.pick([
-              'Kopf hoch, wir stehen zusammen. Naechste Woche greifen wir wieder an.',
-              'Heute nicht unser Tag. Wir arbeiten weiter - gemeinsam.',
-              'Das tut weh. Aber diese Mannschaft steht wieder auf.',
-            ]) },
-          { id: 'blame', label: 'Mitspieler kritisieren', tone: 'scharf',
+            text: t(rng.pick(['soc.rally.1', 'soc.rally.2', 'soc.rally.3'])) },
+          { id: 'blame', label: t('soc.opt.blame'), tone: t('soc.tone.sharp'),
             effect: { teamMood: -9, image: -5, fans: -2 },
-            text: 'Alleine gewinnt man kein Spiel. Da muessen andere mehr investieren.' },
-          { id: 'silent', label: 'Nichts posten', tone: 'zurueckhaltend', effect: {}, text: '' },
+            text: t('soc.text.blame') },
+          { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
   }
@@ -229,7 +227,7 @@ export function publishDraft(state: GameState, optionId: string, rng: Rng): Soci
 /** Beitrag zu einem Titel oder einer Auszeichnung. */
 export function socialMilestone(state: GameState, headline: string, rng: Rng) {
   push(state, {
-    author: 'Sportredaktion', kind: 'media', text: headline,
+    author: t('soc.author.media'), kind: 'media', text: headline,
     likes: rng.int(500, 4000),
   });
   growFollowers(state, rng.int(500, 2500));

@@ -15,6 +15,7 @@
  */
 import { parseCsv, field, num, type CsvRow } from './csv';
 import { findNation } from './nations';
+import { t } from '../i18n';
 
 export interface CustomClub {
   name: string;
@@ -120,10 +121,12 @@ function attachPlayers(clubs: CustomClub[], rows: CsvRow[], warnings: string[]) 
     });
   }
   if (unmatched > 0) {
-    warnings.push(`${unmatched} Spieler ohne passenden Verein uebersprungen.`);
+    warnings.push(t('db.warn.unmatched', { n: unmatched }));
   }
   if (unknownNations.size > 0) {
-    warnings.push(`Unbekannte Herkunft: ${[...unknownNations].slice(0, 8).join(', ')}`);
+    warnings.push(t('db.warn.unknownNations', {
+      list: [...unknownNations].slice(0, 8).join(', '),
+    }));
   }
 }
 
@@ -146,14 +149,14 @@ export async function importFolder(files: File[], fallbackName: string): Promise
   if (!main) {
     return {
       database: null,
-      errors: ['Keine main.csv im Ordner gefunden. Sie beschreibt die Wettbewerbe.'],
+      errors: [t('db.noMainCsv')],
       warnings,
       stats: { competitions: 0, clubs: 0, players: 0, images: 0 },
     };
   }
 
   const mainRows = parseCsv(await main.text());
-  if (mainRows.length === 0) errors.push('main.csv enthaelt keine Zeilen.');
+  if (mainRows.length === 0) errors.push(t('db.err.emptyMain'));
 
   const countries: Record<string, string> = {};
   const competitions: CustomCompetition[] = [];
@@ -185,7 +188,7 @@ export async function importFolder(files: File[], fallbackName: string): Promise
     if (fileRef) {
       const clubFile = byName.get(baseName(fileRef));
       if (!clubFile) {
-        warnings.push(`Datei "${fileRef}" fuer ${name} fehlt - Wettbewerb bleibt leer.`);
+        warnings.push(t('db.warn.missingFile', { file: fileRef, name }));
       } else {
         comp.clubs = readClubs(parseCsv(await clubFile.text()));
         // Kaderdatei: entweder ausdruecklich benannt oder nach Namensmuster.
@@ -205,7 +208,7 @@ export async function importFolder(files: File[], fallbackName: string): Promise
   for (const [key, file] of byName) {
     if (!/\.(png|jpe?g|svg|webp|gif)$/.test(key)) continue;
     if (file.size > 512 * 1024) {
-      warnings.push(`${file.name} ist groesser als 512 KB und wurde ausgelassen.`);
+      warnings.push(t('db.warn.tooLarge', { file: file.name }));
       continue;
     }
     images[key] = await new Promise<string>((resolve, reject) => {
@@ -220,7 +223,7 @@ export async function importFolder(files: File[], fallbackName: string): Promise
   const playerCount = competitions.reduce(
     (a, c) => a + c.clubs.reduce((b, cl) => b + cl.squad.length, 0), 0,
   );
-  if (clubCount === 0) errors.push('Keine Vereine gefunden - stimmen die Dateinamen in main.csv?');
+  if (clubCount === 0) errors.push(t('db.noClubs'));
 
   return {
     database: errors.length > 0 ? null : {
@@ -252,11 +255,11 @@ export function createEmptyDatabase(name: string): CustomDatabase {
   return {
     name,
     importedAt: Date.now(),
-    countries: { eigenes: 'Eigenes Land' },
+    countries: { eigenes: t('db.ownCountry') },
     competitions: [
-      { id: 'liga-1', kind: 'liga', country: 'eigenes', name: 'Erste Liga', level: 1, clubs: [] },
-      { id: 'liga-2', kind: 'liga', country: 'eigenes', name: 'Zweite Liga', level: 2, clubs: [] },
-      { id: 'pokal', kind: 'pokal', country: 'eigenes', name: 'Landespokal', clubs: [] },
+      { id: 'liga-1', kind: 'liga', country: 'eigenes', name: t('db.firstLeague'), level: 1, clubs: [] },
+      { id: 'liga-2', kind: 'liga', country: 'eigenes', name: t('db.secondLeague'), level: 2, clubs: [] },
+      { id: 'pokal', kind: 'pokal', country: 'eigenes', name: t('db.cup'), clubs: [] },
     ],
     images: {},
   };

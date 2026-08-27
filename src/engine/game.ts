@@ -10,7 +10,7 @@ import {
   type GameDate,
 } from './date';
 import {
-  advancePlayerDay, applyTraining, driftForm, rollInjury, updateFormAfterMatch,
+  advancePlayerDay, applyTraining, driftForm, injuryForDays, updateFormAfterMatch,
   type TrainingOutcome,
 } from './development';
 import { buildLifeEvent, type LifeEvent } from './events';
@@ -20,9 +20,14 @@ import {
 import { checkLoanReturn, generateLoanOffers } from './loan';
 import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
+import { t, tDecimal } from '../i18n';
+import { remindContractExpiry } from './contract';
+import { checkMatchMilestones } from './milestones';
 import { gameCountryOfNation } from './nations';
 import type { WncResult } from './types';
-import { driftRelationships, relationshipMoraleDrift, seedRelationships } from './relationships';
+import {
+  driftRelationships, mentorInfluence, mentorLeft, relationshipMoraleDrift, seedRelationships,
+} from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
 import { quickTeamRating, selectLineup, type Lineup } from './lineup';
 import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
@@ -161,12 +166,17 @@ export function createNewGame(opts: NewGameOptions): GameState {
   updateNationalStatus(state);
 
   const club = user.clubId ? state.clubs[user.clubId] : null;
-  addCareerEvent(state, 'start', 'Karrierestart',
-    `${user.firstName} ${user.lastName} startet bei ${club?.name ?? 'einem Verein'} `
-    + `als ${BACKGROUNDS[opts.background].name}.`, { clubId: user.clubId ?? undefined });
-  addNews(state, 'season', 'Ein neues Kapitel beginnt',
-    `${user.firstName} ${user.lastName} gehoert ab sofort zum Kader von ${club?.name ?? '-'}. `
-    + `Die Saison ${seasonLabel(state.season)} steht bevor.`, true);
+  const spielerName = `${user.firstName} ${user.lastName}`;
+  const vereinName = club?.name ?? t('gm.start.clubFallback');
+  addCareerEvent(state, 'start', t('gm.start.title'),
+    t('gm.start.body', {
+      name: spielerName, club: vereinName,
+      background: t(BACKGROUNDS[opts.background].name),
+    }), { clubId: user.clubId ?? undefined });
+  addNews(state, 'season', t('gm.start.news'),
+    t('gm.start.newsBody', {
+      name: spielerName, club: vereinName, season: seasonLabel(state.season),
+    }), true);
 
   state.rngState = rng.state;
   return state;
@@ -303,6 +313,19 @@ export function createObjectives(state: GameState) {
     : line === 'MID' ? Math.max(2, Math.round(ability / 16))
     : 1;
 
+  // Vorlagen passen zum Mittelfeld besser als ein niedriges Torziel.
+  const assistTarget = line === 'MID' ? Math.max(3, Math.round(ability / 13))
+    : line === 'ATT' ? Math.max(2, Math.round(ability / 20)) : 1;
+
+  // Die Note haengt an der Rolle. Fest 6,8 fuer alle war eine Dauerabsage:
+  // Gemessen ueber sieben Saisons einer starken Laufbahn lagen die
+  // Saisonnoten zwischen 6,31 und 6,72, und vergleichbare
+  // computergesteuerte Spieler liegen noch darunter. Ein Ziel, das nie
+  // faellt, kostet seit der Abrechnung jede Saison Trainerbeziehung.
+  const ratingTarget = role === 'Schluesselspieler' || role === 'Mannschaftsfuehrer' ? 6.8
+    : role === 'Stammspieler' ? 6.65
+    : role === 'Rotationsspieler' ? 6.5 : 6.4;
+
   // Erwarteter Tabellenplatz aus der Vereinsreputation
   const table = league ? sortedTable(state, league.id) : [];
   const rank = league
@@ -315,28 +338,41 @@ export function createObjectives(state: GameState) {
 
   state.objectives = [
     {
-      id: 'apps', kind: 'appearances', label: `Mindestens ${appearanceTarget} Pflichtspiele`,
+      id: 'apps', kind: 'appearances',
+      label: t('obj.apps.label', { n: appearanceTarget }),
       target: appearanceTarget, current: 0, done: false, failed: false,
-      reward: 'Bessere Trainerbeziehung und neue Vertragsangebote',
+      reward: t('obj.apps.reward'),
     },
+    // Stuermer werden an Toren gemessen, das Mittelfeld an Vorlagen. Vorher
+    // bekam ein Zehner ein Torziel von zwei bis vier - eine Vorgabe, die
+    // weder fordert noch etwas ueber seine Rolle aussagt.
+    line === 'MID'
+      ? {
+        id: 'assists', kind: 'assists' as const,
+        label: t('obj.assists.label', { n: assistTarget }),
+        target: assistTarget, current: 0, done: false, failed: false,
+        reward: t('obj.assists.reward'),
+      }
+      : {
+        id: 'goals', kind: 'goals' as const,
+        label: t('obj.goals.label', { n: goalTarget }),
+        target: goalTarget, current: 0, done: false, failed: false,
+        reward: t('obj.goals.reward'),
+      },
     {
-      id: 'goals', kind: 'goals', label: `${goalTarget} Tore erzielen`,
-      target: goalTarget, current: 0, done: false, failed: false,
-      reward: 'Hoehere Reputation und Marktwert',
-    },
-    {
-      id: 'rating', kind: 'rating', label: 'Durchschnittsnote von 6,80 erreichen',
-      target: 6.8, current: 0, done: false, failed: false,
-      reward: 'Aufmerksamkeit groesserer Vereine',
+      id: 'rating', kind: 'rating',
+      label: t('obj.rating.label', { n: tDecimal(ratingTarget) }),
+      target: ratingTarget, current: 0, done: false, failed: false,
+      reward: t('obj.rating.reward'),
     },
     {
       id: 'team', kind: 'teamPosition',
-      label: rank <= 4 ? 'Mit dem Team um den Titel spielen (Platz 1 bis 3)'
-        : rank <= 12 ? `Einstelliger Tabellenplatz mit ${club.short}`
-        : 'Den Klassenerhalt sichern',
+      label: rank <= 4 ? t('obj.team.title')
+        : rank <= 12 ? t('obj.team.single', { club: club.short })
+        : t('obj.team.survive'),
       target: rank <= 4 ? 3 : rank <= 12 ? 9 : 17,
       current: 0, done: false, failed: false,
-      reward: 'Praemien und Vereinsansehen',
+      reward: t('obj.team.reward'),
     },
   ];
 }
@@ -349,6 +385,7 @@ function updateObjectives(state: GameState) {
   );
   const apps = entries.reduce((a, s) => a + s.appearances, 0);
   const goals = entries.reduce((a, s) => a + s.goals, 0);
+  const assists = entries.reduce((a, s) => a + s.assists, 0);
   const ratingSum = entries.reduce((a, s) => a + s.ratingSum, 0);
   const avg = apps > 0 ? ratingSum / apps : 0;
 
@@ -361,6 +398,7 @@ function updateObjectives(state: GameState) {
   for (const obj of state.objectives) {
     switch (obj.kind) {
       case 'appearances': obj.current = apps; obj.done = apps >= obj.target; break;
+      case 'assists': obj.current = assists; obj.done = assists >= obj.target; break;
       case 'goals': obj.current = goals; obj.done = goals >= obj.target; break;
       case 'rating': obj.current = avg; obj.done = avg >= obj.target; break;
       case 'teamPosition':
@@ -431,14 +469,29 @@ export function advanceDay(state: GameState): DayResult {
     result.training = applyTraining(
       rng, user, state.training.focus, state.training.intensity,
       club?.training ?? 50, state.date, DIFFICULTY_SETTINGS[state.difficulty], user.sharpness,
-      state.training.individualGoal,
+      state.training.individualGoal, mentorInfluence(state),
     );
     if (result.training.injured) {
-      addNews(state, 'injury', 'Verletzung im Training',
-        `${user.lastName} zieht sich im Training eine Verletzung zu `
-        + `(${result.training.injured.name}, etwa ${result.training.injured.totalDays} Tage).`, true);
-      result.headlines.push(`Verletzung: ${result.training.injured.name}`);
+      addNews(state, 'injury', t('gm.trainInjury.title'),
+        t('gm.trainInjury.body', {
+          last: user.lastName,
+          injury: t(result.training.injured.name),
+          n: result.training.injured.totalDays,
+        }), true);
+      result.headlines.push(t('gm.headline.injury', { injury: t(result.training.injured.name) }));
     }
+  }
+
+  // Verlaesst der Mentor den Verein, geht mehr als ein Name aus dem Kader:
+  // Sein Trainingsvorteil faellt weg. Das soll man erfahren, nicht nur spueren.
+  const ehemaligerMentor = mentorLeft(state);
+  if (ehemaligerMentor && user) {
+    const mentorName = `${ehemaligerMentor.firstName} ${ehemaligerMentor.lastName}`;
+    addNews(state, 'transfer', t('gm.mentorGone.title'),
+      t('gm.mentorGone.body', { mentor: mentorName }), true);
+    addCareerEvent(state, 'other', t('gm.mentorGone.event'),
+      t('gm.mentorGone.eventBody', { mentor: mentorName }));
+    user.morale = clamp(user.morale - 6, 0, 100);
   }
 
   // Der Berater arbeitet im Hintergrund weiter (Konzept Abschnitt 35).
@@ -452,6 +505,8 @@ export function advanceDay(state: GameState): DayResult {
   if (month(state.date) === 1 && dayOfMonth(state.date) === 3) {
     generateLoanOffers(state, rng);
   }
+  // Ein auslaufender Vertrag soll auffallen, bevor er ausgelaufen ist.
+  remindContractExpiry(state);
 
   // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
   // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.
@@ -498,8 +553,7 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
         scheduleRelegation(state, rng, country.id);
       }
     }
-    addNews(state, 'season', 'Die Liga ist entschieden',
-      'Alle Ligaspieltage sind absolviert. Es folgen die Relegationsspiele.', false);
+    addNews(state, 'season', t('gm.leagueDone.title'), t('gm.leagueDone.body'), false);
   }
 
   if (state.seasonPhase === 'postSeason' && postSeasonFinished(state)) {
@@ -517,8 +571,9 @@ function handleSeasonTransitions(state: GameState, rng: Rng, result: DayResult) 
       result.wnc = playWorldNationsCup(state, rng);
     }
     createObjectives(state);
-    addNews(state, 'season', `Saison ${seasonLabel(report.season)} abgeschlossen`,
-      'Die Auswertung der Saison liegt vor. Eine neue Spielzeit beginnt.', true);
+    addNews(state, 'season',
+      t('gm.seasonDone.title', { season: seasonLabel(report.season) }),
+      t('gm.seasonDone.body'), true);
   }
 }
 
@@ -538,16 +593,11 @@ function announceDerby(state: GameState, match: Match) {
     (n) => n.date === state.date && n.headline.startsWith(importance.label ?? ''));
   if (already) return;
 
-  const texts: Record<string, string> = {
-    city: `Die ganze Stadt spricht nur ueber dieses Spiel. Gegen ${opponent.name} `
-      + 'zaehlt nicht die Tabelle, sondern die Ehre.',
-    traditional: `Das Duell mit ${opponent.name} hat Tradition. `
-      + 'Beide Lager fiebern dem Anpfiff seit Wochen entgegen.',
-    topClash: `Zwei Spitzenmannschaften treffen aufeinander. Gegen ${opponent.name} `
-      + 'schauen alle genau hin.',
-  };
-  addNews(state, 'match', `${importance.label} gegen ${opponent.name}`,
-    texts[importance.derby] ?? '', true);
+  addNews(state, 'match',
+    t('derby.announce', { label: importance.label ?? '', opponent: opponent.name }),
+    importance.derby
+      ? t(`derby.text.${importance.derby}`, { opponent: opponent.name })
+      : '', true);
 }
 
 // --- Hintergrundspiele -------------------------------------------------
@@ -636,10 +686,8 @@ function simulateResultOnly(
     const fit = squad.filter((p) => !p.injury);
     if (fit.length === 0) continue;
     const victim = rng.weighted(fit, (p) => 0.5 + p.injuryProneness / 90);
-    const injury = rollInjury(rng, victim, 'Spiel');
     const days = Math.max(3, Math.round(rng.normal(16, 14)));
-    injury.daysOut = days;
-    injury.totalDays = days;
+    injuryForDays(rng, victim, days);
   }
 }
 
@@ -658,7 +706,9 @@ function buildLightEvents(
         clubId: g.clubId,
         playerId: g.playerId,
         assistId: g.assistId ?? undefined,
-        text: `${p ? `${p.firstName.charAt(0)}. ${p.lastName}` : 'Unbekannt'} trifft.`,
+        text: t('gm.scores', {
+          name: p ? `${p.firstName.charAt(0)}. ${p.lastName}` : t('gm.unknownPlayer'),
+        }),
       };
     });
   void match;
@@ -736,7 +786,7 @@ export function prepareUserMatch(
   return {
     setup: {
       matchId: match.id,
-      competitionName: state.competitions[match.competitionId]?.name ?? 'Spiel',
+      competitionName: state.competitions[match.competitionId]?.name ?? t('gm.matchFallback'),
       homeClub, awayClub, homeLineup, awayLineup, homeSquad, awaySquad,
       userPlayerId: state.userPlayerId,
       interactive,
@@ -864,12 +914,31 @@ function commitMatch(
     }
 
     // Sperren (Konzept Abschnitt 44)
-    if (s.redCards > 0) player.suspension += 2;
+    const eigener = player.id === state.userPlayerId;
+    if (s.redCards > 0) {
+      player.suspension += 2;
+      if (eigener) {
+        addNews(state, 'match', t('susp.red.title'),
+          t('susp.red.body', { last: player.lastName }), true);
+        addCareerEvent(state, 'other', t('susp.red.event'),
+          t('susp.red.eventBody'));
+      }
+    }
     if (s.yellowCards > 0 && isLeague) {
       player.yellowCardsInLeague += s.yellowCards;
       if (player.yellowCardsInLeague >= 5) {
         player.yellowCardsInLeague = 0;
         player.suspension += 1;
+        if (eigener) {
+          addNews(state, 'match', t('susp.fifth.title'),
+            t('susp.fifth.body', { last: player.lastName }), true);
+        }
+      } else if (eigener && player.yellowCardsInLeague === 4) {
+        // Die Warnung vor der Sperre ist der eigentliche Spielinhalt: Ab hier
+        // kostet jede Verwarnung ein Spiel, und das soll man wissen, bevor es
+        // passiert - nicht danach.
+          addNews(state, 'match', t('susp.warn.title'),
+            t('susp.warn.body', { last: player.lastName }), false);
       }
     }
   }
@@ -885,14 +954,20 @@ function commitMatch(
   for (const inj of input.injuries) {
     const p = state.players[inj.playerId];
     if (!p || p.injury) continue;
-    const injury = rollInjury(rng, p, 'Spiel');
-    injury.daysOut = inj.days;
-    injury.totalDays = inj.days;
+    // Erst steht die Dauer fest, dann die passende Art dazu.
+    const injury = injuryForDays(rng, p, inj.days);
     if (p.isUser) {
-      addNews(state, 'injury', 'Verletzung im Spiel',
-        `${p.lastName} faellt voraussichtlich ${inj.days} Tage aus (${injury.name}).`, true);
-      addCareerEvent(state, 'injury', 'Verletzung',
-        `${injury.name} - etwa ${inj.days} Tage Pause.`);
+      addNews(state, 'injury', t('gm.matchInjury.title'),
+        t('gm.matchInjury.body', {
+          last: p.lastName, n: inj.days, injury: t(injury.name),
+        }), true);
+      // Nur laengere Ausfaelle gehoeren in die Chronik. Eine Prellung ueber
+      // fuenf Tage ist kein Meilenstein und verwaessert die Laufbahn nur.
+      if (inj.days >= 21) {
+        addCareerEvent(state, 'injury',
+          t(inj.days >= 90 ? 'gm.injury.severe' : 'gm.injury.long'),
+          t('gm.injury.body', { injury: t(injury.name), n: inj.days }));
+      }
     }
   }
 
@@ -905,7 +980,7 @@ function commitMatch(
         .map((s) => s.playerId);
       driftRelationships(state, teammates, rng);
     }
-    handleUserMatchAftermath(state, match, userStats, input);
+    handleUserMatchAftermath(state, match, userStats, input, rng);
   }
 }
 
@@ -936,7 +1011,7 @@ function applyResultToTable(state: GameState, match: Match) {
 }
 
 function handleUserMatchAftermath(
-  state: GameState, match: Match, s: PlayerMatchStats, input: CommitInput,
+  state: GameState, match: Match, s: PlayerMatchStats, input: CommitInput, rng: Rng,
 ) {
   const user = state.players[state.userPlayerId];
   if (!user) return;
@@ -954,8 +1029,16 @@ function handleUserMatchAftermath(
   const fanPerf = (s.rating - AVERAGE_RATING) * 1.6 + s.goals * 2.2;
   // Je naeher die Beziehung schon am Rand liegt, desto zaeher wird der naechste
   // Schritt in dieselbe Richtung. So pendelt sie sich ein, statt zu driften.
-  const damp = (value: number, delta: number) =>
-    delta * clamp((delta >= 0 ? 100 - value : value) / 45, 0.3, 1);
+  //
+  // Nach OBEN laeuft die Daempfung gegen null: Fruehe Versionen hatten auch
+  // hier einen Boden von 0,3, wodurch selbst bei 100 noch etwas dazukam - die
+  // Fanbeliebtheit klebte dann dauerhaft am Anschlag und war als Groesse tot.
+  // Nach UNTEN bleibt der Boden, damit eine Beziehung immer fallen kann,
+  // egal wie gut sie war.
+  const damp = (value: number, delta: number) => {
+    const raum = delta >= 0 ? 100 - value : value;
+    return delta * clamp(raum / 45, delta >= 0 ? 0 : 0.3, 1);
+  };
   state.coachRelation = clamp(state.coachRelation + damp(state.coachRelation, coachPerf), 0, 100);
   state.fanRelation = clamp(state.fanRelation + damp(state.fanRelation, fanPerf), 0, 100);
 
@@ -984,19 +1067,32 @@ function handleUserMatchAftermath(
     if (ownGoals > oppGoals) {
       state.fanRelation = clamp(state.fanRelation + 6 * weight, 0, 100);
       user.morale = clamp(user.morale + 7 * weight, 0, 100);
-      addNews(state, 'match', `${importance.label} gewonnen`,
-        `${scoreText} gegen ${opponent.name}. Ein Sieg, den die Anhaenger lange feiern.`, true);
-      // Ein eigenes Tor im Derby ist ein Karrieremoment.
-      if (s.goals > 0) {
-        addCareerEvent(state, 'title', `Tor im ${importance.label}`,
-          `${s.goals === 1 ? 'Ein Treffer' : `${s.goals} Treffer`} gegen ${opponent.name} `
-          + `beim ${scoreText}.`, { clubId: user.clubId ?? undefined });
+      addNews(state, 'match',
+        t('derby.won.title', { label: importance.label ?? '' }),
+        t('derby.won.body', { score: scoreText, opponent: opponent.name }), true);
+      // Ein eigenes Tor im Derby ist ein Karrieremoment - aber kein Titel.
+      // Als `title` verbucht landete es in derselben Reihe wie eine
+      // Meisterschaft, und das mehrfach pro Laufbahn.
+      //
+      // Und nicht jedes Tor: Gemessen bestanden zwei Fuenftel der Chronik aus
+      // Derbytoren. Aufgenommen wird deshalb, was auch wirklich ein Moment
+      // war - mehrere Tore, oder ein knapper Sieg, den das eigene Tor
+      // entschieden hat. Das dritte Tor beim 5:0 gehoert in die Statistik.
+      const knapp = ownGoals - oppGoals <= 1;
+      const denkwuerdig = s.goals >= 2 || (knapp && s.goals > 0);
+      if (denkwuerdig) {
+        addCareerEvent(state, 'derby',
+          t('derby.goal.title', { label: importance.label ?? '' }),
+          t(s.goals === 1 ? 'derby.goal.one' : 'derby.goal.many', {
+            n: s.goals, opponent: opponent.name, score: scoreText,
+          }), { clubId: user.clubId ?? undefined });
       }
     } else if (ownGoals < oppGoals) {
       state.fanRelation = clamp(state.fanRelation - 5 * weight, 0, 100);
       user.morale = clamp(user.morale - 6 * weight, 0, 100);
-      addNews(state, 'match', `${importance.label} verloren`,
-        `${scoreText} gegen ${opponent.name}. Die Enttaeuschung im Umfeld ist gross.`, true);
+      addNews(state, 'match',
+        t('derby.lost.title', { label: importance.label ?? '' }),
+        t('derby.lost.body', { score: scoreText, opponent: opponent.name }), true);
     }
   }
 
@@ -1008,43 +1104,63 @@ function handleUserMatchAftermath(
   user.marketValue = calcMarketValue(
     ability, user.potential, ageOn(user.birthDate, state.date), user.position, league?.level ?? 3);
 
+  const gegnerName = opponent?.name ?? t('gm.opponentFallback');
   const career = state.userMatchStats;
   const totalApps = career.length;
 
   if (totalApps === 1) {
-    addCareerEvent(state, 'debut', 'Profidebuet',
-      `Erstes Pflichtspiel gegen ${opponent?.name ?? 'den Gegner'} (${scoreText}).`,
+    addCareerEvent(state, 'debut', t('gm.debut.title'),
+      t('gm.debut.body', { opponent: gegnerName, score: scoreText }),
       { clubId: user.clubId ?? undefined, competitionId: match.competitionId });
-    addNews(state, 'match', 'Debuet gefeiert',
-      `${user.firstName} ${user.lastName} gibt sein Pflichtspieldebuet.`, true);
+    addNews(state, 'match', t('gm.debut.news'),
+      t('gm.debut.newsBody', { name: `${user.firstName} ${user.lastName}` }), true);
   }
 
   const careerGoals = career.reduce((a, x) => a + x.goals, 0);
   if (s.goals > 0 && careerGoals === s.goals) {
-    addCareerEvent(state, 'firstGoal', 'Erstes Pflichtspieltor',
-      `Erstes Tor gegen ${opponent?.name ?? 'den Gegner'} am ${formatShort(match.date)}.`,
+    addCareerEvent(state, 'firstGoal', t('gm.firstGoal.title'),
+      t('gm.firstGoal.body', { opponent: gegnerName, date: formatShort(match.date) }),
       { clubId: user.clubId ?? undefined, competitionId: match.competitionId });
   }
   const careerAssists = career.reduce((a, x) => a + x.assists, 0);
   if (s.assists > 0 && careerAssists === s.assists) {
-    addCareerEvent(state, 'firstAssist', 'Erste Vorlage',
-      `Erste Torvorlage gegen ${opponent?.name ?? 'den Gegner'}.`,
+    addCareerEvent(state, 'firstAssist', t('gm.firstAssist.title'),
+      t('gm.firstAssist.body', { opponent: gegnerName }),
       { clubId: user.clubId ?? undefined });
   }
+  // Laufende Marken: Ohne sie schweigt die Chronik, sobald die Premieren
+  // durch sind - und das ist bereits nach wenigen Monaten der Fall.
+  checkMatchMilestones(state,
+    { apps: totalApps - 1, goals: careerGoals - s.goals, assists: careerAssists - s.assists },
+    { apps: totalApps, goals: careerGoals, assists: careerAssists },
+    {
+      clubId: user.clubId ?? undefined,
+      competitionId: match.competitionId,
+      clubName: user.clubId ? state.clubs[user.clubId]?.name : undefined,
+    }, rng);
+
   if (s.goals >= 3) {
-    addCareerEvent(state, 'hattrick', 'Hattrick',
-      `${s.goals} Tore in einem Spiel gegen ${opponent?.name ?? 'den Gegner'} (${scoreText}).`,
+    addCareerEvent(state, 'hattrick', t('gm.hattrick.title'),
+      t('gm.hattrick.body', { n: s.goals, opponent: gegnerName, score: scoreText }),
       { clubId: user.clubId ?? undefined, competitionId: match.competitionId });
-    addNews(state, 'match', 'Hattrick!',
-      `${user.lastName} trifft ${s.goals} Mal gegen ${opponent?.name ?? '-'}.`, true);
+    addNews(state, 'match', t('gm.hattrick.news'),
+      t('gm.hattrick.newsBody', { last: user.lastName, n: s.goals, opponent: gegnerName }),
+      true);
   }
 
   const summary = s.goals > 0 || s.assists > 0
-    ? `${s.goals} Tore, ${s.assists} Vorlagen, Note ${s.rating.toFixed(1)}`
-    : `Note ${s.rating.toFixed(1)} in ${s.minutes} Minuten`;
+    ? t('gm.report.withGoals', {
+      goals: s.goals, assists: s.assists, rating: tDecimal(s.rating, 1),
+    })
+    : t('gm.report.plain', { rating: tDecimal(s.rating, 1), minutes: s.minutes });
   addNews(state, 'match',
-    `${comp?.short ?? 'Spiel'}: ${state.clubs[match.homeClubId]?.short} ${scoreText} ${state.clubs[match.awayClubId]?.short}`,
-    `${user.lastName}: ${summary}.`, s.goals > 0 || s.motm);
+    t('gm.report.headline', {
+      comp: comp?.short ?? t('gm.matchFallback'),
+      home: state.clubs[match.homeClubId]?.short ?? '',
+      score: scoreText,
+      away: state.clubs[match.awayClubId]?.short ?? '',
+    }),
+    t('gm.report.body', { last: user.lastName, summary }), s.goals > 0 || s.motm);
 }
 
 // --- Hilfen fuer die Oberflaeche --------------------------------------

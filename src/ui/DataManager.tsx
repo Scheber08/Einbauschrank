@@ -14,8 +14,11 @@ import {
 import { setState, showToast } from '../state/store';
 import { Empty, Panel } from './components';
 import DatabaseEditor from './DatabaseEditor';
+import { t, tn } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 
 export default function DataManager() {
+  useLocale();
   const [databases, setDatabases] = useState<CustomDatabase[]>([]);
   const [active, setActive] = useState<string | null>(getActiveName());
   const [report, setReport] = useState<ImportReport | null>(null);
@@ -38,18 +41,18 @@ export default function DataManager() {
       const files = Array.from(fileList);
       // Ordnername aus dem relativen Pfad des ersten Eintrags.
       const rel = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath ?? '';
-      const folder = rel.split('/')[0] || 'Eigene Datenbank';
+      const folder = rel.split('/')[0] || t('data.defaultName');
       const result = await importFolder(files, folder);
       setReport(result);
       if (result.database) {
         await saveDatabase(result.database);
         await refresh();
-        showToast(`"${result.database.name}" geladen.`, 'good');
+        showToast(t('data.loaded', { name: result.database.name }), 'good');
       }
     } catch (err) {
       setReport({
         database: null,
-        errors: [err instanceof Error ? err.message : 'Import fehlgeschlagen.'],
+        errors: [err instanceof Error ? err.message : t('data.importFailed')],
         warnings: [],
         stats: { competitions: 0, clubs: 0, players: 0, images: 0 },
       });
@@ -76,19 +79,19 @@ export default function DataManager() {
         URL.revokeObjectURL(url);
       }, i * 220);
     });
-    showToast(`${files.length} Dateien werden gesichert.`, 'info');
+    showToast(tn('data.filesSaved', files.length), 'info');
   }
 
   async function activate(name: string | null) {
     setActiveName(name);
     setActive(name);
     setActiveDatabase(name ? await loadDatabase(name) : null);
-    showToast(name ? `"${name}" wird ab der naechsten Karriere verwendet.`
-      : 'Es werden wieder die mitgelieferten Namen verwendet.', 'info');
+    showToast(name ? t('data.willBeUsed', { name })
+      : t('data.backToDefaults'), 'info');
   }
 
   async function remove(name: string) {
-    if (!window.confirm(`Datenbank "${name}" wirklich entfernen?`)) return;
+    if (!window.confirm(t('data.confirmRemove', { name }))) return;
     await deleteDatabase(name);
     if (active === name) { setActive(null); setActiveDatabase(null); }
     await refresh();
@@ -104,7 +107,7 @@ export default function DataManager() {
           if (active === db.name) setActiveDatabase(db);
           await refresh();
           setEditing(null);
-          showToast('Aenderungen gespeichert.', 'good');
+          showToast(t('data.saved'), 'good');
         }}
       />
     );
@@ -114,42 +117,42 @@ export default function DataManager() {
     <div className="menu-wrap" style={{ alignItems: 'start' }}>
       <div className="menu">
         <div className="row between" style={{ marginBottom: '1rem' }}>
-          <h1 style={{ margin: 0 }}>Datenbanken</h1>
-          <button className="ghost" onClick={() => setState({ screen: 'menu' })}>Zurueck</button>
+          <h1 style={{ margin: 0 }}>{t('data.title')}</h1>
+          <button className="ghost" onClick={() => setState({ screen: 'menu' })}>{t('common.back')}</button>
         </div>
 
-        <Panel title="Neu anlegen">
+        <Panel title={t('data.createNew')}>
           <p className="small muted" style={{ marginTop: 0 }}>
-            Ohne Dateien loslegen: Du bekommst zwei leere Ligen und einen Pokal und
-            baust Vereine, Kader und Wappen direkt hier auf der Seite auf.
+            {t('data.createHint')}
           </p>
           <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
             <input value={newName} onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name der Datenbank" style={{ flex: '1 1 14rem' }} />
+              placeholder={t('data.namePlaceholder')} style={{ flex: '1 1 14rem' }} />
             <button className="primary" disabled={!newName.trim()} onClick={() => {
               const db = createEmptyDatabase(newName.trim());
               if (databases.some((d) => d.name === db.name)) {
-                showToast('Eine Datenbank mit diesem Namen gibt es bereits.', 'bad');
+                showToast(t('data.nameTaken'), 'bad');
                 return;
               }
               setEditing(db);
-            }}>Anlegen und bearbeiten</button>
+            }}>{t('data.createAndEdit')}</button>
           </div>
         </Panel>
 
-        <Panel title="Eigenen Ordner laden">
+        <Panel title={t('data.loadFolder')}>
+          {/* In zwei Haelften uebersetzt, damit die Dateiangabe ihre
+              Auszeichnung behaelt. Beide Sprachen sind so geschrieben, dass
+              der Satz um <code>main.csv</code> herum aufgeht. */}
           <p className="small muted" style={{ marginTop: 0 }}>
-            Waehle einen Ordner mit CSV-Dateien. Er braucht eine <code>main.csv</code> mit
-            den Wettbewerben und je eine Datei mit den Vereinen. Kader und Wappen sind
-            optional. Die Daten bleiben in diesem Browser - sie werden nicht hochgeladen.
+            {t('data.folderHintA')} <code>main.csv</code> {t('data.folderHintB')}
           </p>
           <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
             <button className="primary" disabled={busy}
               onClick={() => folderInput.current?.click()}>
-              {busy ? 'Wird gelesen...' : 'Ordner auswaehlen'}
+              {busy ? t('data.reading') : t('data.chooseFolder')}
             </button>
             <a className="chip" href="/beispiel-datenbank/LIESMICH.txt" target="_blank" rel="noreferrer">
-              Aufbau und Beispiel ansehen
+              {t('data.exampleLink')}
             </a>
           </div>
           <input
@@ -172,18 +175,20 @@ export default function DataManager() {
               ))}
               {report.database && (
                 <div className="small">
-                  Gelesen: <b>{report.stats.competitions}</b> Wettbewerbe,{' '}
-                  <b>{report.stats.clubs}</b> Vereine, <b>{report.stats.players}</b> Spieler,{' '}
-                  <b>{report.stats.images}</b> Bilder.
+                  {t('data.readPrefix')}{' '}
+                  <b>{report.stats.competitions}</b> {tn('data.competitions', report.stats.competitions)},{' '}
+                  <b>{report.stats.clubs}</b> {tn('data.clubs', report.stats.clubs)},{' '}
+                  <b>{report.stats.players}</b> {tn('data.players', report.stats.players)},{' '}
+                  <b>{report.stats.images}</b> {tn('data.images', report.stats.images)}.
                 </div>
               )}
             </div>
           )}
         </Panel>
 
-        <Panel title="Vorhandene Datenbanken">
+        <Panel title={t('data.existing')}>
           {databases.length === 0 && (
-            <Empty text="Noch keine eigene Datenbank geladen. Es gelten die mitgelieferten Namen." />
+            <Empty text={t('data.none')} />
           )}
           {databases.map((db) => {
             const clubs = db.competitions.reduce((a, c) => a + c.clubs.length, 0);
@@ -194,22 +199,22 @@ export default function DataManager() {
                 <div className="save-info">
                   <div className="row" style={{ gap: '0.5rem' }}>
                     <strong>{db.name}</strong>
-                    {active === db.name && <span className="pill good">aktiv</span>}
+                    {active === db.name && <span className="pill good">{t('data.active')}</span>}
                   </div>
                   <div className="save-stats tiny">
-                    <span><b>{db.competitions.length}</b> Wettbewerbe</span>
-                    <span><b>{clubs}</b> Vereine</span>
-                    <span><b>{players}</b> Spieler</span>
-                    <span><b>{Object.keys(db.images).length}</b> Bilder</span>
+                    <span><b>{db.competitions.length}</b> {tn('data.competitions', db.competitions.length)}</span>
+                    <span><b>{clubs}</b> {tn('data.clubs', clubs)}</span>
+                    <span><b>{players}</b> {tn('data.players', players)}</span>
+                    <span><b>{Object.keys(db.images).length}</b> {tn('data.images', Object.keys(db.images).length)}</span>
                   </div>
                 </div>
                 <div className="save-actions">
                   <button className="primary small" onClick={() => void activate(db.name)}
-                    disabled={active === db.name}>Verwenden</button>
-                  <button className="small ghost" onClick={() => setEditing(db)}>Bearbeiten</button>
+                    disabled={active === db.name}>{t('common.use')}</button>
+                  <button className="small ghost" onClick={() => setEditing(db)}>{t('common.edit')}</button>
                   <button className="small ghost" onClick={() => downloadCsv(db)}
-                    title="Als CSV-Dateien sichern">Export</button>
-                  <button className="small danger" onClick={() => void remove(db.name)}>Entfernen</button>
+                    title={t('data.saveAsCsv')}>{t('common.export')}</button>
+                  <button className="small danger" onClick={() => void remove(db.name)}>{t('common.remove')}</button>
                 </div>
               </div>
             );
@@ -217,17 +222,14 @@ export default function DataManager() {
           {active && (
             <button className="small ghost" style={{ marginTop: '0.5rem' }}
               onClick={() => void activate(null)}>
-              Keine Datenbank verwenden
+              {t('data.useNone')}
             </button>
           )}
         </Panel>
 
-        <Panel title="Rechtlicher Hinweis">
+        <Panel title={t('data.legalNote')}>
           <p className="small muted" style={{ margin: 0 }}>
-            Die mitgelieferten Namen sind frei erfunden. Vereinsnamen und Wappen sind in
-            der Regel geschuetzt, Spielernamen beruehren Persoenlichkeitsrechte. Fuer den
-            privaten Gebrauch am eigenen Rechner ist eine eigene Datenbank unproblematisch.
-            Gib sie aber nicht weiter und veroeffentliche keinen damit erzeugten Build.
+            {t('data.legalBody')}
           </p>
         </Panel>
       </div>

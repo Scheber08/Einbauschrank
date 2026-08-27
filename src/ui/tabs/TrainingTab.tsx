@@ -1,10 +1,15 @@
+import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { ATTR_LABELS } from '../../engine/attributes';
 import { INTENSITY_FACTORS, TRAINING_EFFECTS, TRAINING_LABELS } from '../../engine/development';
 import { userClub } from '../../engine/game';
+import { mentorInfluence } from '../../engine/relationships';
+import { freeKickStanding, penaltyStanding } from '../../engine/setpieces';
 import { setIndividualGoal, setTraining } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import type { TrainingFocus, TrainingIntensity } from '../../engine/types';
 import { Meter, Panel, Pill } from '../components';
+import { t, tDecimal } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 const FOCUS_ORDER: TrainingFocus[] = [
   'ballControl', 'dribbling', 'passing', 'crossing', 'shooting', 'freeKicks', 'penalties',
@@ -15,6 +20,7 @@ const FOCUS_ORDER: TrainingFocus[] = [
 const INTENSITIES: TrainingIntensity[] = ['leicht', 'normal', 'intensiv', 'sehr intensiv'];
 
 export default function TrainingTab() {
+  useLocale();
   const game = useAppState().game!;
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -22,9 +28,61 @@ export default function TrainingTab() {
   const factors = INTENSITY_FACTORS[plan.intensity];
   const effects = TRAINING_EFFECTS[plan.focus];
 
+  // Mentor: Einfluss, Name und der Grund, falls er gerade nicht wirkt.
+  const mentor = game.mentorId ? game.players[game.mentorId] : null;
+  const mentorGain = mentorInfluence(game);
+  const mentorName = mentor ? `${mentor.firstName} ${mentor.lastName}` : '';
+  // Wer bei Standards antritt, entscheidet die Spielsimulation nach den
+  // Attributen - sichtbar war das nirgends. Ein Spieler konnte die
+  // Schwerpunkte "Freistoesse" und "Elfmeter" eine Laufbahn lang trainieren,
+  // ohne je zu erfahren, ob es reicht.
+  const elfmeter = penaltyStanding(game, user.clubId ?? null);
+  const freistoss = freeKickStanding(game, user.clubId ?? null);
+  const standZeile = (stand: typeof elfmeter, key: string) => {
+    if (!stand) return null;
+    if (stand.takes) {
+      return <span className="pill good">{t(`train.${key}.yes`)}</span>;
+    }
+    return (
+      <span className="muted tiny">
+        {t(`train.${key}.no`, {
+          name: stand.ahead ? `${stand.ahead.firstName.charAt(0)}. ${stand.ahead.lastName}` : '',
+          n: stand.gap,
+        })}
+      </span>
+    );
+  };
+  const mentorRel = mentor ? Math.round(game.relationships[mentor.id] ?? 0) : 0;
+  const mentorPct = Math.round(mentorGain * 100);
+  // Zu Beginn steht der Bonus bei ein bis zwei Prozent. Als nackte Zahl liest
+  // sich das wie ein Fehler ("Entwicklung 1 Prozent schneller"), dabei ist es der
+  // Anfang einer Beziehung, die ueber Saisons waechst. Deshalb steht das
+  // Verhaeltnis immer dabei - und solange der Bonus klein ist, sagt der Text, dass
+  // da noch etwas kommt, statt eine Zahl zu behaupten, die nichts bedeutet.
+  const mentorHint = !mentor
+    ? <span className='muted tiny'>{t('train.mentor.none')}</span>
+    : mentorGain <= 0
+      ? (
+        <span className='muted tiny'>
+          {t('train.mentor.distant', { mentor: mentorName })}
+        </span>
+      )
+      : mentorPct < 2
+        ? (
+          <span className='muted tiny'>
+            {t('train.mentor.early', { mentor: mentorName, rel: mentorRel })}
+          </span>
+        )
+        : (
+          <Pill tone='good'>
+            {t('train.mentor.hint', {
+              mentor: mentorName, rel: mentorRel, bonus: mentorPct,
+            })}
+          </Pill>
+        );
   return (
     <>
-      <Panel title="Trainingsschwerpunkt">
+      <Panel title={t('training.focus')}>
         <p className="small muted">
           Trainiert wird die ganze Woche, ausgewertet am Freitag im Abschlusstraining.
           Wie schnell du dich entwickelst, haengt von Alter, Potenzial, Trainingsqualitaet
@@ -35,13 +93,13 @@ export default function TrainingTab() {
             <span key={focus}
               className={`chip ${plan.focus === focus ? 'active' : ''}`}
               onClick={() => setTraining(focus, plan.intensity)}>
-              {TRAINING_LABELS[focus]}
+              {t(TRAINING_LABELS[focus])}
             </span>
           ))}
         </div>
 
         <div style={{ marginTop: '1rem' }}>
-          <label>Intensitaet</label>
+          <label>{t('training.intensity')}</label>
           <div className="chip-row">
             {INTENSITIES.map((i) => (
               <span key={i}
@@ -54,25 +112,25 @@ export default function TrainingTab() {
         <div className="grid three" style={{ marginTop: '1rem' }}>
           <div className="stat">
             <div className="value">{Math.round(factors.gain * 100)}%</div>
-            <div className="label">Fortschritt</div>
+            <div className="label">{t('training.progress')}</div>
           </div>
           <div className="stat">
             <div className="value" style={{ color: factors.fatigue > 1.5 ? '#ffb020' : undefined }}>
               {Math.round(factors.fatigue * 100)}%
             </div>
-            <div className="label">Ermuedung</div>
+            <div className="label">{t('training.fatigue')}</div>
           </div>
           <div className="stat">
             <div className="value" style={{ color: factors.injury > 1.5 ? '#ff7a86' : undefined }}>
               {Math.round(factors.injury * 100)}%
             </div>
-            <div className="label">Verletzungsrisiko</div>
+            <div className="label">{t('training.injuryRisk')}</div>
           </div>
         </div>
       </Panel>
 
       <div className="grid two">
-        <Panel title="Was verbessert wird">
+        <Panel title={t('training.improves')}>
           {Object.keys(effects).length === 0 && (
             <p className="muted small">
               Regeneration verbessert keine Werte, stellt aber Fitness wieder her und
@@ -83,7 +141,7 @@ export default function TrainingTab() {
             .sort((a, b) => (b[1] as number) - (a[1] as number))
             .map(([key, weight]) => (
               <div className="row between small" key={key} style={{ padding: '0.15rem 0' }}>
-                <span className="muted">{ATTR_LABELS[key as keyof typeof ATTR_LABELS]}</span>
+                <span className="muted">{t(t(ATTR_LABELS[key as keyof typeof ATTR_LABELS]))}</span>
                 <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                   <span className="mono tiny dim">{user.attrs[key as keyof typeof user.attrs]}</span>
                   <span className="bar" style={{ width: 70 }}>
@@ -94,33 +152,46 @@ export default function TrainingTab() {
             ))}
         </Panel>
 
-        <Panel title="Rahmenbedingungen">
-          <Meter label="Trainingsanlagen des Vereins" value={club?.training ?? 50} />
-          <Meter label="Nachwuchsarbeit" value={club?.youth ?? 50} />
-          <Meter label="Professionalitaet" value={user.attrs.professionalism} />
-          <Meter label="Spielpraxis" value={user.sharpness} />
-          <Meter label="Fitness" value={user.fitness} />
+        <Panel title={t('training.conditions')}>
+          <Meter label={t('training.clubFacilities')} value={club?.training ?? 50} />
+          <Meter label={t('club.youthWork')} value={club?.youth ?? 50} />
+          <Meter label={t('training.professionalism')} value={user.attrs.professionalism} />
+          <Meter label={t('training.sharpness')} value={user.sharpness} />
+          <Meter label={t('player.fitness')} value={user.fitness} />
+          {/* Der Mentor beschleunigt die Entwicklung. Ohne diese Zeile waere der
+              Vorteil unsichtbar - und damit so folgenlos wie das blosse Abzeichen
+              in der Kaderliste, das er vorher war. */}
+          <div className="row between small" style={{ marginTop: '0.4rem' }}>
+            <span className="muted">{t('train.mentor.label')}</span>
+            {mentorHint}
+          </div>
+          <div className="row between small" style={{ marginTop: '0.3rem' }}>
+            <span className="muted">{t('train.penalties.label')}</span>
+            {standZeile(elfmeter, 'penalties')}
+          </div>
+          <div className="row between small" style={{ marginTop: '0.3rem' }}>
+            <span className="muted">{t('train.freeKicks.label')}</span>
+            {standZeile(freistoss, 'freeKicks')}
+          </div>
           <div className="row" style={{ marginTop: '0.5rem' }}>
-            <Pill>Wachstumsrate {user.growth.toFixed(2)}</Pill>
-            {game.difficulty !== 'schwer' && game.difficulty !== 'simulation' && (
-              <Pill tone="good">Potenzial {user.potential}</Pill>
+            <Pill>{t('training.growthRate', { value: tDecimal(user.growth) })}</Pill>
+            {DIFFICULTY_SETTINGS[game.difficulty].showPotential && (
+              <Pill tone="good">{t('training.potentialPill', { value: user.potential })}</Pill>
             )}
           </div>
         </Panel>
       </div>
 
-      <Panel title="Individuelles Langzeitziel">
-        <p className="small muted">
-          Ein Langzeitziel bleibt bestehen, auch wenn du den Wochenschwerpunkt wechselst.
-        </p>
+      <Panel title={t('training.longGoal')}>
+        <p className="small muted">{t('training.longGoalHint')}</p>
         <div className="chip-row">
           <span className={`chip ${plan.individualGoal === null ? 'active' : ''}`}
-            onClick={() => setIndividualGoal(null)}>Kein Ziel</span>
+            onClick={() => setIndividualGoal(null)}>{t('training.noGoal')}</span>
           {FOCUS_ORDER.filter((f) => f !== 'recovery').map((focus) => (
             <span key={focus}
               className={`chip ${plan.individualGoal === focus ? 'active' : ''}`}
               onClick={() => setIndividualGoal(focus)}>
-              {TRAINING_LABELS[focus]}
+              {t(t(TRAINING_LABELS[focus]))}
             </span>
           ))}
         </div>

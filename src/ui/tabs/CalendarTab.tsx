@@ -3,8 +3,11 @@ import { formatDate, month, monthName, year } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
+import { t } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 export default function CalendarTab() {
+  useLocale();
   const game = useAppState().game!;
   const club = userClub(game);
   const [showAll, setShowAll] = useState(false);
@@ -29,15 +32,15 @@ export default function CalendarTab() {
   }, [matches]);
 
   return (
-    <Panel title="Spielplan" action={
+    <Panel title={t('calendar.title')} action={
       <div className="row">
         <span className="chip" onClick={() => setShowAll(false)}
-          style={{ opacity: showAll ? 0.55 : 1 }}>Eigene Spiele</span>
+          style={{ opacity: showAll ? 0.55 : 1 }}>{t('calendar.ownMatches')}</span>
         <span className="chip" onClick={() => setShowAll(true)}
-          style={{ opacity: showAll ? 1 : 0.55 }}>Alle Spiele</span>
+          style={{ opacity: showAll ? 1 : 0.55 }}>{t('calendar.allMatches')}</span>
       </div>
     }>
-      {groups.length === 0 && <Empty text="Keine Spiele im Kalender." />}
+      {groups.length === 0 && <Empty text={t('calendar.empty')} />}
       <div className="scroll">
         {groups.map(([key, list]) => (
           <div key={key} style={{ marginBottom: '1rem' }}>

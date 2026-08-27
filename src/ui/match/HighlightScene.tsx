@@ -12,6 +12,8 @@ import type { Challenge, ChallengeResult } from '../../engine/matchTypes';
 import { Rng, clamp } from '../../engine/rng';
 import type { DifficultySettings, Player } from '../../engine/types';
 import { KeeperFigure, drawHumanKeeper, drawHumanPlayer } from './figures';
+import { t as tr , tDecimal } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 const VIEW_W = 880;
 const VIEW_H = 440;
@@ -25,6 +27,7 @@ export interface SceneProps {
 }
 
 export default function HighlightScene(props: SceneProps) {
+  useLocale();
   const { kind } = props.challenge;
   if (kind === 'duel' || kind === 'interception' || kind === 'dribble') {
     return <TimingChallenge {...props} />;
@@ -104,7 +107,7 @@ function useAutoAdvance(active: boolean, good: boolean, run: () => void) {
 function PressureBar({ left }: { left: number }) {
   const colour = left > 0.5 ? '#37d67a' : left > 0.22 ? '#f5c542' : '#ff6b7a';
   return (
-    <div className="pressure-bar" title="Zeit, bis der Gegner da ist">
+    <div className="pressure-bar" title={tr('match.timeUntilPressure')}>
       <span style={{ width: `${left * 100}%`, background: colour }} />
     </div>
   );
@@ -127,7 +130,7 @@ function Frame(
           <span className="pill">
             {challenge.homeName} {challenge.scoreline[0]}:{challenge.scoreline[1]} {challenge.awayName}
           </span>
-          {challenge.bigChance && <span className="pill warn">Grosschance</span>}
+          {challenge.bigChance && <span className="pill warn">{tr('match.bigChance')}</span>}
           <span className="spacer" />
           <span className="step-dots">
             {steps.map((_, i) => (
@@ -198,7 +201,7 @@ function GoalView(
     <div style={{ flex: '1 1 320px', minWidth: 260 }}>
       {label && <div className="tiny dim center" style={{ marginBottom: 4 }}>{label}</div>}
       <svg viewBox="-6 -3.2 12 3.9" style={{ width: '100%', display: 'block' }}
-        role="img" aria-label="Torblick">
+        role="img" aria-label={tr('scene.goalView')}>
         {/* Hintergrund und Rasen */}
         <rect x={-6} y={-3.2} width={12} height={3.9} fill="#0d3a20" />
         <rect x={-6} y={0} width={12} height={0.7} fill="#0f4d29" />
@@ -415,8 +418,8 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     ? ['target', 'aim', 'power', 'contact', 'flight', 'result']
     : ['aim', 'power', 'contact', 'flight', 'result'];
   const stepLabels = isPass
-    ? ['Mitspieler', 'Richtung', 'Kraft', 'Ballkontakt', '', '']
-    : ['Richtung', isHeader ? 'Wucht' : 'Kraft', 'Ballkontakt', '', ''];
+    ? [tr('scene.teammate'), tr('scene.direction'), tr('scene.power'), tr('scene.contact'), '', '']
+    : [tr('scene.direction'), isHeader ? tr('scene.force') : tr('scene.power'), tr('scene.contact'), '', ''];
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [step, setStep] = useState<BallStep>(passLike && !goodShotPosition ? 'target' : 'aim');
@@ -765,20 +768,20 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         targetId: resolution.targetId,
       };
       setResultText(resolution.outcome === 'passCompleted'
-        ? 'Pass kommt an!'
-        : resolution.reason === 'schlug den Ball zu hart' ? 'Zu hart gespielt.'
-        : resolution.reason === 'spielte zu kurz an' ? 'Zu kurz gespielt.'
-        : resolution.reason === 'zielte am Mitspieler vorbei' ? 'Am Mitspieler vorbei.'
-        : 'Der Pass wird abgefangen.');
+        ? tr('scene.result.passOk')
+        : resolution.reason === 'tooHard' ? tr('scene.result.tooHard')
+        : resolution.reason === 'tooShort' ? tr('scene.result.tooShort')
+        : resolution.reason === 'pastTeammate' ? tr('scene.result.pastTeammate')
+        : tr('scene.result.intercepted'));
       setReason(resolution.outcome === 'passCompleted'
-        ? `Abweichung nur ${resolution.error.toFixed(1)} Meter.`
-        : resolution.reason === 'schlug den Ball zu hart'
-          ? 'Mit so viel Tempo ist der Ball nicht zu kontrollieren. Weniger Kraft waehlen.'
-        : resolution.reason === 'spielte zu kurz an'
-          ? 'Der Ball kommt gar nicht erst an. Mehr Kraft waehlen.'
-        : resolution.reason === 'zielte am Mitspieler vorbei'
-          ? `Der Ball geht ${resolution.error.toFixed(1)} Meter am Mitspieler vorbei.`
-          : 'Der Gegner steht im Passweg. Ein freierer Mitspieler waere die bessere Wahl.');
+        ? tr('scene.result.deviation', { m: tDecimal(resolution.error, 1) })
+        : resolution.reason === 'tooHard'
+          ? tr('scene.result.uncontrollable')
+        : resolution.reason === 'tooShort'
+          ? tr('scene.result.tooWeak')
+        : resolution.reason === 'pastTeammate'
+          ? tr('scene.result.missedBy', { m: tDecimal(resolution.error, 1) })
+          : tr('scene.result.passBlocked'));
     } else {
       const resolution = resolveShot(input, challenge, player, difficulty, rng);
       shotRef.current = resolution;
@@ -786,11 +789,11 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       finalRef.current = { outcome: resolution.outcome, quality: resolution.quality };
       setResultText({
         goal: 'TOR!',
-        saved: 'Der Torwart ist dran.',
-        offTarget: 'Vorbei.',
-        blocked: 'Geblockt.',
-        post: 'Aluminium!',
-      }[resolution.outcome as string] ?? 'Abschluss');
+        saved: tr('scene.result.saved'),
+        offTarget: tr('scene.result.wide'),
+        blocked: tr('scene.result.blocked'),
+        post: tr('scene.result.woodwork'),
+      }[resolution.outcome as string] ?? tr('scene.finish'));
       setReason(describeShot(resolution, input, challenge.distance));
     }
     setStep('flight');
@@ -844,10 +847,10 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   const stepIndex = stepOrder.indexOf(step);
   const hints: Record<BallStep, string> = {
-    target: 'Klicke einen Mitspieler an fuer den Pass - oder schliesse mit dem Knopf rechts selbst ab.',
-    aim: 'Bewege die Maus: der Marker auf der Torlinie zeigt, wo der Ball einschlaegt (gruen = im Tor). Klick legt die Richtung fest.',
-    power: 'Halte die Maustaste oder die Leertaste gedrueckt und lasse bei der gewuenschten Kraft los.',
-    contact: 'Waehle den Punkt am Ball. Die Vorschau rechts zeigt, wo der Ball ankaeme.',
+    target: tr('scene.hintPass'),
+    aim: tr('scene.hintDirection'),
+    power: tr('scene.hintPower'),
+    contact: tr('scene.hintContact'),
     flight: '',
     result: reason,
   };
@@ -859,7 +862,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   });
 
   return (
-    <Frame challenge={passLike && selfShoot ? { ...challenge, title: 'Abschluss' } : challenge}
+    <Frame challenge={passLike && selfShoot ? { ...challenge, title: tr('scene.finish') } : challenge}
       step={stepIndex} steps={stepLabels}
       hint={step === 'flight' ? challenge.hint : hints[step]}
       pressureLeft={clockRuns && pressureTime > 0 ? timeLeft : undefined}
@@ -896,16 +899,16 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
           <ContactPicker onPick={fire} onHover={setContactHover} />
           {!isPass && (
             <div style={{ flex: '1 1 320px', minWidth: 260 }}>
-              <GoalView preview={preview} label="Voraussichtlicher Auftreffpunkt"
-                note="Zu wenig Kraft" />
+              <GoalView preview={preview} label={tr('scene.predictedImpact')}
+                note={tr('scene.tooLittlePower')} />
               {challenge.kind === 'freeKick' && (
                 <div className="tiny center" style={{
                   marginTop: 4, fontWeight: 650,
                   color: wallBlocks ? '#ff8a95' : '#37d67a',
                 }}>
                   {wallBlocks
-                    ? 'Die Mauer steht im Weg - tiefer am Ball treffen'
-                    : 'Der Ball geht ueber die Mauer'}
+                    ? tr('scene.wallInTheWay')
+                    : tr('scene.overTheWall')}
                 </div>
               )}
             </div>
@@ -939,7 +942,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
                 crossing={shotRef.current.crossing}
                 keeper={shotRef.current.keeper}
                 outcome={finalRef.current?.outcome}
-                label="Torblick"
+                label={tr('scene.goalView')}
                 animate
               />
             </div>
@@ -973,11 +976,12 @@ function ContactPicker(
   }
 
   const point = hover;
-  const description = !point ? 'Bewege die Maus ueber den Ball'
-    : point.y < -0.4 ? 'Unterseite: der Ball wird angehoben'
-    : point.y > 0.4 ? 'Oberseite: flache Bahn mit Topspin'
-    : Math.abs(point.x) > 0.4 ? `Seitlich ${point.x > 0 ? 'rechts' : 'links'}: deutlicher Effet`
-    : 'Mitte: gerader Ball mit voller Kraft';
+  const description = !point ? tr('scene.moveMouseOverBall')
+    : point.y < -0.4 ? tr('scene.contactBottom')
+    : point.y > 0.4 ? tr('scene.contactTop')
+    : Math.abs(point.x) > 0.4
+      ? tr(point.x > 0 ? 'scene.contactRight' : 'scene.contactLeft')
+    : tr('scene.contactMiddle');
 
   return (
     <div style={{ textAlign: 'center', flex: '0 0 auto' }}>
@@ -1108,13 +1112,13 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     ctx.textAlign = 'center';
     ctx.fillText(
       isDribble
-        ? `${activeMove?.name ?? 'Finte'} im gruenen Bereich ausloesen`
-        : 'Im gruenen Bereich zupacken',
+        ? `${activeMove?.name ?? tr('scene.feint')} im gruenen Bereich ausloesen`
+        : tr('scene.grabInGreen'),
       VIEW_W / 2, 62,
     );
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText('Leertaste oder Klick', VIEW_W / 2, 86);
+    ctx.fillText(tr('scene.spaceOrClick'), VIEW_W / 2, 86);
     ctx.fillText(`Gegenspieler: ${Math.round(challenge.opponent)}`, VIEW_W / 2, VIEW_H - 36);
   }, [isDribble, player.shirtNumber, challenge.opponent, window_, activeMove]);
 
@@ -1134,13 +1138,13 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
       : resolveDuel({ offset: offsetSeconds }, challenge, player, difficulty, rng);
     finalRef.current = result;
     setResultText({
-      duelWon: 'Ball erobert!',
-      duelLost: 'Der Gegner kommt durch.',
-      foulCommitted: 'Foul - der Schiedsrichter pfeift.',
-      dribbleWon: 'Ausgespielt!',
-      dribbleLost: 'Ball verloren.',
-      foulSuffered: 'Foul geholt.',
-    }[result.outcome as string] ?? 'Zweikampf');
+      duelWon: tr('scene.result.ballWon'),
+      duelLost: tr('scene.result.opponentThrough'),
+      foulCommitted: tr('scene.result.fouled'),
+      dribbleWon: tr('scene.result.beatenMan'),
+      dribbleLost: tr('scene.result.ballLost'),
+      foulSuffered: tr('scene.result.foulWon'),
+    }[result.outcome as string] ?? tr('scene.duel'));
     setPhase('result');
   }, [phase, isDribble, challenge, player, difficulty, seed, activeMove]);
 
@@ -1173,7 +1177,7 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     return () => window.removeEventListener('keydown', onKey);
   }, [trigger]);
 
-  const steps = isDribble && moves.length > 1 ? ['Finte', 'Timing', ''] : ['Timing', ''];
+  const steps = isDribble && moves.length > 1 ? [tr('scene.feint'), tr('scene.timing'), ''] : [tr('scene.timing'), ''];
   const stepIndex = phase === 'move' ? 0 : phase === 'run' ? (steps.length === 3 ? 1 : 0) : steps.length - 1;
 
   const timingWon = finalRef.current?.outcome === 'dribbleWon'
@@ -1198,7 +1202,7 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     <Frame challenge={challenge} step={stepIndex} steps={steps}
       pressureLeft={phase === 'move' && movePressure > 0 ? moveTimeLeft : undefined}
       hint={phase === 'move'
-        ? 'Waehle deine Bewegung. Schwierigere Finten haben ein engeres Zeitfenster.'
+        ? tr('scene.hintFeint')
         : phase === 'run' ? challenge.hint : (finalRef.current?.detail ?? '')}
       footer={phase === 'result' ? (
         <button className="primary" onClick={() => finalRef.current && onDone(finalRef.current)}>
@@ -1214,14 +1218,14 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
                 style={{ textAlign: 'left', padding: '0.6rem 0.8rem' }}
                 onClick={() => { setMove(m); setPhase('run'); }}>
                 <div className="row between">
-                  <strong>{m.name}</strong>
+                  <strong>{tr(m.name)}</strong>
                   <span className="pill" style={{
                     borderColor: m.windowScale < 0.9 ? '#6d2731' : m.windowScale > 1.2 ? '#1f6b3f' : undefined,
                   }}>
                     {m.windowScale < 0.9 ? 'schwer' : m.windowScale > 1.2 ? 'sicher' : 'normal'}
                   </span>
                 </div>
-                <div className="tiny muted">{m.description}</div>
+                <div className="tiny muted">{tr(m.description)}</div>
               </button>
             ))}
           </div>
@@ -1321,7 +1325,7 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       ctx.fillStyle = 'rgba(245,197,66,0.9)';
       ctx.font = '12px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Koerperhaltung deutet hierhin', tx, top - 10);
+      ctx.fillText(tr('scene.bodyPointsHere'), tx, top - 10);
     }
 
     const point = dive ?? hover;
@@ -1364,14 +1368,14 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.font = 'bold 14px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Absprung: Leertaste oder Klick', VIEW_W / 2, barY - 14);
+      ctx.fillText(tr('scene.jumpHint'), VIEW_W / 2, barY - 14);
     }
 
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      step === 'dive' ? 'Waehle Ecke und Hoehe' : step === 'timing' ? 'Jetzt abspringen' : resultText,
+      step === 'dive' ? tr('scene.chooseCornerHeight') : step === 'timing' ? tr('scene.jumpNow') : resultText,
       VIEW_W / 2, 48,
     );
   }, [dive, hover, step, difficulty.targetSize, resultText, goalH, goalW, originX,
@@ -1412,10 +1416,10 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     crossingRef.current = resolution.crossing;
     finalRef.current = { outcome: resolution.outcome, quality: resolution.quality };
     setResultText({
-      saveMade: 'Parade!',
-      caught: 'Sicher gefangen!',
-      goalConceded: 'Der Ball ist drin.',
-    }[resolution.outcome as string] ?? 'Abschluss');
+      saveMade: tr('scene.result.parried'),
+      caught: tr('scene.result.caught'),
+      goalConceded: tr('scene.result.goal'),
+    }[resolution.outcome as string] ?? tr('scene.finish'));
     setStep('result');
   }, [step, dive, seed, challenge, player, difficulty]);
 
@@ -1439,7 +1443,10 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   }
 
   const distanceHint = crossingRef.current && dive
-    ? `Abstand zum Ball: ${Math.hypot(crossingRef.current.x - dive.x, crossingRef.current.z - dive.z).toFixed(2)} Meter`
+    ? tr('scene.distanceToBall', {
+      m: tDecimal(Math.hypot(
+        crossingRef.current.x - dive.x, crossingRef.current.z - dive.z), 2),
+    })
     : '';
 
   const saved = finalRef.current?.outcome === 'saveMade'
@@ -1450,7 +1457,7 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   return (
     <Frame challenge={challenge} step={step === 'dive' ? 0 : step === 'timing' ? 1 : 2}
-      steps={['Ecke', 'Absprung', '']}
+      steps={[tr('scene.corner'), tr('scene.jump'), '']}
       hint={step === 'result' ? distanceHint : challenge.hint}
       footer={step === 'result' ? (
         <button className="primary" onClick={() => finalRef.current && onDone(finalRef.current)}>

@@ -11,6 +11,14 @@ import { addDays, ageOn, makeDate, seasonLabel } from './date';
 import { developAiPlayer } from './development';
 import { buildLeagueSchedule, cupDates, leagueMatchDates } from './fixtures';
 import { addCareerEvent, addMatch, addNews, makeId } from './ids';
+import { t, tDecimal, tNumber } from '../i18n';
+import { expireUserContract } from './contract';
+import { runManagerChanges } from './manager';
+import { resolveObjectives } from './objectives';
+import { checkSeasonBest } from './milestones';
+import { checkCaptaincy, growLeadership } from './captain';
+import { learnAltPosition } from './versatility';
+import { bookSigning, buildWageIndex, canSign, resetBudgets } from './finance';
 import { calcMarketValue, calcSalary, createPlayer } from './playerGen';
 import { checkForcedRetirement } from './retirement';
 import { Rng, clamp } from './rng';
@@ -116,17 +124,21 @@ function recordCupWinner(state: GameState, cupId: Id, clubId: Id) {
 
   club.history.push({
     season: state.season, competitionId: cupId, played: 0, won: 0, drawn: 0, lost: 0,
-    goalsFor: 0, goalsAgainst: 0, points: 0, note: 'Pokalsieger',
+    goalsFor: 0, goalsAgainst: 0, points: 0, note: t('rec.cupWinner'),
   });
 
-  addNews(state, 'season', `${club.name} gewinnt den ${cup.name}`,
-    `${club.name} sichert sich in der Saison ${seasonLabel(state.season)} den ${cup.name}.`, true);
+  addNews(state, 'season',
+    t('se.cup.news', { club: club.name, cup: cup.name }),
+    t('se.cup.newsBody', {
+      club: club.name, season: seasonLabel(state.season), cup: cup.name,
+    }), true);
 
   const user = state.players[state.userPlayerId];
   if (user && user.clubId === clubId) {
     state.honours.push({ season: state.season, label: cup.name });
-    addCareerEvent(state, 'title', `${cup.name} gewonnen`,
-      `Mit ${club.name} den ${cup.name} geholt.`, { clubId, competitionId: cupId });
+    addCareerEvent(state, 'title', t('se.cup.title', { cup: cup.name }),
+      t('se.cup.body', { club: club.name, cup: cup.name }),
+      { clubId, competitionId: cupId });
   }
 }
 
@@ -149,7 +161,7 @@ export function scheduleRelegation(state: GameState, rng: Rng, countryId: Id) {
     state.competitions[compId] = {
       id: compId,
       countryId,
-      name: 'Relegation',
+      name: t('rec.relegationRound'),
       short: 'REL',
       type: 'cup',
       level: 0,
@@ -262,6 +274,9 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
     champions: [], promoted: [], relegated: [], awards: [], userSummary: null,
   };
 
+  // Vor dem Aufraeumen: hat der Spieler sein bisher bestes Torjahr gehabt?
+  checkSeasonBest(state);
+
   for (const country of Object.values(state.countries)) {
     const leagues = leaguesOfCountry(state, country.id);
     if (leagues.length === 0) continue;
@@ -290,9 +305,30 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
   }
 
   report.userSummary = summariseUserSeason(state);
+  // Erst den Bericht bilden, dann die Ziele abrechnen: Der Bericht zeigt die
+  // Bilanz, die Abrechnung wirkt auf die kommende Saison.
+  resolveObjectives(state);
   updateRecords(state);
   updateUserSquadRole(state);
+  // Erst steht die Rolle fest, dann waechst die Fuehrungsstaerke daran, und
+  // dann kann sich die Frage nach der Binde ueberhaupt stellen.
+  growLeadership(state, rng);
+  checkCaptaincy(state, rng);
+  // Wer lange genug woanders aufgelaufen ist, kann es jetzt auch.
+  learnAltPosition(state);
   ageAndDevelop(state, rng);
+  // Trainerwechsel, bevor die Kader umgebaut werden: Der neue Mann soll die
+  // kommende Saison praegen, nicht die abgelaufene.
+  runManagerChanges(state, rng, new Set(report.relegated.map((r) => r.clubId)));
+  // Vor dem Transferfenster: Ein nicht verlaengerter Vertrag endet jetzt
+  // wirklich. Der Spieler hatte eine volle Saison und zwei Hinweise Zeit.
+  expireUserContract(state, rng);
+  // Neue Saison, neues Geld - und zwar bevor der Markt oeffnet. Gerechnet
+  // wird aus dem Kader, nicht aus dem Vorjahreswert: Jede Fortschreibung
+  // driftet ueber zwanzig Saisons weg, und die alte Auf-/Abstiegsskalierung
+  // mit 1,35 und 0,72 haette einen Fahrstuhlverein binnen weniger Jahre
+  // entweder ruiniert oder aufgeblaeht.
+  resetBudgets(state, sammleErfolg(state), () => rng.next());
   runTransferWindow(state, rng);
   resetForNewSeason(state, rng);
 
@@ -300,11 +336,13 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
   const forced = checkForcedRetirement(state);
   if (forced) {
     report.retirement = forced;
-    addNews(state, 'season', 'Das Ende einer Laufbahn',
+    addNews(state, 'season', t('se.retire.title'),
       forced.reason === 'age'
-        ? `Nach ${forced.appearances} Pflichtspielen beendet ${state.players[state.userPlayerId]?.lastName} `
-          + 'die aktive Karriere.'
-        : 'Es liegt kein Angebot mehr vor. Die aktive Laufbahn endet hier.', true);
+        ? t('se.retire.age', {
+          apps: forced.appearances,
+          last: state.players[state.userPlayerId]?.lastName ?? '',
+        })
+        : t('se.retire.noOffer'), true);
   }
 
   return report;
@@ -313,15 +351,18 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
 function announceChampion(state: GameState, league: Competition, clubId: Id, points: number) {
   const club = state.clubs[clubId];
   if (!club) return;
-  addNews(state, 'season', `${club.name} ist Meister der ${league.name}`,
-    `Mit ${points} Punkten sichert sich ${club.name} den Titel in der Saison ${seasonLabel(state.season)}.`,
+  addNews(state, 'season',
+    t('se.champion.news', { club: club.name, league: league.name }),
+    t('se.champion.newsBody', {
+      points, club: club.name, season: seasonLabel(state.season),
+    }),
     true);
 
   const user = state.players[state.userPlayerId];
   if (user && user.clubId === clubId) {
-    state.honours.push({ season: state.season, label: `Meister ${league.name}` });
-    addCareerEvent(state, 'title', `Meister der ${league.name}`,
-      `Mit ${club.name} die Meisterschaft gewonnen.`, { clubId, competitionId: league.id });
+    state.honours.push({ season: state.season, label: t('se.champion.honour', { league: league.name }) });
+    addCareerEvent(state, 'title', t('se.champion.title', { league: league.name }),
+      t('se.champion.body', { club: club.name }), { clubId, competitionId: league.id });
   }
 }
 
@@ -377,26 +418,30 @@ function applyPromotionRelegation(state: GameState, countryId: Id, report: Seaso
     if (!league.clubIds.includes(club.id)) league.clubIds.push(club.id);
     club.leagueId = league.id;
 
-    // Wirtschaftliche Folgen
-    const factor = move.up ? 1.35 : 0.72;
-    club.budget = Math.round(club.budget * factor);
-    club.wageBudget = Math.round(club.wageBudget * factor);
+    // Wirtschaftliche Folgen: nur noch die Reputation. Die Budgets werden
+    // kurz darauf ohnehin komplett neu aus dem Kader gerechnet
+    // (`resetBudgets`), eine Skalierung hier wuerde nur doppelt wirken und
+    // ueber die Jahre wegdriften.
     club.reputation = clamp(Math.round(club.reputation + (move.up ? 6 : -7)), 8, 96);
 
     if (move.up) report.promoted.push({ clubId: club.id, fromLevel: move.fromLevel });
     else report.relegated.push({ clubId: club.id, fromLevel: move.fromLevel });
 
     addNews(state, 'season',
-      move.up ? `${club.name} steigt auf` : `${club.name} steigt ab`,
-      `${club.name} spielt kommende Saison in der ${league.name}.`,
+      t(move.up ? 'se.promoted.news' : 'se.relegated.news', { club: club.name }),
+      t('se.move.body', { club: club.name, league: league.name }),
       state.players[state.userPlayerId]?.clubId === club.id);
 
     const user = state.players[state.userPlayerId];
     if (user && user.clubId === club.id) {
       addCareerEvent(state, move.up ? 'promotion' : 'relegation',
-        move.up ? 'Aufstieg geschafft' : 'Abstieg hinnehmen muessen',
-        `${club.name} spielt kommende Saison in der ${league.name}.`, { clubId: club.id });
-      if (move.up) state.honours.push({ season: state.season, label: `Aufstieg in die ${league.name}` });
+        t(move.up ? 'se.promoted.title' : 'se.relegated.title'),
+        t('se.move.body', { club: club.name, league: league.name }), { clubId: club.id });
+      if (move.up) {
+        state.honours.push({
+          season: state.season, label: t('se.promoted.honour', { league: league.name }),
+        });
+      }
     }
   }
 }
@@ -431,22 +476,25 @@ function computeAwards(state: GameState, countryId: Id): Award[] {
       state.awards.push(award);
       if (entry.playerId === state.userPlayerId) {
         state.honours.push({ season: state.season, label: award.label });
-        addCareerEvent(state, 'award', award.label, `Auszeichnung erhalten: ${value}`,
+        addCareerEvent(state, 'award', award.label, t('se.award.event', { value }),
           { competitionId: league.id });
-        addNews(state, 'award', `Auszeichnung: ${award.label}`,
-          `${award.playerName} wird ausgezeichnet (${value}).`, true);
+        addNews(state, 'award', t('se.award.news', { label: award.label }),
+          t('se.award.newsBody', { name: award.playerName, value }), true);
       }
     };
 
     const scorer = entries.slice().sort((a, b) => b.goals - a.goals || b.assists - a.assists)[0];
-    push('topScorer', 'Torschuetzenkoenig', scorer, `${scorer?.goals ?? 0} Tore`);
+    push('topScorer', t('se.award.topScorer'), scorer,
+      t('se.award.goalsValue', { n: scorer?.goals ?? 0 }));
 
     const assister = entries.slice().sort((a, b) => b.assists - a.assists)[0];
-    push('topAssists', 'Bester Vorlagengeber', assister, `${assister?.assists ?? 0} Vorlagen`);
+    push('topAssists', t('se.award.topAssists'), assister,
+      t('se.award.assistsValue', { n: assister?.assists ?? 0 }));
 
     const eligible = entries.filter((s) => s.appearances >= 18);
     const best = eligible.slice().sort((a, b) => averageRating(b) - averageRating(a))[0];
-    push('playerOfSeason', 'Spieler des Jahres', best, `Note ${averageRating(best ?? entries[0]).toFixed(2)}`);
+    push('playerOfSeason', t('se.award.playerOfSeason'), best,
+      t('se.award.ratingValue', { rating: tDecimal(averageRating(best ?? entries[0])) }));
 
     const keepers = eligible.filter((s) => {
       const p = state.players[s.playerId];
@@ -454,15 +502,16 @@ function computeAwards(state: GameState, countryId: Id): Award[] {
     });
     const bestKeeper = keepers.slice().sort(
       (a, b) => b.cleanSheets - a.cleanSheets || averageRating(b) - averageRating(a))[0];
-    push('bestKeeper', 'Bester Torwart', bestKeeper, `${bestKeeper?.cleanSheets ?? 0} Spiele ohne Gegentor`);
+    push('bestKeeper', t('se.award.bestKeeper'), bestKeeper,
+      t('se.award.cleanSheetsValue', { n: bestKeeper?.cleanSheets ?? 0 }));
 
     const youngsters = eligible.filter((s) => {
       const p = state.players[s.playerId];
       return p && ageOn(p.birthDate, state.date) <= 21;
     });
     const bestYoung = youngsters.slice().sort((a, b) => averageRating(b) - averageRating(a))[0];
-    push('youngPlayer', 'Nachwuchsspieler des Jahres', bestYoung,
-      `Note ${averageRating(bestYoung ?? entries[0]).toFixed(2)}`);
+    push('youngPlayer', t('se.award.youngPlayer'), bestYoung,
+      t('se.award.ratingValue', { rating: tDecimal(averageRating(bestYoung ?? entries[0])) }));
   }
 
   return awards;
@@ -501,6 +550,7 @@ function updateUserSquadRole(state: GameState) {
     (s) => s.playerId === state.userPlayerId && s.season === state.season,
   );
   const appearances = entries.reduce((a, s) => a + s.appearances, 0);
+  const starts = entries.reduce((a, s) => a + s.starts, 0);
   const ratingSum = entries.reduce((a, s) => a + s.ratingSum, 0);
   const avgRating = appearances > 0 ? ratingSum / appearances : 0;
 
@@ -513,9 +563,19 @@ function updateUserSquadRole(state: GameState) {
   ).length;
 
   // Zielrolle aus Einsatzzeit und Leistung. Wer kaum spielt, rutscht zurueck.
+  //
+  // Der zweite Weg ueber die Startelfeinsaetze ist der wichtigere: Wer Woche
+  // fuer Woche von Anfang an spielt, IST Stammspieler - unabhaengig davon, ob
+  // die Note eine absolute Schwelle reisst, die weder Liganiveau noch Position
+  // kennt. Ohne diesen Weg blieb ein Spieler mit 37 Startelfeinsaetzen aus 37
+  // Spielen dauerhaft "Rotationsspieler" - und wurde deshalb in der
+  // Spielsimulation zuerst ausgewechselt.
+  const startquote = appearances > 0 ? starts / appearances : 0;
+  const stammKraft = starts >= 18 && startquote >= 0.6;
   let target: SquadRole;
-  if (appearances >= 25 && avgRating >= 7.0 && better <= 2) target = 'Schluesselspieler';
-  else if (appearances >= 20 && avgRating >= 6.6) target = 'Stammspieler';
+  if (appearances >= 25 && (avgRating >= 7.0 || (stammKraft && avgRating >= 6.8))
+    && better <= 2) target = 'Schluesselspieler';
+  else if ((appearances >= 20 && avgRating >= 6.6) || stammKraft) target = 'Stammspieler';
   else if (appearances >= 12) target = 'Rotationsspieler';
   else if (appearances >= 4) target = 'Ergaenzungsspieler';
   else target = 'Nachwuchsspieler';
@@ -536,17 +596,23 @@ function updateUserSquadRole(state: GameState) {
   user.contract.role = next;
   const club = state.clubs[user.clubId];
   const up = nextIdx > currentIdx;
+  const rolleName = t(`role.${next}`);
   addNews(state, 'coach',
-    up ? 'Neue Rolle im Kader' : 'Rolle im Kader angepasst',
+    t(up ? 'se.role.up.news' : 'se.role.down.news'),
     up
-      ? `Nach ${appearances} Einsaetzen plant ${club?.name ?? 'der Verein'} `
-        + `kommende Saison als ${next} mit dir.`
-      : `${club?.name ?? 'Der Verein'} sieht dich kommende Saison als ${next}. `
-        + 'Mehr Einsatzzeit bringt dich zurueck.',
+      ? t('se.role.up.body', {
+        apps: appearances, club: club?.name ?? t('se.clubFallback'),
+        role: rolleName,
+      })
+      : t('se.role.down.body', {
+        club: club?.name ?? t('se.clubFallbackCap'), role: rolleName,
+      }),
     true);
   if (up) {
-    addCareerEvent(state, 'other', `Neue Kaderrolle: ${next}`,
-      `${club?.name ?? 'Der Verein'} befoerdert dich zum ${next}.`);
+    addCareerEvent(state, 'other', t('se.role.title', { role: rolleName }),
+      t('se.role.body', {
+        club: club?.name ?? t('se.clubFallbackCap'), role: rolleName,
+      }));
   }
 }
 
@@ -563,12 +629,12 @@ function updateRecords(state: GameState) {
     const p = state.players[bestSeasonScorer.playerId];
     tryRecord(state, {
       key: 'mostGoalsInSeason',
-      label: 'Meiste Tore in einer Saison',
-      scope: 'Spieler',
+      label: t('rec.bestSeasonGoals'),
+      scope: t('rec.scopePlayer'),
       holderId: bestSeasonScorer.playerId,
-      holderName: p ? `${p.firstName} ${p.lastName}` : 'Unbekannt',
+      holderName: p ? `${p.firstName} ${p.lastName}` : t('rec.unknown'),
       value: bestSeasonScorer.goals,
-      displayValue: `${bestSeasonScorer.goals} Tore`,
+      displayValue: t('rec.goalsValue', { n: bestSeasonScorer.goals }),
     }, state.date);
   }
 
@@ -577,21 +643,21 @@ function updateRecords(state: GameState) {
   const careerApps = careerEntries.reduce((a, s) => a + s.appearances, 0);
   tryRecord(state, {
     key: `careerGoals:${state.userPlayerId}`,
-    label: 'Karrieretore',
-    scope: 'Eigene Karriere',
+    label: t('rec.careerGoals'),
+    scope: t('rec.ownCareer'),
     holderId: state.userPlayerId,
     holderName: name,
     value: careerGoals,
-    displayValue: `${careerGoals} Tore`,
+    displayValue: t('rec.goalsValue', { n: careerGoals }),
   }, state.date);
   tryRecord(state, {
     key: `careerApps:${state.userPlayerId}`,
-    label: 'Karriereeinsaetze',
-    scope: 'Eigene Karriere',
+    label: t('rec.careerApps'),
+    scope: t('rec.ownCareer'),
     holderId: state.userPlayerId,
     holderName: name,
     value: careerApps,
-    displayValue: `${careerApps} Spiele`,
+    displayValue: t('rec.appsValue', { n: careerApps }),
   }, state.date);
 }
 
@@ -672,7 +738,32 @@ function refillSquads(state: GameState, rng: Rng) {
 
 // --- Transfers (vereinfachte Fassung fuer die erste Version) -----------
 
+/**
+ * Wie erfolgreich war jeder Verein? 1 heisst Mittelmass.
+ *
+ * Der Wert steuert, wie viel Geld ein Verein im naechsten Sommer in der Hand
+ * hat. Ohne ihn waere das Budget eine reine Funktion des Kaders - und damit
+ * blind gegenueber dem, was in der Saison tatsaechlich passiert ist.
+ */
+function sammleErfolg(state: GameState): Map<Id, number> {
+  const erfolg = new Map<Id, number>();
+  for (const comp of Object.values(state.competitions)) {
+    if (comp.type !== 'league') continue;
+    const tabelle = sortedTable(state, comp.id);
+    const anzahl = tabelle.length;
+    if (anzahl === 0) continue;
+    tabelle.forEach((row, index) => {
+      // Erster Platz 1,5 - letzter Platz 0,5.
+      erfolg.set(row.clubId, 1.5 - (index / Math.max(1, anzahl - 1)));
+    });
+  }
+  return erfolg;
+}
+
 function runTransferWindow(state: GameState, rng: Rng) {
+  // Gehaltslast einmal aufbauen und mitfuehren. Je Verein neu zu summieren
+  // waere bei 7.500 Spielern und mehreren hundert Wechseln spuerbar langsam.
+  const gehaelter = buildWageIndex(state);
   const clubsByLevel = new Map<number, Club[]>();
   for (const club of Object.values(state.clubs)) {
     const level = state.competitions[club.leagueId]?.level ?? 3;
@@ -703,11 +794,25 @@ function runTransferWindow(state: GameState, rng: Rng) {
       Math.max(0.1, 100 - Math.abs(c.reputation - ability * 1.1)));
     const country = COUNTRY_BY_ID[target.countryId];
 
+    // Der Wechsel kostet jetzt Geld. Vorher zog ein Verein beliebig viele
+    // Spieler an sich, solange die Reputation passte - ein Transfermarkt
+    // ohne jede Bremse. Wer sich den Spieler nicht leisten kann, laesst ihn
+    // ziehen; das Angebot geht dann an einen anderen Verein oder gar nicht.
+    const neuesGehalt = calcSalary(ability, ageOn(player.birthDate, state.date),
+      targetLevel, target.reputation, country?.wealth ?? 1);
+    const abloese = Math.round(player.marketValue * rng.float(0.75, 1.3));
+    const last = gehaelter.get(target.id) ?? 0;
+    // Etwas Toleranz, damit ein Verein sich fuer einen Spieler auch strecken
+    // darf - ohne sie waere der Markt starr und ein Aufsteiger chancenlos.
+    if (!canSign(target, last, abloese, neuesGehalt, 1.15)) continue;
+
+    const altesGehalt = player.contract?.salary ?? 0;
+    bookSigning(target, currentClub, abloese, gehaelter, neuesGehalt, altesGehalt);
+
     player.clubId = target.id;
     player.contract = {
       clubId: target.id,
-      salary: calcSalary(ability, ageOn(player.birthDate, state.date), targetLevel,
-        target.reputation, country?.wealth ?? 1),
+      salary: neuesGehalt,
       until: makeDate(state.season + 1 + rng.int(1, 4), 6, 30),
       role: ability >= target.reputation * 0.6 ? 'Stammspieler' : 'Rotationsspieler',
       goalBonus: 0,
@@ -737,9 +842,11 @@ export function offerUserRenewal(state: GameState, rng: Rng) {
   const club = user?.clubId ? state.clubs[user.clubId] : null;
   if (!user?.contract || !club) return;
 
-  // Nur wenn der Vertrag im kommenden Jahr auslaeuft (Datum ist YYYY-MM-DD).
+  // Das Angebot muss eine Saison vor dem Ende kommen, nicht in dem Moment,
+  // in dem der Vertrag ohnehin ausgelaufen ist. Ein Vertrag "bis 2029" deckt
+  // die Saison 2028 ab; das Angebot faellt deshalb am Ende der Saison 2027.
   const endYear = Number(user.contract.until.slice(0, 4));
-  if (endYear > state.season + 1) return;
+  if (endYear > state.season + 2) return;
 
   const ability = computeOverall(user.attrs, user.position);
   const age = ageOn(user.birthDate, state.date);
@@ -757,7 +864,11 @@ export function offerUserRenewal(state: GameState, rng: Rng) {
   if (apps < 5 && ability < club.reputation * 0.6) return;
 
   const base = calcSalary(ability, age, level, club.reputation, country?.wealth ?? 1);
-  const performanceBonus = clamp(1 + (avgRating - 6.4) * 0.12 + apps / 260, 0.9, 1.5);
+  // Ein makelloser Ruf ist dem Verein etwas wert - Trikots, Sponsoren,
+  // Ruhe in der Kabine. Der Ausschlag bleibt klein, rund fuenf Prozent.
+  const performanceBonus = clamp(
+    (1 + (avgRating - 6.4) * 0.12 + apps / 260) * (0.96 + state.publicImage / 1100),
+    0.9, 1.55);
   const salary = Math.round(base * performanceBonus * rng.float(1.0, 1.2));
   // Die angebotene Rolle folgt der aktuellen Rolle, mindestens nach Staerke.
   const byAbility: SquadRole = ability >= club.reputation * 0.95 ? 'Schluesselspieler'
@@ -774,15 +885,17 @@ export function offerUserRenewal(state: GameState, rng: Rng) {
     years: age <= 23 ? rng.int(3, 5) : rng.int(2, 4),
     role,
     goalBonus: Math.round(salary * rng.float(0.15, 0.45)),
-    pitch: `${club.name} moechte mit dir verlaengern und plant dich als ${role} ein. `
-      + `Bisheriges Gehalt ${user.contract.salary.toLocaleString('de-DE')} Euro pro Woche.`,
+    pitch: t('se.renewal.pitch', {
+      club: club.name, role: t(`role.${role}`), salary: tNumber(user.contract.salary),
+    }),
     expiresOn: addDays(state.date, 21),
     leagueLevel: level,
     renewal: true,
   });
-  addNews(state, 'contract', `${club.name} bietet dir einen neuen Vertrag`,
-    `Dein Vertrag laeuft aus. Der Verein legt ein Angebot ueber `
-    + `${salary.toLocaleString('de-DE')} Euro pro Woche als ${role} vor.`, true);
+  addNews(state, 'contract', t('se.renewal.news', { club: club.name }),
+    t('se.renewal.newsBody', {
+      salary: tNumber(salary), role: t(`role.${role}`),
+    }), true);
 }
 
 /** Angebote an den eigenen Spieler nach der Saison (Konzept Abschnitt 34). */
@@ -804,20 +917,30 @@ export function generateUserOffers(state: GameState, rng: Rng) {
   const ratingSum = seasonEntries.reduce((a, s) => a + s.ratingSum, 0);
   const avgRating = apps > 0 ? ratingSum / apps : 0;
 
-  // Interesse haengt von Leistung, Alter und Reputation ab.
+  // Interesse haengt von Leistung, Alter, Reputation - und davon, wie man in
+  // der Oeffentlichkeit dasteht. Ein Verein holt sich einen Unruheherd nur,
+  // wenn die Leistung ihn traegt; bei einem Vorbild greift man lieber zu.
   let interest = (ability - 45) * 0.06 + (avgRating - 6.4) * 0.9 + goals * 0.035
-    + (user.reputation - 40) * 0.012;
+    + (user.reputation - 40) * 0.012 + (state.publicImage - 50) * 0.012;
   if (age <= 21) interest += 0.35;
   if (apps < 8) interest -= 0.7;
   const offerCount = clamp(Math.round(interest), 0, 4);
   if (offerCount <= 0) return;
 
+  // Wer bieten will, muss zahlen koennen. Vorher entschied allein die
+  // Reputation, und ein klammer Verein konnte dasselbe Gehalt bieten wie ein
+  // Meister - die Angebotskarte war damit eine Frage des Zufalls statt eine
+  // Auskunft ueber den Verein.
+  const gehaelter = buildWageIndex(state);
+  const erwarteteAbloese = user.marketValue;
+  const erwartetesGehalt = calcSalary(ability, age, currentLevel, 60, 1);
   const candidates = Object.values(state.clubs).filter((c) => {
     if (c.id === user.clubId) return false;
     const level = state.competitions[c.leagueId]?.level ?? 3;
     if (level > currentLevel + 1) return false;
     const fits = c.reputation >= ability * 0.55 && c.reputation <= ability * 1.5 + 22;
-    return fits;
+    if (!fits) return false;
+    return canSign(c, gehaelter.get(c.id) ?? 0, erwarteteAbloese, erwartetesGehalt, 1.2);
   });
   if (candidates.length === 0) return;
 
@@ -832,7 +955,11 @@ export function generateUserOffers(state: GameState, rng: Rng) {
     const offer: TransferOffer = {
       id: makeId(state, 'o'),
       clubId: club.id,
-      fee: Math.round(user.marketValue * rng.float(0.8, 1.6) / 10000) * 10000,
+      // Die Abloese darf das Budget des Vereins nicht sprengen. Ohne diese
+      // Deckelung bot ein Verein bis zum 1,6-fachen Marktwert, auch wenn er
+      // das Geld nicht hatte - und die Zahl auf der Karte war eine Erfindung.
+      fee: Math.round(Math.min(user.marketValue * rng.float(0.8, 1.6), club.budget)
+        / 10000) * 10000,
       salary,
       years: rng.int(2, 5),
       role,
@@ -845,8 +972,9 @@ export function generateUserOffers(state: GameState, rng: Rng) {
   }
 
   if (state.offers.length > 0) {
-    addNews(state, 'transfer', `${state.offers.length} Vereine zeigen Interesse`,
-      'Nach der Saison liegen neue Angebote vor. Entscheide im Bereich Transfers.', true);
+    addNews(state, 'transfer',
+      t('se.offers.news', { n: state.offers.length }),
+      t('se.offers.newsBody'), true);
   }
 }
 

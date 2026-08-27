@@ -646,3 +646,406 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .grid.two, .grid.four { grid-template-columns: 1fr; }
   .scoreboard { grid-template-columns: 1fr auto 1fr; font-size: 0.9rem; }
 }
+
+/* --- Sprachumschalter --------------------------------------------------- */
+
+.lang-switch {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+.lang-option {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--muted);
+}
+.lang-option:hover { border-color: rgba(255, 255, 255, 0.34); color: var(--text); }
+.lang-option.active {
+  background: #17365c;
+  border-color: rgba(255, 255, 255, 0.32);
+  color: var(--text);
+}
+.lang-full { font-size: 0.72rem; opacity: 0.66; }
+/* Auf schmalen Geraeten genuegt das Kuerzel. */
+.lang-switch.compact .lang-full { display: none; }
+@media (max-width: 480px) {
+  .lang-full { display: none; }
+}
+
+/* ======================================================================
+   Optik im Stil der alten Fussball-Managerspiele
+   ======================================================================
+
+   Vorher sah das Spiel aus wie eine moderne Web-Anwendung: flache Flaechen,
+   weiche Ecken, viel Luft. Die Vorbilder aus den frühen 2000ern sahen anders
+   aus - sie wirkten wie ein Programm, nicht wie eine Seite:
+
+   - Rahmen mit Fase: dunkle Aussenkante, helle Innenkante. Das laesst Flaechen
+     erhaben statt aufgemalt wirken.
+   - Ueberschriften als Verlaufsleiste mit farbigem Anschlag links.
+   - Kaum Rundung. Vier Pixel, nicht zehn.
+   - Dichte Tabellen mit kraeftiger Kopfzeile und abwechselnden Zeilen.
+   - Knoepfe mit Lichtkante oben und Schatten unten, damit sie druckbar wirken.
+
+   Die Klassennamen bleiben unveraendert - diese Datei ersetzt nur das Aussehen.
+   ====================================================================== */
+
+:root {
+  /* Warmes Anthrazit statt Kaltblau. Tief genug, dass die Fasen sichtbar werden. */
+  --bg: #0b0907;
+  --bg-2: #14100b;
+  --panel: #1b1610;
+  --panel-2: #241c13;
+  /* Oberkante eines Panels - der Verlauf laeuft von hier nach --panel. */
+  --panel-hi: #2c2419;
+  --border: #4a3b27;
+  --border-soft: #33291c;
+  /* Lichtkante der Fase. Nie als Rahmen, immer als innerer Schatten. */
+  --bevel: rgba(255, 236, 202, 0.10);
+  --bevel-strong: rgba(255, 240, 212, 0.18);
+  /* Leisten ueber Panels und Tabellenkoepfen. */
+  --chrome-1: #4a3a24;
+  --chrome-2: #241c13;
+  --text: #f4eee3;
+  --muted: #c3b096;
+  --dim: #93816a;
+  --accent: #58c46a;
+  --accent-2: #e9a33c;
+  --warn: #ffb020;
+  --bad: #ff6a5c;
+  --gold: #f0c245;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+body {
+  background:
+    /* Flutlicht von oben, dezent - der Rasen scheint nur durch. */
+    radial-gradient(1400px 620px at 20% -14%, #3a2a12 0%, transparent 58%),
+    radial-gradient(1000px 560px at 88% -6%, #23301a 0%, transparent 52%),
+    var(--bg);
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+/* --- Panels: Rahmen mit Fase ----------------------------------------- */
+
+.panel {
+  position: relative;
+  background: linear-gradient(180deg, var(--panel-hi) 0, var(--panel) 46px, var(--bg-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem 1rem;
+  /* Nur so viel Schatten, dass die Kante sitzt - die Fase traegt die Tiefe. */
+  box-shadow:
+    inset 0 1px 0 var(--bevel),
+    0 1px 0 rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.16);
+}
+.panel + .panel { margin-top: 0.75rem; }
+
+/* Die Kopfzeile eines Panels ist eine eigene Leiste, kein blosser Text. */
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem;
+  margin: -0.9rem -1rem 0.85rem;
+  padding: 0.42rem 0.85rem 0.42rem 0.75rem;
+  background: linear-gradient(180deg, var(--chrome-1), var(--chrome-2));
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: inset 0 1px 0 var(--bevel-strong);
+}
+.panel-head h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #f0e2c8;
+  /* Farbiger Anschlag links - das Kennzeichen dieser Oberflaechen. */
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--accent-2);
+  line-height: 1.35;
+}
+
+/* --- Knoepfe: Lichtkante oben, Schatten unten ------------------------- */
+
+button {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #3a2e1e, #241c13);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 1px 0 var(--bevel-strong), 0 1px 0 rgba(0, 0, 0, 0.5);
+  transition: filter 0.12s, border-color 0.12s, transform 0.06s;
+}
+button:hover:not(:disabled) { filter: brightness(1.25); border-color: #7a6340; }
+button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+button.primary {
+  background: linear-gradient(180deg, #3f9e57, #256b39);
+  border-color: #55c47f;
+  color: #f2fff7;
+}
+button.ghost {
+  background: linear-gradient(180deg, #2a2117, #1a1510);
+  color: var(--muted);
+}
+button.danger {
+  background: linear-gradient(180deg, #8f3325, #5c2118);
+  border-color: #b5533c;
+  color: #ffe6ea;
+}
+
+/* --- Tabellen: dicht, mit kraeftiger Kopfzeile ------------------------ */
+
+table { font-size: 0.85rem; }
+th {
+  color: #e6d5b8;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  padding: 0.42rem 0.5rem;
+  background: linear-gradient(180deg, var(--chrome-1), var(--chrome-2));
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 var(--bevel);
+}
+td { padding: 0.32rem 0.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.045); }
+/* Abwechselnde Zeilen - macht lange Kader ueberhaupt erst lesbar. */
+tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.022); }
+tbody tr:hover td { background: rgba(206, 164, 92, 0.13); }
+tr.user td { background: #3a2c15; box-shadow: inset 3px 0 0 var(--gold); }
+tr.user:hover td { background: #46351a; }
+tr.highlight td { background: #1c3320; }
+
+/* --- Kennzahlen: eingelassene Felder ---------------------------------- */
+
+.stat {
+  background: linear-gradient(180deg, #16110c, #1a140e);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 -1px 0 var(--bevel);
+}
+.stat .value { font-size: 1.5rem; font-weight: 720; letter-spacing: -0.02em; }
+.stat .label { font-size: 0.68rem; letter-spacing: 0.08em; }
+
+.bar {
+  height: 8px;
+  background: #0d0a07;
+  border-radius: 2px;
+  border: 1px solid #2c2419;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.bar > span {
+  border-radius: 1px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.pill {
+  border-radius: 2px;
+  padding: 0.08rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #2c2318, #221b12);
+  box-shadow: inset 0 1px 0 var(--bevel);
+}
+
+/* --- Navigation: Anschlag links statt Flaeche ------------------------- */
+
+.nav { gap: 1px; }
+.nav button {
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.44rem 0.6rem 0.44rem 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.nav button:hover {
+  background: linear-gradient(180deg, #2a2117, #201a11);
+  border-color: var(--border-soft);
+  filter: none;
+}
+.nav button.active {
+  background: linear-gradient(180deg, #4a3a24, #2c2318);
+  border-color: #6e5837;
+  color: #fff;
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 1px 0 var(--bevel);
+}
+
+/* --- Kopfleiste des Karrierebereichs ---------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.5rem 0.9rem;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(180deg, #453520 0, #241c13 52%, #1a1510 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 var(--bevel-strong), 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.topbar .club {
+  display: flex; align-items: center; gap: 0.6rem; min-width: 0;
+}
+.topbar .club-name {
+  font-weight: 700; letter-spacing: 0.01em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.topbar .league { font-size: 0.74rem; color: var(--muted); }
+.topbar-figures {
+  display: flex; align-items: stretch; gap: 0; margin-left: auto;
+}
+.topbar-figure {
+  padding: 0 0.85rem;
+  text-align: right;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+.topbar-figure:first-child { border-left: 0; }
+.topbar-figure .v {
+  font-weight: 720; font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.topbar-figure .k {
+  font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--dim);
+}
+
+/* --- Karrierebereich: fuellt den Bildschirm --------------------------- */
+
+.career { max-width: 1500px; gap: 0.85rem; }
+/*
+ * Die Spaltenbreite nur oberhalb des Umbruchs setzen. Ohne die Abfrage
+ * gewinnt diese Regel gegen den Einspalter in `@media (max-width: 900px)`,
+ * weil sie spaeter in der Datei steht - und das Handy zeigt dann zwei
+ * Spalten samt Querlauf.
+ */
+@media (min-width: 901px) {
+  .career { grid-template-columns: 244px minmax(0, 1fr); }
+}
+
+.identity .name { font-size: 1.1rem; font-weight: 720; letter-spacing: -0.01em; }
+
+/* --- Auswahlchips ----------------------------------------------------- */
+
+.chip {
+  border-radius: 2px;
+  background: linear-gradient(180deg, #2c2318, #201a11);
+  border: 1px solid var(--border-soft);
+  box-shadow: inset 0 1px 0 var(--bevel);
+  font-weight: 600;
+}
+.chip.active {
+  background: linear-gradient(180deg, #3f9e57, #256b39);
+  border-color: #55c47f;
+  color: #f2fff7;
+}
+
+/* --- Eingaben: eingelassen -------------------------------------------- */
+
+input, select, textarea {
+  background: #100c08;
+  border: 1px solid #3a2e1e;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #a07b3e;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(198, 150, 62, 0.28);
+}
+
+/* --- Menue: kraeftigerer Rahmen --------------------------------------- */
+
+.menu { width: min(1000px, 100%); }
+.logo {
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 34px rgba(240, 194, 69, 0.24);
+}
+.save-card {
+  background: linear-gradient(180deg, #241c13, #1a1510);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 0 var(--bevel), 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+.save-card:hover { border-color: #6e5837; }
+
+/* Auf schmalen Geraeten faellt die Kopfleiste in zwei Zeilen. */
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; }
+  .topbar-figures { margin-left: 0; width: 100%; }
+  .topbar-figure { flex: 1; padding: 0 0.5rem; }
+}
+
+/* Die Kopfleiste sitzt im Raster und spannt beide Spalten. */
+.career > .topbar { grid-column: 1 / -1; margin-bottom: 0; }
+
+/*
+ * Die Seitenleiste bleibt stehen. In den Vorbildern ist die Navigation immer
+ * sichtbar; vorher stand sie unterhalb des Bildschirms und man musste erst
+ * scrollen, um den Reiter zu wechseln. Sie bekommt eine eigene Bildlaufleiste,
+ * damit sie bei kleinen Fenstern nicht selbst herauslaeuft.
+ */
+@media (min-width: 901px) {
+  .career > .sidebar {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+
+/* Symbol und Text in der Navigation - der Zaehler rutscht ans rechte Ende. */
+.nav button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+.nav-icon { flex: 0 0 auto; opacity: 0.72; }
+.nav button.active .nav-icon { opacity: 1; color: var(--accent); }
+.nav-text { flex: 1; text-align: left; }
+.nav button .pill { margin-left: auto; }
+
+/*
+ * Der Kopfbereich des Menues war noch im alten Kaltblau und stach aus der
+ * warmen Palette heraus. Der Rasen bleibt gruen - er soll ja Rasen sein -,
+ * aber der Grund und der Schleier darueber werden warm.
+ */
+.hero { background: #100c08; }
+/* Der Schleier soll den Text tragen, nicht das Bild zudecken. */
+.hero::after {
+  background: linear-gradient(100deg, rgba(16, 12, 8, 0.82) 0%,
+    rgba(16, 12, 8, 0.56) 42%, rgba(16, 12, 8, 0.1) 78%, rgba(16, 12, 8, 0) 100%);
+}
+@media (max-width: 620px) {
+  .hero::after {
+    background: linear-gradient(180deg, rgba(16, 12, 8, 0.94) 0%,
+      rgba(16, 12, 8, 0.85) 52%, rgba(16, 12, 8, 0.1) 74%, rgba(16, 12, 8, 0) 100%);
+  }
+}
+
+/* Die Konkurrenzauskunft auf einer Angebotskarte - eingelassen, damit sie
+   sich vom uebrigen Text der Karte abhebt. */
+.offer-competition {
+  margin: 0.55rem 0;
+  padding: 0.45rem 0.55rem;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}

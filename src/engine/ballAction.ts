@@ -9,6 +9,7 @@
 import { Rng, clamp } from './rng';
 import type { ChallengeOutcome, ChallengeResult, Challenge } from './matchTypes';
 import type { DifficultySettings, Player } from './types';
+import { t } from '../i18n';
 
 export const GOAL_HALF_WIDTH = 3.66;
 export const CROSSBAR = 2.44;
@@ -31,6 +32,11 @@ const SPIN_FACTOR = 6;
 
 // --- Eingabe -----------------------------------------------------------
 
+/**
+ * Warum ein Pass misslang. Bewusst eine Kennung und kein Satz - die
+ * Oberflaeche unterscheidet daran und uebersetzt erst bei der Anzeige.
+ */
+export type PassReason = 'pastTeammate' | 'tooHard' | 'tooShort' | 'intercepted';
 export interface BallInput {
   /** Zielpunkt der gezogenen Richtungslinie. */
   aimX: number;
@@ -400,12 +406,12 @@ export function describeShot(
 
   switch (resolution.outcome) {
     case 'goal':
-      if (c && Math.abs(c.x) > 2.6) return 'Perfekt ins lange Eck gesetzt.';
-      if (c && c.z < 0.5) return 'Flach und platziert - dagegen ist der Torwart machtlos.';
-      return 'Sauber getroffen und verwandelt.';
+      if (c && Math.abs(c.x) > 2.6) return t('ba.shot.farCorner');
+      if (c && c.z < 0.5) return t('ba.shot.lowPlaced');
+      return t('ba.shot.clean');
 
     case 'post':
-      return 'Aluminium. Wenige Zentimeter weiter nach innen und der Ball ist drin.';
+      return t('ba.woodwork');
 
     case 'blocked':
       return input.contactY < -0.3
@@ -419,7 +425,7 @@ export function describeShot(
       if (input.power < idealPower - 0.15) {
         return 'Gute Ecke, aber zu wenig Druck hinter dem Ball. Der Torwart hatte Zeit.';
       }
-      return 'Starke Parade. Da war nicht viel zu machen.';
+      return t('ba.greatSave');
 
     case 'offTarget':
       if (!c) {
@@ -434,9 +440,9 @@ export function describeShot(
         const side = c.x > 0 ? 'rechts' : 'links';
         return Math.abs(input.contactX) > 0.45
           ? `Der Effet traegt den Ball ${side} am Tor vorbei. Weniger seitlicher Kontakt.`
-          : `${side === 'rechts' ? 'Rechts' : 'Links'} vorbei. Die Richtung war zu weit aussen.`;
+          : `${side === 'rechts' ? t('ba.right') : t('ba.left')} vorbei. Die Richtung war zu weit aussen.`;
       }
-      return 'Knapp daneben.';
+      return t('ba.narrowMiss');
 
     default:
       return '';
@@ -453,7 +459,7 @@ export interface PassResolution {
   /** Abweichung vom Mitspieler in Metern. */
   error: number;
   /** Woran der Pass scheiterte - fuer die Rueckmeldung an den Spieler. */
-  reason?: string;
+  reason?: PassReason;
 }
 
 export function resolvePass(
@@ -520,10 +526,13 @@ export function resolvePass(
     0.02, 0.93,
   );
 
-  const reason = error > 6.5 ? 'zielte am Mitspieler vorbei'
+  // Stabile Kennungen statt Saetze: Die Oberflaeche unterscheidet daran, und
+  // ein uebersetzter Satz haette jeden Vergleich stillschweigend fehlschlagen
+  // lassen. Der Text dazu liegt im Katalog unter `scene.result.*`.
+  const reason: PassReason = error > 6.5 ? 'pastTeammate'
     : powerError > POWER_TOLERANCE
-      ? (input.power > idealPower ? 'schlug den Ball zu hart' : 'spielte zu kurz an')
-    : 'wurde abgefangen';
+      ? (input.power > idealPower ? 'tooHard' : 'tooShort')
+    : 'intercepted';
 
   if (error > 6.5 || powerError > POWER_TOLERANCE || rng.chance(interceptChance)) {
     return { outcome: 'passLost', flight, quality, targetId: target?.id ?? '', error, reason };
@@ -626,8 +635,11 @@ export function resolveDuel(
   timing: TimingInput, challenge: Challenge, player: Player,
   difficulty: DifficultySettings, rng: Rng,
 ): ChallengeResult {
-  const skill = player.attrs.tackling * 0.45 + player.attrs.anticipation * 0.25
-    + player.attrs.defPositioning * 0.2 + player.attrs.reactions * 0.1;
+  // Die Graetsche ist der letzte Griff im Zweikampf - genau der Moment, den
+  // der Spieler hier selbst timen muss. Sie gehoert deshalb in diese Formel.
+  const skill = player.attrs.tackling * 0.38 + player.attrs.slideTackle * 0.12
+    + player.attrs.anticipation * 0.22 + player.attrs.defPositioning * 0.18
+    + player.attrs.reactions * 0.1;
 
   // Trefferfenster in Sekunden
   const window = (0.1 + skill / 520) * difficulty.targetSize;
@@ -679,30 +691,41 @@ export interface DribbleMove {
   edge: number;
 }
 
+/**
+ * Die Dribblings. Name und Beschreibung sind Katalogschluessel - frueher
+ * standen hier fertige Texte, und beim Umstellen waren die Schluessel den
+ * falschen Zuegen zugeordnet (der Text stimmte, der Name des Schluessels nicht).
+ */
 export const DRIBBLE_MOVES: DribbleMove[] = [
   {
-    key: 'push', name: 'Ball vorlegen', requires: 0, windowScale: 1.45, edge: -0.07,
-    description: 'Einfach und sicher, bringt aber wenig Raumgewinn.',
+    key: 'push', name: 'ba.move.push.name', requires: 0,
+    windowScale: 1.45, edge: -0.07,
+    description: 'ba.move.push.desc',
   },
   {
-    key: 'feint', name: 'Koerpertaeuschung', requires: 35, windowScale: 1.15, edge: 0.01,
-    description: 'Solide Standardfinte mit gutem Zeitfenster.',
+    key: 'feint', name: 'ba.move.feint.name', requires: 35,
+    windowScale: 1.15, edge: 0.01,
+    description: 'ba.move.feint.desc',
   },
   {
-    key: 'stepover', name: 'Uebersteiger', requires: 50, windowScale: 1.0, edge: 0.06,
-    description: 'Klassisch und wirkungsvoll, verlangt sauberes Timing.',
+    key: 'stepover', name: 'ba.move.stepover.name', requires: 50,
+    windowScale: 1, edge: 0.06,
+    description: 'ba.move.stepover.desc',
   },
   {
-    key: 'roll', name: 'Ballrolle', requires: 62, windowScale: 0.88, edge: 0.1,
-    description: 'Enges Fenster, dafuer kommst du sofort in den freien Raum.',
+    key: 'roll', name: 'ba.move.roll.name', requires: 62,
+    windowScale: 0.88, edge: 0.1,
+    description: 'ba.move.roll.desc',
   },
   {
-    key: 'elastico', name: 'Elastico', requires: 74, windowScale: 0.74, edge: 0.16,
-    description: 'Sehr schwer zu verteidigen, verzeiht aber keine Fehler.',
+    key: 'elastico', name: 'ba.move.elastico.name', requires: 74,
+    windowScale: 0.74, edge: 0.16,
+    description: 'ba.move.elastico.desc',
   },
   {
-    key: 'heel', name: 'Hackentrick', requires: 84, windowScale: 0.68, edge: 0.19,
-    description: 'Nur fuer Ausnahmetechniker. Grosses Risiko, grosse Wirkung.',
+    key: 'heel', name: 'ba.move.heel.name', requires: 84,
+    windowScale: 0.68, edge: 0.19,
+    description: 'ba.move.heel.desc',
   },
 ];
 
@@ -731,7 +754,7 @@ export function resolveDribble(
   if (rng.chance(clamp(success, 0.04, 0.95))) {
     return {
       outcome: 'dribbleWon', quality,
-      detail: `${move ? `${move.name} sitzt` : 'Gegenspieler ausgespielt'}. ${timingText}`,
+      detail: `${move ? `${move.name} sitzt` : t('ba.beaten')}. ${timingText}`,
     };
   }
   if (rng.chance(0.22)) {
@@ -834,8 +857,8 @@ export function autoResolveChallenge(
 ): ChallengeResult {
   switch (challenge.kind) {
     case 'duel': case 'interception': {
-      const skill = player.attrs.tackling * 0.5 + player.attrs.anticipation * 0.3
-        + player.attrs.defPositioning * 0.2;
+      const skill = player.attrs.tackling * 0.42 + player.attrs.slideTackle * 0.1
+        + player.attrs.anticipation * 0.28 + player.attrs.defPositioning * 0.2;
       const p = clamp(0.42 + (skill - challenge.opponent) / 150, 0.12, 0.85);
       if (rng.chance(p)) return { outcome: 'duelWon', quality: 0.5 };
       return rng.chance(0.3)

@@ -1,10 +1,18 @@
 /**
  * Aufstellung als Feldgrafik (Konzept Abschnitt 57).
  *
- * Die Positionen werden nicht je Formation von Hand gesetzt, sondern aus den
- * Positionskuerzeln abgeleitet: Jede Position hat eine Reihe und eine
- * Seitenneigung, innerhalb einer Reihe wird gleichmaessig verteilt. So sieht
- * jede der sieben Formationen richtig aus, auch neu hinzugefuegte.
+ * Die Reihen kommen aus dem Formationsnamen: "4-3-3" heisst Torwart plus drei
+ * Ketten zu vier, drei und drei. Die Reihenfolge in FORMATION_SLOTS folgt
+ * genau dieser Gliederung, von hinten nach vorn.
+ *
+ * Frueher wurde die Tiefe aus dem Positionskuerzel abgeleitet. Das kann nicht
+ * funktionieren, weil dasselbe Kuerzel je nach System etwas anderes meint:
+ * `LA` ist im 4-4-2 ein linker Mittelfeldspieler, im 4-3-3 ein Fluegelstuermer.
+ * Ein 4-4-2 zerfiel dadurch in zwei Zweierreihen, und die beiden zentralen
+ * Mittelfeldspieler landeten an den Seitenlinien.
+ *
+ * Laesst sich der Name nicht deuten oder passt die Spielerzahl nicht zur
+ * Gliederung, greift weiterhin die Einteilung nach Kuerzeln.
  */
 import type { PositionCode } from '../engine/attributes';
 import type { Id, Player } from '../engine/types';
@@ -27,37 +35,128 @@ const SIDE: Record<PositionCode, number> = {
   RV: 1, RA: 1,
 };
 
+/**
+ * Wie stark zieht es eine zentrale Position in die Mitte ihrer Kette? Ein
+ * einzelner Sechser zwischen zwei Achtern gehoert in die Mitte, nicht an den
+ * Rand der Dreierreihe.
+ */
+const PULL: Partial<Record<PositionCode, number>> = { DM: 2, OM: 2 };
+
+/** Feine Tiefenkorrektur innerhalb einer Kette, damit sie nicht wie am Lineal wirkt. */
+const NUDGE: Partial<Record<PositionCode, number>> = { DM: -0.035, OM: 0.035 };
+
+/** Torwarttiefe. Tief genug fuer den Strafraum, hoch genug fuer die Namenszeile. */
+const GK_DEPTH = 0.12;
+/** Vorderste und hinterste Kette der Feldspieler. */
+const LINE_BACK = 0.32;
+const LINE_FRONT = 0.86;
+
 export interface PitchSlot {
   playerId: Id;
   position: PositionCode;
 }
 
-interface Placed extends PitchSlot {
+export interface Placed extends PitchSlot {
   x: number;
   y: number;
 }
 
-/** Verteilt die Startelf auf das Feld. */
-function place(slots: PitchSlot[]): Placed[] {
+/**
+ * Wie breit faechert eine Kette auf? Eine Viererkette nutzt die ganze Breite,
+ * ein Sturmduo darf nicht an den Aussenlinien stehen.
+ */
+function halfWidth(n: number): number {
+  return Math.min(0.38, 0.1 + n * 0.07);
+}
+
+/** Verteilt eine Kette von links nach rechts. */
+function spread(n: number, i: number): number {
+  if (n === 1) return 0.5;
+  const half = halfWidth(n);
+  return 0.5 - half + (i / (n - 1)) * half * 2;
+}
+
+/**
+ * Ordnet eine Kette von links nach rechts. Aussenpositionen gehen an die
+ * Raender, und innerhalb der Zentrale rutschen die zugigsten Rollen in die
+ * Mitte - sonst stuende der einzige Sechser einer Dreierreihe am Rand.
+ */
+function orderLine(line: PitchSlot[]): PitchSlot[] {
+  const links = line.filter((s) => (SIDE[s.position] ?? 0) < 0);
+  const rechts = line.filter((s) => (SIDE[s.position] ?? 0) > 0);
+  const mitte = line.filter((s) => (SIDE[s.position] ?? 0) === 0);
+
+  // Von innen nach aussen fuellen: der staerkste Zug sitzt in der Mitte.
+  const nachZug = [...mitte].sort((a, b) => (PULL[b.position] ?? 1) - (PULL[a.position] ?? 1));
+  const angeordnet: PitchSlot[] = new Array(nachZug.length);
+  const start = Math.floor((nachZug.length - 1) / 2);
+  let links_ = start;
+  let rechts_ = start + 1;
+  nachZug.forEach((slot, i) => {
+    if (i === 0) angeordnet[start] = slot;
+    else if (i % 2 === 1) angeordnet[rechts_++] = slot;
+    else angeordnet[--links_] = slot;
+  });
+
+  return [...links, ...angeordnet.filter(Boolean), ...rechts];
+}
+
+/**
+ * Zerlegt einen Formationsnamen in Kettenstaerken. "4-2-3-1" ergibt
+ * [4, 2, 3, 1]. Null, wenn der Name nicht dieser Form entspricht oder die
+ * Summe nicht zu den zehn Feldspielern passt.
+ */
+function parseFormation(name: string | undefined, outfield: number): number[] | null {
+  if (!name || !/^[0-9]+(-[0-9]+)+$/.test(name)) return null;
+  const ketten = name.split('-').map(Number);
+  if (ketten.some((n) => n < 1 || n > 6)) return null;
+  if (ketten.reduce((a, b) => a + b, 0) !== outfield) return null;
+  return ketten;
+}
+
+/**
+ * Verteilt die Startelf auf das Feld. Exportiert, weil die Platzierung reine
+ * Rechnung ohne React ist und der Rauchtest sie so fuer jede Formation
+ * pruefen kann.
+ */
+export function place(slots: PitchSlot[], formation?: string): Placed[] {
+  const torwart = slots.filter((s) => s.position === 'TW');
+  const feld = slots.filter((s) => s.position !== 'TW');
+  const ketten = parseFormation(formation, feld.length);
+  const out: Placed[] = [];
+
+  torwart.forEach((slot) => out.push({ ...slot, x: 0.5, y: GK_DEPTH }));
+
+  if (ketten) {
+    // Die Reihenfolge in FORMATION_SLOTS laeuft von hinten nach vorn.
+    let gelesen = 0;
+    ketten.forEach((groesse, kette) => {
+      const tiefe = ketten.length === 1
+        ? (LINE_BACK + LINE_FRONT) / 2
+        : LINE_BACK + (kette / (ketten.length - 1)) * (LINE_FRONT - LINE_BACK);
+      const linie = orderLine(feld.slice(gelesen, gelesen + groesse));
+      gelesen += groesse;
+      linie.forEach((slot, i) => out.push({
+        ...slot,
+        x: spread(linie.length, i),
+        y: tiefe + (NUDGE[slot.position] ?? 0),
+      }));
+    });
+    return out;
+  }
+
+  // Rueckfall: Einteilung nach Positionskuerzeln, wenn der Name nicht passt.
   const byRow = new Map<number, PitchSlot[]>();
-  for (const slot of slots) {
+  for (const slot of feld) {
     const row = ROW[slot.position] ?? 0.5;
-    // Positionen derselben Kette zusammenfassen (z. B. LV und IV).
     const key = Math.round(row * 20) / 20;
     const list = byRow.get(key);
     if (list) list.push(slot);
     else byRow.set(key, [slot]);
   }
-
-  const out: Placed[] = [];
   for (const [row, list] of byRow) {
-    const sorted = [...list].sort((a, b) => (SIDE[a.position] ?? 0) - (SIDE[b.position] ?? 0));
-    const n = sorted.length;
-    sorted.forEach((slot, i) => {
-      // Ein einzelner Spieler steht mittig, sonst gleichmaessig verteilt.
-      const x = n === 1 ? 0.5 : 0.12 + (i / (n - 1)) * 0.76;
-      out.push({ ...slot, x, y: row });
-    });
+    const linie = orderLine(list);
+    linie.forEach((slot, i) => out.push({ ...slot, x: spread(linie.length, i), y: row }));
   }
   return out;
 }
@@ -75,7 +174,7 @@ export default function FormationPitch(
     compact?: boolean;
   },
 ) {
-  const placed = place(slots);
+  const placed = place(slots, formation);
   const W = 300;
   const H = 400;
   const [shirt, trim] = colors;
@@ -132,11 +231,14 @@ export default function FormationPitch(
                 fontFamily="system-ui, sans-serif">
                 {p.shirtNumber}
               </text>
-              <text x={cx} y={cy + r + 12} textAnchor="middle"
+              {/* Die Namenszeile wird in das Feld hineingezogen, sonst laufen
+                  lange Namen an den Aussenbahnen ueber den Rand hinaus. */}
+              <text x={Math.max(34, Math.min(W - 34, cx))} y={cy + r + 12}
+                textAnchor="middle"
                 fontSize={compact ? 10 : 11} fill="#eaf3ff" fontWeight={isUser ? 750 : 550}
                 stroke="rgba(0,0,0,0.6)" strokeWidth={2.2} paintOrder="stroke"
                 fontFamily="system-ui, sans-serif">
-                {name.length > 12 ? `${name.slice(0, 11)}.` : name}
+                {name.length > 11 ? `${name.slice(0, 10)}.` : name}
               </text>
             </g>
           );

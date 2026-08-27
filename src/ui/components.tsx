@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react';
 import { ATTR_LABELS, attrTone, type AttrKey, type Attributes } from '../engine/attributes';
 import type { TableRow } from '../engine/types';
+import { t, tDecimal, tNumber } from '../i18n';
 
 export function Panel(
   { title, action, children, className }:
@@ -38,12 +39,20 @@ export function Bar({ value, max = 100, color }: { value: number; max?: number; 
   );
 }
 
+/**
+ * Farbe eines Balkens nach seinem Fuellstand.
+ *
+ * Der Mittelbereich war ein kaltes Blau und stach aus der warmen Palette
+ * heraus. Er ist jetzt ein gedecktes Kupfer - die Reihe laeuft damit
+ * durchgehend von Rot ueber Bernstein zu Gruen und bleibt trotzdem in
+ * fuenf Stufen unterscheidbar.
+ */
 export function barColor(pct: number): string {
-  if (pct < 30) return '#b8404d';
-  if (pct < 50) return '#c98a1c';
-  if (pct < 70) return '#3a8fd0';
-  if (pct < 88) return '#2fae63';
-  return '#d5a71f';
+  if (pct < 30) return '#c0483a';
+  if (pct < 50) return '#cf8a24';
+  if (pct < 70) return '#b8763a';
+  if (pct < 88) return '#4faa63';
+  return '#e0b338';
 }
 
 export function Meter({ label, value, hint }: { label: string; value: number; hint?: string }) {
@@ -78,7 +87,7 @@ export function AttrList({ attrs, keys, compare }: {
         const diff = compare ? value - compare[key] : 0;
         return (
           <div className="attr-row" key={key}>
-            <span className="muted">{ATTR_LABELS[key]}</span>
+            <span className="muted">{t(ATTR_LABELS[key])}</span>
             <span className={`v t-${tone}`}>{value}</span>
             <span className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
               <span className="attr-bar" style={{ flex: 1 }}>
@@ -107,18 +116,29 @@ export function Empty({ text }: { text: string }) {
 
 // --- Formatierung ------------------------------------------------------
 
+/**
+ * Geldbetrag in lesbarer Kurzform.
+ *
+ * Die Abkuerzungen standen hier fest auf Deutsch ("Mio", "Tsd") - im
+ * englischen Spiel stand also ueberall, wo ein Marktwert oder eine Abloese
+ * auftaucht, eine deutsche Einheit. Dasselbe galt fuer die Tausendertrennung
+ * und das Dezimalkomma der Noten.
+ */
 export function money(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)} Mio EUR`;
-  if (value >= 1000) return `${Math.round(value / 1000)} Tsd EUR`;
-  return `${value} EUR`;
+  if (value >= 1_000_000) {
+    const zahl = tDecimal(value / 1_000_000, value >= 10_000_000 ? 0 : 1);
+    return `${zahl} ${t('unit.million')}`;
+  }
+  if (value >= 1000) return `${tNumber(Math.round(value / 1000))} ${t('unit.thousand')}`;
+  return `${tNumber(value)} ${t('unit.euro')}`;
 }
 
 export function salary(value: number): string {
-  return `${value.toLocaleString('de-DE')} EUR/Woche`;
+  return t('unit.perWeek', { value: tNumber(value) });
 }
 
 export function rating(value: number): string {
-  return value.toFixed(1).replace('.', ',');
+  return tDecimal(value, 1);
 }
 
 export function ratingColor(value: number): string {

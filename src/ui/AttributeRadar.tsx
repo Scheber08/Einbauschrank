@@ -6,8 +6,10 @@
  * Die Torwartgruppe erscheint nur bei Torhuetern, sonst zoege sie das Netz
  * bei jedem Feldspieler auf null.
  */
+import { useLocale } from '../i18n/useLocale';
 import { ATTR_GROUPS, type AttrKey } from '../engine/attributes';
 import type { Player } from '../engine/types';
+import { t } from '../i18n';
 
 const SIZE = 220;
 const CX = SIZE / 2;
@@ -37,6 +39,8 @@ export default function AttributeRadar(
     compareLabel?: string;
   },
 ) {
+  // Damit die Beschriftung dem Sprachwechsel folgt.
+  useLocale();
   const isKeeper = player.position === 'TW';
   const groups = ATTR_GROUPS.filter((g) => (g.key === 'goalkeeping' ? isKeeper : true));
   const n = groups.length;
@@ -50,7 +54,7 @@ export default function AttributeRadar(
   return (
     <div className="radar-wrap">
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="radar"
-        role="img" aria-label="Attributprofil">
+        role="img" aria-label={t('player.attributeProfile')}>
         {/* Netzringe */}
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <polygon key={f}
@@ -84,7 +88,7 @@ export default function AttributeRadar(
           return (
             <text key={g.key} x={x} y={y} textAnchor={anchor} dominantBaseline="middle"
               fontSize="10.5" fill="var(--muted)" fontFamily="system-ui, sans-serif">
-              {g.label}
+              {t(g.label)}
               <tspan x={x} dy="12" fill="var(--text)" fontWeight="700">
                 {Math.round(values[i])}
               </tspan>

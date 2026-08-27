@@ -8,6 +8,7 @@
 import { ageOn } from './date';
 import { careerTotals } from './stats';
 import type { GameState, Id, Retirement } from './types';
+import { t } from '../i18n';
 
 /** Ab diesem Alter kann der Spieler freiwillig aufhoeren. */
 export const RETIREMENT_MIN_AGE = 33;
@@ -20,15 +21,15 @@ export const RETIREMENT_MAX_AGE = 41;
  */
 export function careerStatus(goals: number, apps: number, honours: number): string {
   const score = apps * 0.4 + goals * 2 + honours * 12;
-  if (score > 900) return 'Fussballikone';
-  if (score > 650) return 'Weltfussballer';
-  if (score > 450) return 'Internationaler Superstar';
-  if (score > 300) return 'Nationaler Star';
-  if (score > 190) return 'Vereinslegende';
-  if (score > 120) return 'Publikumsliebling';
-  if (score > 60) return 'Stammspieler';
-  if (score > 20) return 'Solider Profi';
-  return 'Amateur';
+  if (score > 900) return t('status.icon');
+  if (score > 650) return t('status.worldPlayer');
+  if (score > 450) return t('status.superstar');
+  if (score > 300) return t('status.nationalStar');
+  if (score > 190) return t('status.clubLegend');
+  if (score > 120) return t('status.fanFavourite');
+  if (score > 60) return t('status.regular');
+  if (score > 20) return t('status.solid');
+  return t('status.amateur');
 }
 
 /** Darf der Spieler jetzt freiwillig zuruecktreten? */

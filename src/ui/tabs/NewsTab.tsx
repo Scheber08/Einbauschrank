@@ -4,19 +4,23 @@ import { postSocial } from '../../state/actions';
 import { commit, useAppState } from '../../state/store';
 import type { NewsCategory } from '../../engine/types';
 import { Empty, Panel, Pill } from '../components';
+import { t, tNumber } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
+/** Katalogschluessel je Rubrik - uebersetzt wird bei der Anzeige. */
 const CATEGORY_LABELS: Partial<Record<NewsCategory, string>> = {
-  match: 'Spielberichte',
-  transfer: 'Transfers',
-  contract: 'Vertraege',
-  injury: 'Verletzungen',
-  award: 'Auszeichnungen',
-  record: 'Rekorde',
-  season: 'Saison',
-  media: 'Medien',
+  match: 'news.cat.match',
+  transfer: 'news.cat.transfer',
+  contract: 'news.cat.contract',
+  injury: 'news.cat.injury',
+  award: 'news.cat.award',
+  record: 'news.cat.record',
+  season: 'news.cat.season',
+  media: 'news.cat.media',
 };
 
 export default function NewsTab() {
+  useLocale();
   const game = useAppState().game!;
   const [filter, setFilter] = useState<NewsCategory | 'all'>('all');
 
@@ -30,20 +34,20 @@ export default function NewsTab() {
   return (
     <>
       <SocialPanel />
-      <Panel title="Nachrichten" action={
+      <Panel title={t('news.title')} action={
       <div className="row">
         <div className="chip-row">
           <span className={`chip ${filter === 'all' ? 'active' : ''}`}
             onClick={() => setFilter('all')}>Alle</span>
           {(Object.keys(CATEGORY_LABELS) as NewsCategory[]).map((key) => (
             <span key={key} className={`chip ${filter === key ? 'active' : ''}`}
-              onClick={() => setFilter(key)}>{CATEGORY_LABELS[key]}</span>
+              onClick={() => setFilter(key)}>{t(CATEGORY_LABELS[key] ?? '')}</span>
           ))}
         </div>
-        <button className="small ghost" onClick={markAllRead}>Alle gelesen</button>
+        <button className="small ghost" onClick={markAllRead}>{t('news.markAllRead')}</button>
       </div>
     }>
-      {items.length === 0 && <Empty text="Keine Meldungen in dieser Kategorie." />}
+      {items.length === 0 && <Empty text={t('news.emptyCategory')} />}
       <div className="scroll">
         {items.map((n) => (
           <article className={`news-item ${n.read ? '' : 'unread'}`} key={n.id}
@@ -64,10 +68,10 @@ export default function NewsTab() {
 }
 
 const KIND_STYLE: Record<string, { label: string; color: string }> = {
-  own: { label: 'Du', color: '#37d67a' },
-  fan: { label: 'Fans', color: '#2bb7ff' },
-  media: { label: 'Medien', color: '#f5c542' },
-  critic: { label: 'Kritik', color: '#ff8a95' },
+  own: { label: t('news.cat.own'), color: '#37d67a' },
+  fan: { label: t('news.cat.fan'), color: '#2bb7ff' },
+  media: { label: t('news.cat.media'), color: '#f5c542' },
+  critic: { label: t('news.cat.critic'), color: '#ff8a95' },
 };
 
 /** Soziales Netzwerk: Reaktionen der Oeffentlichkeit und eigene Beitraege. */
@@ -77,8 +81,8 @@ function SocialPanel() {
   if (!social || (social.feed.length === 0 && !social.draft)) return null;
 
   return (
-    <Panel title="Oeffentlichkeit" action={
-      <Pill>{social.followers.toLocaleString('de-DE')} Follower</Pill>
+    <Panel title={t('news.public')} action={
+      <Pill>{t('news.followers', { n: tNumber(social.followers) })}</Pill>
     }>
       {social.draft && (
         <div style={{
@@ -86,7 +90,7 @@ function SocialPanel() {
           border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
           background: '#0c1729',
         }}>
-          <div className="tiny dim">Willst du dich dazu aeussern?</div>
+          <div className="tiny dim">{t('news.wantToComment')}</div>
           <div style={{ fontWeight: 620, margin: '0.2rem 0 0.6rem' }}>{social.draft.prompt}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {social.draft.options.map((o) => (
@@ -94,7 +98,7 @@ function SocialPanel() {
                 onClick={() => postSocial(o.id)}>
                 <div className="small" style={{ fontWeight: 600 }}>{o.label}</div>
                 <div className="tiny dim">
-                  {o.text ? `"${o.text}"` : 'Kein Beitrag'} - {o.tone}
+                  {o.text ? `"${o.text}"` : t('news.noPost')} - {o.tone}
                 </div>
               </button>
             ))}
@@ -103,7 +107,7 @@ function SocialPanel() {
       )}
 
       {social.feed.length === 0 ? (
-        <Empty text="Noch nichts gepostet." />
+        <Empty text={t('news.nothingPosted')} />
       ) : (
         <div className="scroll">
           {social.feed.slice(0, 20).map((p) => {
@@ -118,7 +122,7 @@ function SocialPanel() {
                 </div>
                 <div className="small muted">{p.text}</div>
                 <div className="tiny dim" style={{ marginTop: 2 }}>
-                  {style.label} - {p.likes.toLocaleString('de-DE')} Gefaellt mir
+                  {style.label} - {t('news.likes', { n: tNumber(p.likes) })}
                 </div>
               </article>
             );

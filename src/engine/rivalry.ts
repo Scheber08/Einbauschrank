@@ -6,6 +6,7 @@
  * damit sofort, ohne Migration.
  */
 import type { Club, GameState, Match } from './types';
+import { t } from '../i18n';
 
 export type DerbyKind = 'city' | 'traditional' | 'topClash' | null;
 
@@ -51,9 +52,9 @@ export function derbyKind(a: Club, b: Club, allClubs?: Record<string, Club>): De
 }
 
 export function derbyLabel(kind: DerbyKind): string | null {
-  if (kind === 'city') return 'Stadtderby';
-  if (kind === 'traditional') return 'Traditionsduell';
-  if (kind === 'topClash') return 'Spitzenspiel';
+  if (kind === 'city') return t('derby.city');
+  if (kind === 'traditional') return t('derby.traditional');
+  if (kind === 'topClash') return t('derby.topClash');
   return null;
 }
 

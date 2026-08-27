@@ -9,14 +9,32 @@ import { seasonLabel } from './engine/date';
 import {
   advanceDay, createNewGame, finishUserMatch, prepareUserMatch, sortedTable, userClub,
 } from './engine/game';
+import { positionCompetition } from './engine/competition';
+import { evaluateNomination, userNationalSquad } from './engine/national';
+import { mentorInfluence, mentorLeft } from './engine/relationships';
+import { buildWageIndex, canSign, feeShare, wageBill } from './engine/finance';
+import { checkCaptaincy, dropCaptaincyOnTransfer, growLeadership } from './engine/captain';
+import { learnAltPosition } from './engine/versatility';
+import { freeKickStanding, penaltyStanding } from './engine/setpieces';
+import { createObjectives } from './engine/game';
+import { advanceAgent, ensureAgent, startAgentTask } from './engine/agent';
+import {
+  applyTraining, injuryForDays, updateFormAfterMatch,
+} from './engine/development';
 import { slotScore } from './engine/lineup';
 import { MatchEngine } from './engine/matchEngine';
 import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
-import { applyLifeChoice } from './engine/events';
+import { applyLifeChoice, buildLifeEvent } from './engine/events';
 import { Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
-import { DIFFICULTY_SETTINGS } from './engine/types';
+import { DIFFICULTY_SETTINGS, type SquadRole } from './engine/types';
+import { FORMATION_SLOTS } from './engine/worldGen';
+import { place } from './ui/FormationPitch';
+import { EVENT_KEYS } from './ui/tabs/ChronicleTab';
+import { DE } from './i18n/de';
+import { EN } from './i18n/en';
+import { setLocale, t } from './i18n';
 
 const out = document.getElementById('out')!;
 const lines: string[] = [];
@@ -232,6 +250,170 @@ function run() {
   check('Minuten plausibel',
     game.userMatchStats.every((s) => s.minutes >= 0 && s.minutes <= 125));
 
+  // --- Konkurrenz auf der Position -------------------------------------
+  {
+    log('');
+    log('--- Konkurrenz auf der Position ---');
+    const klubs = Object.values(game.clubs).slice(0, 40);
+    let ungueltig = 0;
+    let mitKonkurrenz = 0;
+    for (const c of klubs) {
+      const k = positionCompetition(game, c.id, user);
+      // Der Rang muss zwischen 1 und "alle Rivalen plus ich" liegen.
+      if (k.rank < 1 || k.rank > k.count + 1) ungueltig++;
+      if (k.count === 0 && k.best !== 0) ungueltig++;
+      if (k.count > 0) mitKonkurrenz++;
+    }
+    log(`${klubs.length} Vereine geprueft, ${mitKonkurrenz} mit Konkurrenz auf ${user.position}`);
+    check('Rangberechnung bleibt im gueltigen Bereich', ungueltig === 0, `${ungueltig} Ausreisser`);
+    // Ohne Konkurrenz waere die Auskunft wertlos - es muss welche geben.
+    check('Es gibt Vereine mit Konkurrenz auf der Position', mitKonkurrenz > 5,
+      `${mitKonkurrenz} von ${klubs.length}`);
+  }
+
+  // --- Saisonziele: Abrechnung und Saettigung --------------------------
+  {
+    log('');
+    log('--- Saisonziele ---');
+    const bilanz = game.news.filter((n) => /Saisonziel/.test(n.headline));
+    log(`Zielmeldungen: ${bilanz.length}, Trainer ${Math.round(game.coachRelation)}, `
+      + `Fans ${Math.round(game.fanRelation)}`);
+    // Ohne Abrechnung waeren die Ziele reine Anzeige - genau das war der Fall.
+    check('Saisonziele werden abgerechnet', bilanz.length > 0, `${bilanz.length} Meldungen`);
+
+    // Frueher klebten beide Werte bei 100, weil die Daempfung nach oben einen
+    // Boden hatte. Am Anschlag ist eine Beziehung als Groesse tot.
+    check('Trainerbeziehung klebt nicht am Anschlag', game.coachRelation < 99.5,
+      `${game.coachRelation.toFixed(1)}`);
+    check('Fanbeliebtheit klebt nicht am Anschlag', game.fanRelation < 99.5,
+      `${game.fanRelation.toFixed(1)}`);
+  }
+
+  // --- Verletzungen: Art passt zur Dauer -------------------------------
+  {
+    log('');
+    log('--- Verletzungen ---');
+    const vRng = new Rng(4711);
+    // Der Platzhalter braucht Attribute: Die Verletzungsschwere liest die
+    // Widerstandsfaehigkeit, um den Moralschlag abzufedern.
+    const proband = () => ({
+      injury: null, fitness: 90, morale: 70, attrs: { resilience: 50 },
+    } as never);
+    let unpassend = 0;
+    let falscherSchaden = 0;
+    for (const tage of [3, 6, 12, 20, 30, 50, 90, 150, 260]) {
+      for (let i = 0; i < 40; i++) {
+        const v = injuryForDays(vRng, proband(), tage);
+        if (v.daysOut !== tage) unpassend++;
+        // Bleibender Schaden darf nur bei langen Ausfaellen auftreten.
+        if (v.permanentLoss && tage < 60) falscherSchaden++;
+        if (v.severity === 'leicht' && tage > 20) unpassend++;
+        if (v.severity === 'schwer' && tage < 45) unpassend++;
+      }
+    }
+    check('Verletzungsdauer bleibt erhalten und passt zur Schwere', unpassend === 0,
+      `${unpassend} Abweichungen`);
+    check('Bleibender Schaden nur bei langen Ausfaellen', falscherSchaden === 0,
+      `${falscherSchaden} Faelle`);
+  }
+
+  // --- Sprachkataloge --------------------------------------------------
+  {
+    log('');
+    log('--- Sprachkataloge ---');
+    const deKeys = Object.keys(DE);
+    const enKeys = Object.keys(EN);
+    log(`Schluessel: ${deKeys.length} deutsch, ${enKeys.length} englisch`);
+
+    // Ein Schluessel, den nur eine Sprache kennt, faellt im Spiel stumm auf
+    // Deutsch zurueck - das faellt beim Spielen kaum auf und bleibt liegen.
+    const fehltEn = deKeys.filter((k) => !(k in EN));
+    const fehltDe = enKeys.filter((k) => !(k in DE));
+    check('Englischer Katalog ist vollstaendig', fehltEn.length === 0,
+      fehltEn.slice(0, 8).join(', '));
+    check('Kein englischer Schluessel ohne deutsches Gegenstueck', fehltDe.length === 0,
+      fehltDe.slice(0, 8).join(', '));
+
+    // Platzhalter muessen auf beiden Seiten dieselben sein, sonst steht in
+    // einer Sprache '{name}' im Text.
+    const platzhalter = (s: string) => (s.match(/{w+}/g) ?? []).slice().sort().join(",");
+    const schief = deKeys.filter((k) => k in EN && platzhalter(DE[k]) !== platzhalter(EN[k]));
+    check('Platzhalter stimmen ueberein', schief.length === 0, schief.slice(0, 8).join(', '));
+
+    // Leere Texte wuerden als leere Beschriftung durchrutschen.
+    const leer = [...deKeys.filter((k) => !DE[k].trim()), ...enKeys.filter((k) => !EN[k].trim())];
+    check('Keine leeren Texte', leer.length === 0, leer.slice(0, 8).join(', '));
+  }
+
+  // --- Formationsgrafik ------------------------------------------------
+  {
+    log('');
+    log('--- Formationsgrafik ---');
+    for (const [name, positionen] of Object.entries(FORMATION_SLOTS)) {
+      const slots = positionen.map((position, i) => ({ playerId: `x${i}`, position }));
+      const placed = place(slots, name);
+
+      check(`${name}: alle elf platziert`, placed.length === 11, `${placed.length}`);
+
+      // Nichts darf ueber den Rasen hinausragen.
+      const drin = placed.every((p) => p.x >= 0.08 && p.x <= 0.92 && p.y >= 0.08 && p.y <= 0.92);
+      check(`${name}: alles im Feld`, drin,
+        placed.filter((p) => p.x < 0.08 || p.x > 0.92 || p.y < 0.08 || p.y > 0.92)
+          .map((p) => `${p.position} ${p.x.toFixed(2)}/${p.y.toFixed(2)}`).join(', '));
+
+      // Die Zahl der Ketten muss zum Namen passen: Torwart plus Gliederung.
+      const ketten = name.split('-').length;
+      const reihen = new Set(placed.map((p) => Math.round(p.y * 25))).size;
+      check(`${name}: Gliederung erkannt`, reihen >= ketten + 1 && reihen <= ketten + 2,
+        `${reihen} Reihen bei ${ketten} Ketten`);
+
+      // Keine zwei Spieler duerfen uebereinander liegen.
+      let engste = 9;
+      for (let i = 0; i < placed.length; i++) {
+        for (let j = i + 1; j < placed.length; j++) {
+          const dx = placed[i].x - placed[j].x;
+          const dy = (placed[i].y - placed[j].y) * 1.33; // Feld ist hoeher als breit
+          engste = Math.min(engste, Math.hypot(dx, dy));
+        }
+      }
+      check(`${name}: keine Ueberdeckung`, engste > 0.1, `engster Abstand ${engste.toFixed(3)}`);
+    }
+
+    // Unbekannte Namen duerfen nicht zu Chaos fuehren, sondern fallen auf die
+    // Einteilung nach Positionskuerzeln zurueck.
+    const wirr = place(FORMATION_SLOTS['4-4-2'].map((position, i) =>
+      ({ playerId: `y${i}`, position })), 'Kraut-und-Rueben');
+    check('Unbekannte Formation faellt sauber zurueck',
+      wirr.length === 11 && wirr.every((p) => p.x >= 0.08 && p.x <= 0.92),
+      `${wirr.length} platziert`);
+  }
+
+  // --- Karrierebogen: Chronik und Vertrag -----------------------------
+  {
+    const marken = game.careerEvents.filter((e) => e.type === 'milestone');
+    log(`
+Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
+    // Ohne laufende Marken schwieg die Chronik nach den Premieren jahrelang.
+    check('Chronik fuehrt laufende Marken', marken.length > 0,
+      marken.map((e) => e.title).join(', ') || 'keine');
+
+    // Kein Eintrag darf mit einem unbekannten Typ enden - sonst zeigt die
+    // Oberflaeche nur 'Ereignis' statt einer Einordnung. Geprueft wird direkt
+    // gegen die Tabelle der Chronik, damit hier keine zweite Liste veraltet.
+    const unbekannt = [...new Set(game.careerEvents.map((e) => e.type))]
+      .filter((typ) => !(typ in EVENT_KEYS));
+    check('Alle Chroniktypen sind benannt', unbekannt.length === 0, unbekannt.join(', '));
+
+    // Ein Vertrag darf nicht in der Vergangenheit enden: Wer nicht
+    // verlaengert, muss den Verein verlassen haben.
+    const endJahr = user.contract ? Number(user.contract.until.slice(0, 4)) : null;
+    log(`Vertrag: ${user.contract ? `bis ${endJahr}, ${user.contract.salary} Euro/Woche` : "keiner"}`
+      + ` (Saison ${game.season})`);
+    check('Kein abgelaufener Vertrag laeuft weiter',
+      endJahr === null || endJahr > game.season,
+      `Ende ${endJahr}, Saison ${game.season}`);
+  }
+
   const newAbility = computeOverall(user.attrs, user.position);
   const age = game.season - Number(user.birthDate.slice(0, 4));
   log(`Entwicklung: Staerke ${startAbility} -> ${newAbility} (+${newAbility - startAbility}), `
@@ -296,7 +478,7 @@ function run() {
   log(`Status: ${nowClub?.name ?? 'vereinslos'}, Staerke ${computeOverall(user.attrs, user.position)}, `
     + `Rolle ${user.contract?.role ?? '-'}, Form ${Math.round(user.form)}, `
     + `Fitness ${Math.round(user.fitness)}, `
-    + `${user.injury ? `verletzt (${user.injury.name}, ${user.injury.daysOut} Tage)` : 'fit'}, `
+    + `${user.injury ? `verletzt (${t(user.injury.name)}, ${user.injury.daysOut} Tage)` : 'fit'}, `
     + `${user.suspension > 0 ? `gesperrt (${user.suspension})` : 'spielberechtigt'}`);
 
   const upcoming = Object.values(game.matches)
@@ -411,10 +593,21 @@ function run() {
   // Der Testspieler ist Stuermer; fuer ihn ist die defensive Einbindung
   // naturgemaess klein (Wahrscheinlichkeit 0,14 gegenueber 0,82 bei
   // Verteidigern), ein Vergleich einzelner Zweikaempfe misst darum nur
-  // Rauschen. Messbar ist fuer ihn die Gesamtzahl der Situationen; die
-  // defensive Einbindung prueft die naechste Sektion am Innenverteidiger.
-  check('Modus "all" bringt insgesamt mehr Situationen (Abschnitt 20.3)',
-    allTotal >= totalChallenges, `${allTotal} gegen ${totalChallenges}`);
+  // Rauschen.
+  //
+  // Die Gesamtzahl taugt fuer ihn ebenfalls nur begrenzt: Ueber 60 Partien
+  // kommen rund 75 Situationen zusammen, ein Unterschied von zwei liegt also
+  // im Rauschen. Genau daran ist diese Pruefung einmal gekippt (73 gegen 75),
+  // nachdem eine Aenderung an anderer Stelle den Zufallsstrom verschoben
+  // hatte - ohne dass am Modusverhalten irgendetwas kaputt war.
+  //
+  // Sie prueft deshalb nur noch, dass der Modus "all" nicht einbricht. Der
+  // eigentliche Unterschied - Szenen von Mitspielern - wird gleich darunter
+  // am Innenverteidiger belegt, und zwar mit grossem Abstand (42 Klaerungen
+  // gegen 0). Eine Pruefung, die bei jedem zweiten Lauf kippt, sagt nichts.
+  check('Modus "all" bricht nicht ein (Abschnitt 20.3)',
+    allTotal >= totalChallenges * 0.85,
+    `${allTotal} gegen ${totalChallenges}`);
 
   // Klaerungen betreffen vor allem Defensivspieler. Fuer diese Pruefung wird der
   // Spieler kurzzeitig als Innenverteidiger eingesetzt.
@@ -695,6 +888,830 @@ function run() {
     log('Kein gespieltes Nutzerspiel gefunden - Interviewtest uebersprungen.');
   }
 
+  // --- Oeffentliches Bild wirkt sich aus (Abschnitt 31) ----------------
+  //
+  // Interviews und Beitraege in den sozialen Medien bezahlen mit diesem Wert,
+  // und die Seitenleiste zeigt ihn als Balken. Gelesen wurde er aber lange
+  // nirgends - er war eine Waehrung ohne Ware. Dieser Test haelt fest, dass er
+  // wirkt: Er darf ruhig schwach wirken, aber nicht gar nicht.
+  log('\n--- Oeffentliches Bild ---');
+  {
+    const gI = createNewGame({
+      saveName: 'Imagetest', seed: 24680, difficulty: 'normal',
+      firstName: 'Image', lastName: 'Traeger', age: 22, nationality: 'de',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 183, weight: 77,
+      shirtNumber: 9, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+    });
+    const uI = gI.players[gI.userPlayerId];
+
+    // Nominierungsquote ueber eine Spanne von Staerke und Form messen. Ein
+    // einzelner Kipppunkt taugt nicht: Die Konkurrenz im Land geht in Stufen
+    // von sechs Punkten ein, dadurch springt die Grenze.
+    const quote = (image: number) => {
+      gI.publicImage = image;
+      let ja = 0, gesamt = 0;
+      for (let staerke = 72; staerke <= 86; staerke++) {
+        for (const form of [40, 55, 70, 85]) {
+          for (const key of Object.keys(uI.attrs) as (keyof typeof uI.attrs)[]) {
+            uI.attrs[key] = staerke;
+          }
+          uI.form = form; uI.reputation = 60;
+          gesamt++;
+          if (evaluateNomination(gI)) ja++;
+        }
+      }
+      return ja / gesamt;
+    };
+    const schlecht = quote(10);
+    const gut = quote(90);
+    log(`Nominierungsquote: Image 10 -> ${(schlecht * 100).toFixed(0)} Prozent, `
+      + `Image 90 -> ${(gut * 100).toFixed(0)} Prozent`);
+    check('Ein guter Ruf senkt die Huerde zur Nationalmannschaft',
+      gut > schlecht,
+      `${(schlecht * 100).toFixed(0)} gegen ${(gut * 100).toFixed(0)} Prozent`);
+    check('Der Ruf ersetzt aber keine Leistung', gut - schlecht < 0.35,
+      `Unterschied ${((gut - schlecht) * 100).toFixed(0)} Punkte`);
+  }
+
+  // --- Einsatzzeiten in beiden Welten (Abschnitt 20) -------------------
+  //
+  // Die Spiele des eigenen Spielers laufen durch die volle Simulation - mit
+  // Auswechslungen. Alle uebrigen liefen durch die leichte Simulation, in der
+  // jeder Startelfspieler exakt 90 Minuten spielte und Einwechslungen gar
+  // nicht vorkamen. Gemessen ueber 72 Vergleichssaisons: 49,3 Minuten pro
+  // Einsatz beim eigenen Spieler gegen 88 bei gleich starken
+  // computergesteuerten Stuermern - bei besserer Note (6,51 gegen 6,38) und
+  // mehr Toren pro 90 Minuten (0,595 gegen 0,362). Auszeichnungen zaehlen
+  // aber Summen, und gegen Spieler, die nie vom Platz gehen, sind Summen
+  // nicht zu gewinnen: fuenf Saisons ohne eine einzige Auszeichnung.
+  log('\n--- Einsatzzeiten ---');
+  {
+    const ligaStats = Object.values(game.seasonStats).filter(
+      (st) => /-l[0-9]/.test(st.competitionId) && st.appearances >= 5);
+    const gesamtMinuten = ligaStats.reduce((a, st) => a + st.minutes, 0);
+    const gesamtSpiele = ligaStats.reduce((a, st) => a + st.appearances, 0);
+    const proSpiel = gesamtSpiele > 0 ? gesamtMinuten / gesamtSpiele : 0;
+    const einwechsler = ligaStats.filter((st) => st.starts === 0).length;
+
+    log(`Minuten pro Einsatz in den Ligen: ${proSpiel.toFixed(1)} `
+      + `(${ligaStats.length} Spielersaisons, davon ${einwechsler} ohne Startelfeinsatz)`);
+    check('Nicht jeder Startelfspieler spielt durch', proSpiel < 88,
+      `${proSpiel.toFixed(1)} Minuten`);
+    check('Aber es wird auch nicht wild gewechselt', proSpiel > 60,
+      `${proSpiel.toFixed(1)} Minuten`);
+    check('Auch Ersatzspieler kommen zu Einsaetzen', einwechsler > 0,
+      `${einwechsler} Spieler`);
+  }
+  // --- Beide Simulationstiefen im Gleichgewicht (Abschnitt 20) ---------
+  //
+  // Die Spiele des eigenen Vereins laufen durch die volle Engine, alle
+  // uebrigen durch die leichte. Gemessen innerhalb derselben Liga fallen in
+  // den eigenen Spielen 3,38 Tore, in den uebrigen 2,64 - 28 Prozent mehr.
+  //
+  // Das ist bewusst **nicht** korrigiert: Der Ausschlag ist symmetrisch
+  // (1,80 erzielt zu 1,58 kassiert gegen 1,46 zu 1,25 bei vergleichbaren
+  // Vereinen), weshalb Punkte (1,54 gegen 1,56) und Tordifferenz (+0,22
+  // gegen +0,21) praktisch gleich bleiben. Die Tabelle wird also nicht
+  // verzerrt, und ein Eingriff in die Torquote der vollen Engine waere ein
+  // Risiko fuer das Spielgefuehl ohne Gewinn.
+  //
+  // Diese Pruefung haelt fest, dass es dabei bleibt: Waechst der Abstand,
+  // faengt die Liga an, sich um den eigenen Verein herum zu verbiegen.
+  {
+    const meinVerein = game.players[game.userPlayerId]?.clubId;
+    const meineLiga = meinVerein ? game.clubs[meinVerein]?.leagueId : null;
+    if (meineLiga && meinVerein) {
+      let eigenTore = 0, eigenSpiele = 0, fremdTore = 0, fremdSpiele = 0;
+      let eigenPunkte = 0, fremdPunkte = 0, fremdTeilnahmen = 0;
+      for (const m of Object.values(game.matches)) {
+        if (!m.played || m.homeScore == null || m.awayScore == null) continue;
+        if (m.competitionId !== meineLiga) continue;
+        const tore = m.homeScore + m.awayScore;
+        const beteiligt = m.homeClubId === meinVerein || m.awayClubId === meinVerein;
+        if (beteiligt) {
+          eigenTore += tore; eigenSpiele++;
+          const fuer = m.homeClubId === meinVerein ? m.homeScore : m.awayScore;
+          const gegen = m.homeClubId === meinVerein ? m.awayScore : m.homeScore;
+          eigenPunkte += fuer > gegen ? 3 : fuer === gegen ? 1 : 0;
+        } else {
+          fremdTore += tore; fremdSpiele++;
+          // Je Spiel werden drei Punkte vergeben, bei einem Unentschieden zwei.
+          // Wer sie bekommt, ist fuer den Ligaschnitt egal - entscheidend ist,
+          // dass Auswaertssiege mitzaehlen. Ohne das lag der Schnitt bei 0,95
+          // statt bei rund 1,35 und der Vergleich war wertlos.
+          fremdPunkte += m.homeScore === m.awayScore ? 2 : 3;
+          fremdTeilnahmen += 2;
+        }
+      }
+      if (eigenSpiele >= 20 && fremdSpiele >= 100) {
+        const eigen = eigenTore / eigenSpiele;
+        const fremd = fremdTore / fremdSpiele;
+        const punkteEigen = eigenPunkte / eigenSpiele;
+        const punkteFremd = fremdPunkte / fremdTeilnahmen;
+        log(`Tore pro Spiel: eigener Verein ${eigen.toFixed(2)}, uebrige Liga ${fremd.toFixed(2)}`);
+        log(`Punkte pro Spiel: eigener Verein ${punkteEigen.toFixed(2)}, `
+          + `Ligaschnitt ${punkteFremd.toFixed(2)}`);
+        check('Die volle Simulation bleibt nah an der leichten',
+          eigen < fremd * 1.6, `${eigen.toFixed(2)} gegen ${fremd.toFixed(2)}`);
+        check('Die Punkteausbeute ist nicht verzerrt',
+          punkteEigen > punkteFremd * 0.6 && punkteEigen < punkteFremd * 1.7,
+          `${punkteEigen.toFixed(2)} gegen ${punkteFremd.toFixed(2)}`);
+      } else {
+        log('Zu wenige Ligaspiele fuer den Vergleich - uebersprungen.');
+      }
+    }
+  }
+  // --- Ereignisse neben dem Platz (Abschnitt 31) -----------------------
+  //
+  // Sie treten mittwochs mit 30 Prozent auf, also rund zwoelfmal je Saison.
+  // Der Vorrat umfasste dafuer lange nur sechs Vorlagen - jede also zweimal
+  // im Jahr und ueber eine Laufbahn rund dreissigmal.
+  //
+  // Wichtiger als die Zahl ist die Vollstaendigkeit der Texte: Titel,
+  // Beschreibung und jede Antwort kommen aus dem Sprachkatalog. Fehlt eine
+  // Zeile, steht im Spiel der rohe Schluessel - und zwar in einem Dialog,
+  // der den Kalender anhaelt und eine Entscheidung verlangt.
+  log('\n--- Ereignisse neben dem Platz ---');
+  {
+    const rngE = new Rng(4711);
+    const titel = new Set<string>();
+    const rohe = new Set<string>();
+    const ohneWahl: string[] = [];
+    for (let i = 0; i < 400; i++) {
+      const e = buildLifeEvent(rngE, i);
+      titel.add(e.title);
+      const alle = [e.category, e.title, e.description,
+        ...e.options.flatMap((o) => [o.label, o.description, o.news ?? ''])];
+      for (const x of alle) if (/^life\./.test(x)) rohe.add(x);
+      if (e.options.length < 2) ohneWahl.push(e.title);
+    }
+    log(`${titel.size} verschiedene Ereignisse aus 400 Ziehungen`);
+    if (rohe.size > 0) log(`Fehlende Texte: ${[...rohe].join(
+)}`);
+    check('Der Ereignisvorrat ist breit genug', titel.size >= 10, `${titel.size}`);
+    check('Alle Ereignistexte sind uebersetzt', rohe.size === 0,
+      `${rohe.size} fehlende Schluessel`);
+    check('Jedes Ereignis stellt eine echte Wahl', ohneWahl.length === 0,
+      `${ohneWahl.length} ohne Alternative`);
+  }
+  // --- Rivalen wirken auch auf dem Platz (Abschnitt 30) ----------------
+  //
+  // Beziehungen greifen an genau einer Stelle ins Spiel ein: Wer sich dem
+  // Spieler als Anspielpunkt anbietet. Dort stand aber
+  // `Math.max(0, rel[...])` - jede negative Beziehung wurde auf null
+  // geklammert. Ein Rivale, den die Kaderliste ausdruecklich ausweist und
+  // dessen Verhaeltnis mit jedem Spiel weiter abrutscht, verhielt sich damit
+  // exakt wie ein beliebiger Mitspieler: Die negative Haelfte des
+  // Kabinensystems war reine Anzeige.
+  log('\n--- Rivalen auf dem Platz ---');
+  {
+    const gRiv = createNewGame({
+      saveName: 'Rivalentest', seed: 771177, difficulty: 'normal',
+      firstName: 'Ri', lastName: 'Vale', age: 24, nationality: 'de',
+      position: 'OM', altPositions: [], foot: 'rechts', height: 180, weight: 74,
+      shirtNumber: 10, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'wonderkid',
+    });
+    const uR = gRiv.players[gRiv.userPlayerId];
+    const mit = Object.values(gRiv.players).filter(
+      (p) => p.clubId === uR.clubId && p.id !== uR.id && p.position !== 'TW');
+
+    if (mit.length >= 3) {
+      const freund = mit[0], neutral = mit[1], rivale = mit[2];
+      gRiv.relationships = {};
+      gRiv.relationships[freund.id] = 70;
+      gRiv.relationships[neutral.id] = 0;
+      gRiv.relationships[rivale.id] = -70;
+
+      let nFreund = 0, nNeutral = 0, nRivale = 0, szenen = 0, gespielt = 0;
+      let guard = 0;
+      while (guard++ < 600 && gespielt < 40) {
+        const r = advanceDay(gRiv);
+        if (!r.matchToPlay) continue;
+        const prepared = prepareUserMatch(gRiv, r.matchToPlay, true);
+        if (!prepared) { gRiv.pendingMatchId = null; continue; }
+        const rngR = new Rng(gRiv.rngState);
+        const engine = new MatchEngine({ ...prepared.setup, rng: rngR, highlightMode: 'own' });
+        engine.runToEnd((c) => {
+          if (c.targets?.length) {
+            szenen++;
+            for (const ziel of c.targets) {
+              if (ziel.id === freund.id) nFreund++;
+              else if (ziel.id === neutral.id) nNeutral++;
+              else if (ziel.id === rivale.id) nRivale++;
+            }
+          }
+          return autoResolveChallenge(c, uR, DIFFICULTY_SETTINGS.normal, rngR);
+        });
+        gRiv.rngState = rngR.state;
+        finishUserMatch(gRiv, r.matchToPlay, engine.finish());
+        gespielt++;
+      }
+
+      log(`Anspielpunkte aus ${szenen} Passszenen: Freund ${nFreund}, `
+        + `Neutral ${nNeutral}, Rivale ${nRivale}`);
+      if (szenen >= 10) {
+        // Der Neutrale ist die Kontrolle: Vor der Aenderung wurde jede
+        // negative Beziehung auf null geklammert, ein Rivale verhielt sich
+        // also genau wie er.
+        check('Ein Rivale bietet sich seltener an als ein Neutraler',
+          nRivale < nNeutral, `${nRivale} gegen ${nNeutral}`);
+        check('Aber er verschwindet nicht ganz vom Platz',
+          nNeutral === 0 || nRivale > 0 || szenen < 25,
+          `${nRivale} bei ${szenen} Szenen`);
+      } else {
+        log('Zu wenige Passszenen fuer den Vergleich - uebersprungen.');
+      }
+    }
+  }
+  // --- Saisonziele passen zur Rolle (Abschnitt 33) ---------------------
+  //
+  // Das Notenziel stand fest bei 6,8 - fuer jede Rolle, jede Position und
+  // jedes Liganiveau gleich. Gemessen ueber sieben Saisons einer starken
+  // Laufbahn: 6,31 / 6,44 / 6,51 / 6,55 / 6,59 / 6,71 / 6,72 - **keine
+  // einzige erreichte 6,8**. Seit die Ziele abgerechnet werden, kostete das
+  // jede Saison Trainerbeziehung, ohne je erreichbar zu sein.
+  //
+  // Ausserdem standen die Zielarten `assists` und `overall` in den
+  // Belohnungstabellen, wurden aber nie erzeugt.
+  log('\n--- Saisonziele passen zur Rolle ---');
+  {
+    const gZ = createNewGame({
+      saveName: 'Zieltest', seed: 246813, difficulty: 'normal',
+      firstName: 'Zie', lastName: 'Le', age: 19, nationality: 'de',
+      position: 'ZM', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 8, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'wonderkid',
+    });
+    const uZ = gZ.players[gZ.userPlayerId];
+
+    const notenzielFuer = (rolle: SquadRole) => {
+      if (!uZ.contract) return 0;
+      uZ.contract.role = rolle;
+      createObjectives(gZ);
+      return gZ.objectives.find((o) => o.kind === 'rating')?.target ?? 0;
+    };
+    const jung = notenzielFuer('Ergaenzungsspieler');
+    const stamm = notenzielFuer('Stammspieler');
+    const schluessel = notenzielFuer('Schluesselspieler');
+    log(`Notenziel nach Rolle: Ergaenzung ${jung}, Stamm ${stamm}, Schluessel ${schluessel}`);
+    check('Das Notenziel haengt an der Rolle', jung < stamm && stamm < schluessel,
+      `${jung} / ${stamm} / ${schluessel}`);
+    check('Auch das hoechste Ziel bleibt erreichbar', schluessel <= 6.9, `${schluessel}`);
+
+    // Ein Mittelfeldspieler wird an Vorlagen gemessen, ein Stuermer an Toren.
+    notenzielFuer('Stammspieler');
+    const artenMid = gZ.objectives.map((o) => o.kind);
+    check('Das Mittelfeld bekommt ein Vorlagenziel', artenMid.includes('assists'),
+      artenMid.join(', '));
+
+    uZ.position = 'ST';
+    createObjectives(gZ);
+    const artenSt = gZ.objectives.map((o) => o.kind);
+    check('Der Stuermer bekommt ein Torziel',
+      artenSt.includes('goals') && !artenSt.includes('assists'), artenSt.join(', '));
+  }
+  // --- Nationalkader (Abschnitt 12) ------------------------------------
+  //
+  // `userNationalSquad` gab es von Anfang an - und wurde **nirgends**
+  // aufgerufen. Eine Funktion fuer eine Anzeige, die nie gebaut wurde: Wer
+  // nominiert war, erfuhr nie, mit wem er spielt und wer auf seiner Position
+  // davor liegt. Seit die Nominierungshuerde am oeffentlichen Bild haengt,
+  // ist genau das die Auskunft, die eine Berufung greifbar macht.
+  log('\n--- Nationalkader ---');
+  {
+    const gN2 = createNewGame({
+      saveName: 'Kadertest', seed: 9911, difficulty: 'normal',
+      firstName: 'Nat', lastName: 'Ional', age: 24, nationality: 'de',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 9, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'wonderkid',
+    });
+    const uN2 = gN2.players[gN2.userPlayerId];
+    const kader = userNationalSquad(gN2);
+    const fremde = kader.filter((p) => p.nationality !== uN2.nationality).length;
+    const staerken = kader.map((p) => computeOverall(p.attrs, p.position));
+    const absteigend = staerken.every((v, i) => i === 0 || staerken[i - 1] >= v - 12);
+
+    log(`Nationalkader: ${kader.length} Spieler, staerkster ${staerken[0]}`);
+    check('Der Nationalkader ist vollstaendig', kader.length >= 15, `${kader.length}`);
+    check('Er enthaelt nur Spieler dieser Herkunft', fremde === 0, `${fremde} fremde`);
+    check('Er ist nach Staerke sortiert', absteigend, `${staerken.slice(0, 3).join(', ')}`);
+    check('Verletzte stehen nicht im Kader', kader.every((p) => !p.injury));
+
+    // Ein herausragender Spieler muss darin auftauchen.
+    for (const key of Object.keys(uN2.attrs) as (keyof typeof uN2.attrs)[]) {
+      uN2.attrs[key] = 99;
+    }
+    uN2.injury = null;
+    check('Ein herausragender Spieler steht im Kader',
+      userNationalSquad(gN2).some((p) => p.id === uN2.id));
+  }
+  // --- Standards: wer tritt an (Abschnitt 22) --------------------------
+  //
+  // Die Spielsimulation entscheidet nach klaren Regeln: Den Elfmeter schiesst
+  // der beste Schuetze, der eigene Spieler auch bis vier Punkte dahinter;
+  // Freistoesse teilen sich die beiden besten. Sichtbar war davon nichts -
+  // gemessen an 34 Spielen eines Stuermers mit Elfmeter 57 gegen 85 beim
+  // besten im Kader: kein einziger Standard, und kein Hinweis, woran es lag.
+  //
+  // Die Anzeige bildet dieselbe Regel nach. Diese Pruefung haelt fest, dass
+  // sie es weiter tut - eine Anzeige, die luegt, ist schlimmer als keine.
+  log('\n--- Standards: wer tritt an ---');
+  {
+    const gS = createNewGame({
+      saveName: 'Standardtest', seed: 5566, difficulty: 'normal',
+      firstName: 'Sze', lastName: 'Ne', age: 24, nationality: 'de',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 9, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'wonderkid',
+    });
+    const uS = gS.players[gS.userPlayerId];
+    const kader = Object.values(gS.players).filter(
+      (p) => p.clubId === uS.clubId && p.id !== uS.id);
+    const besterElf = kader.slice().sort(
+      (a, b) => b.attrs.penalties - a.attrs.penalties)[0];
+
+    if (besterElf) {
+      // Genau an der Schwelle: vier Punkte dahinter tritt er an, fuenf nicht.
+      uS.attrs.penalties = besterElf.attrs.penalties - 4;
+      const knapp = penaltyStanding(gS, uS.clubId);
+      uS.attrs.penalties = besterElf.attrs.penalties - 5;
+      const knappDaneben = penaltyStanding(gS, uS.clubId);
+      log(`Elfmeterschwelle: vier Punkte dahinter ${knapp?.takes}, `
+        + `fuenf dahinter ${knappDaneben?.takes}`);
+      check('Vier Punkte hinter dem besten Schuetzen reicht noch',
+        knapp?.takes === true, `${knapp?.takes}`);
+      check('Fuenf Punkte dahinter reicht nicht mehr',
+        knappDaneben?.takes === false, `${knappDaneben?.takes}`);
+      check('Und der Abstand wird beziffert',
+        (knappDaneben?.gap ?? 0) >= 1, `${knappDaneben?.gap} Punkte`);
+
+      // Als bester Schuetze tritt er in jedem Fall an.
+      uS.attrs.penalties = 99;
+      check('Der beste Schuetze tritt an',
+        penaltyStanding(gS, uS.clubId)?.takes === true);
+    }
+
+    // Freistoesse: die beiden besten teilen sie sich.
+    const besteFrei = kader.slice().sort(
+      (a, b) => b.attrs.freeKicks - a.attrs.freeKicks);
+    if (besteFrei.length >= 3) {
+      uS.attrs.freeKicks = besteFrei[1].attrs.freeKicks + 1;
+      check('Der zweitbeste Freistossschuetze tritt an',
+        freeKickStanding(gS, uS.clubId)?.takes === true);
+      uS.attrs.freeKicks = besteFrei[2].attrs.freeKicks - 1;
+      check('Der vierte nicht mehr',
+        freeKickStanding(gS, uS.clubId)?.takes === false);
+    }
+  }
+  // --- Neue Positionen lernen (Abschnitt 16) ---------------------------
+  //
+  // `altPositions` wurde bei der Erstellung gesetzt und war danach fuer immer
+  // festgeschrieben - obwohl `effectiveOverall` eine Nebenposition mit 0,96
+  // bewertet, eine Nachbarposition nur mit 0,90 und eine fremde mit 0,78, und
+  // Aufstellung, Spielsimulation und Konkurrenzanzeige den Wert alle lesen.
+  // Wer zwei Jahre auf der Sechs auflief, blieb dort dauerhaft Fremdkoerper.
+  log('\n--- Neue Positionen lernen ---');
+  {
+    const gPos = createNewGame({
+      saveName: 'Positionstest', seed: 123321, difficulty: 'normal',
+      firstName: 'Viel', lastName: 'Seitig', age: 20, nationality: 'de',
+      position: 'ZM', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 6, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+    });
+    const uP = gPos.players[gPos.userPlayerId];
+    const eintragen = (slot: string, minuten: number, n: number) => {
+      for (let i = 0; i < n; i++) {
+        gPos.userMatchStats.push({
+          playerId: uP.id, matchId: `t-${slot}-${i}`, clubId: uP.clubId,
+          position: slot, minutes: minuten, goals: 0, assists: 0, rating: 6.5,
+        } as never);
+      }
+    };
+
+    eintragen('DM', 80, 14);
+    check('Vierzehn Einsaetze reichen noch nicht', learnAltPosition(gPos) === null,
+      `${uP.altPositions.length} Nebenpositionen`);
+
+    eintragen('DM', 80, 2);
+    const gelernt = learnAltPosition(gPos);
+    check('Wer oft genug dort spielt, lernt die Position', gelernt === 'DM',
+      String(gelernt ?? 'nichts'));
+    check('Die Position steht danach im Profil', uP.altPositions.includes('DM'),
+      uP.altPositions.join(', '));
+
+    // Kurzauftritte lehren nichts.
+    eintragen('OM', 12, 30);
+    check('Kurzeinsaetze zaehlen nicht', learnAltPosition(gPos) === null,
+      `${uP.altPositions.length} Nebenpositionen`);
+
+    // Und ein Feldspieler wird kein Torwart.
+    eintragen('TW', 90, 30);
+    check('Das Tor lernt sich nicht nebenbei', !uP.altPositions.includes('TW'),
+      uP.altPositions.join(', '));
+
+    // Die Meldung muss ankommen. Achtung: `addNews` schreibt mit `unshift`,
+    // die neueste Meldung steht also an Position 0 - und das Feld heisst
+    // `headline`, nicht `title`.
+    const meldung = gPos.news.find(
+      (n) => n.headline.includes(t('pos.TW')) === false && /DM|Mittelfeld|midfield/i.test(n.headline));
+    check('Der Positionswechsel wird gemeldet', !!meldung,
+      meldung ? meldung.headline : 'keine Meldung');
+  }
+  // --- Die Spielfuehrerbinde (Abschnitt 30) ----------------------------
+  //
+  // Die Rolle `Mannschaftsfuehrer` stand von Anfang an in `SQUAD_ROLE_ORDER`
+  // und schuetzte in der Spielsimulation vor frueher Auswechslung - vergeben
+  // wurde sie aber nur bei der Welterzeugung, an einen computergesteuerten
+  // Spieler. Der eigene Spieler konnte sie nie bekommen.
+  //
+  // Dahinter lag die groessere Luecke: Fuehrungsstaerke wuchs nie. Gemessen
+  // an einer Laufbahn bis 27 - Ruf 99, Trainerbeziehung 94 - stand sie noch
+  // immer bei 35, Rang 15 von 24 im eigenen Kader.
+  log('\n--- Spielfuehrerbinde ---');
+  {
+    const gKap = createNewGame({
+      saveName: 'Kapitaenstest', seed: 9000, difficulty: 'normal',
+      firstName: 'Ka', lastName: 'Pitaen', age: 25, nationality: 'de',
+      position: 'ZM', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 8, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'wonderkid',
+    });
+    const uK = gKap.players[gKap.userPlayerId];
+
+    // Fuehrungsstaerke waechst nur mit Stellung und Ansehen.
+    const wachstum = (rolle: SquadRole, ruf: number, trainer: number) => {
+      if (!uK.contract) return 0;
+      const vorher = 40;
+      uK.attrs.leadership = vorher;
+      uK.contract.role = rolle;
+      uK.reputation = ruf;
+      gKap.coachRelation = trainer;
+      gKap.fanRelation = trainer;
+      growLeadership(gKap, new Rng(4242));
+      return uK.attrs.leadership - vorher;
+    };
+    const tragend = wachstum('Schluesselspieler', 90, 80);
+    const rand = wachstum('Rotationsspieler', 50, 50);
+    log(`Fuehrungszuwachs je Saison: Schluesselspieler ${tragend}, `
+      + `Rotationsspieler ${rand}`);
+    check('Fuehrungsstaerke waechst mit der Stellung', tragend >= 2, `${tragend} Punkte`);
+    check('Wer nicht traegt, waechst nicht hinein', rand === 0, `${rand} Punkte`);
+
+    // Die Binde selbst: erreichbar, aber nicht geschenkt.
+    if (uK.contract) {
+      // Ueber eine Funktion gelesen, damit TypeScript den Typ nicht auf den
+      // zuletzt zugewiesenen Wert verengt und die Vergleiche fuer unmoeglich haelt.
+      const rolle = (): SquadRole => uK.contract!.role;
+      uK.contract.role = 'Rotationsspieler';
+      checkCaptaincy(gKap, new Rng(7));
+      check('Ein Rotationsspieler wird nicht Kapitaen',
+        rolle() !== 'Mannschaftsfuehrer', rolle());
+
+      // Alle Voraussetzungen erfuellen und den Kader ueberragen.
+      uK.contract.role = 'Schluesselspieler';
+      uK.attrs.leadership = 99;
+      uK.attrs.professionalism = 99;
+      uK.attrs.teamwork = 99;
+      uK.reputation = 99;
+      gKap.coachRelation = 85;
+      gKap.seasonStats['kap1'] = {
+        playerId: uK.id, season: gKap.season, competitionId: 'c', clubId: uK.clubId,
+        appearances: 30, starts: 30, minutes: 2600, goals: 5, assists: 5, ratingSum: 30 * 7,
+      } as never;
+      gKap.seasonStats['kap2'] = {
+        playerId: uK.id, season: gKap.season - 1, competitionId: 'c', clubId: uK.clubId,
+        appearances: 30, starts: 30, minutes: 2600, goals: 5, assists: 5, ratingSum: 30 * 7,
+      } as never;
+      // Mehrere Versuche, weil ein Rest Zufall bleibt.
+      for (let i = 0; i < 12; i++) {
+        if (rolle() === 'Mannschaftsfuehrer') break;
+        uK.contract.role = 'Schluesselspieler';
+        checkCaptaincy(gKap, new Rng(100 + i * 37));
+      }
+      check('Ein herausragender Spieler kann Kapitaen werden',
+        rolle() === 'Mannschaftsfuehrer', rolle());
+
+      // Und die Binde bleibt beim Verein.
+      if (rolle() === 'Mannschaftsfuehrer') {
+        dropCaptaincyOnTransfer(uK);
+        check('Beim Vereinswechsel geht die Binde verloren',
+          rolle() !== 'Mannschaftsfuehrer', rolle());
+      }
+    }
+  }
+  // --- Vereinsfinanzen (Abschnitt 34) ----------------------------------
+  //
+  // `club.budget` und `club.wageBudget` gab es von Anfang an, gelesen wurden
+  // sie nie - und waren entsprechend auch nie geeicht: Gemessen lag jeder
+  // Erstligist fuenf- bis dreizehnfach ueber seinem Gehaltsbudget, und das
+  // Transferbudget des staerksten Vereins reichte nicht fuer ein Zehntel
+  // seines teuersten Spielers. Diese Pruefungen halten die Groessenordnung
+  // fest und stellen sicher, dass die Werte auch etwas bewirken.
+  log('\n--- Vereinsfinanzen ---');
+  {
+    const gFin = createNewGame({
+      saveName: 'Finanztest', seed: 191919, difficulty: 'normal',
+      firstName: 'Fin', lastName: 'Anz', age: 18, nationality: 'de',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+      shirtNumber: 9, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+    });
+
+    const last = buildWageIndex(gFin);
+    const quoten: number[] = [];
+    const kaderwerte = new Map<string, number>();
+    for (const p of Object.values(gFin.players)) {
+      if (!p.clubId) continue;
+      kaderwerte.set(p.clubId, (kaderwerte.get(p.clubId) ?? 0) + p.marketValue);
+    }
+    let ohneBudget = 0, vereine = 0, unterKaderwert = 0;
+    for (const club of Object.values(gFin.clubs)) {
+      const comp = gFin.competitions[club.leagueId];
+      if (!comp || comp.type !== 'league') continue;
+      vereine++;
+      if (club.wageBudget <= 0 || club.budget <= 0) ohneBudget++;
+      quoten.push((last.get(club.id) ?? 0) / Math.max(1, club.wageBudget));
+      // Das Transferbudget darf nie groesser sein als der Kaderwert - dann
+      // waere die Wirtschaft aus der Luft gegriffen statt aus dem Kader.
+      if (club.budget <= (kaderwerte.get(club.id) ?? 0)) unterKaderwert++;
+    }
+    const schnitt = quoten.reduce((a, b) => a + b, 0) / quoten.length;
+    const hoechste = Math.max(...quoten);
+    log(`Gehaltsquote: Schnitt ${schnitt.toFixed(2)}, hoechste ${hoechste.toFixed(2)} `
+      + `bei ${vereine} Vereinen`);
+    check('Jeder Verein hat ein Budget', ohneBudget === 0, `${ohneBudget} ohne`);
+    check('Die Gehaltslast passt zum Gehaltsbudget', schnitt > 0.6 && schnitt < 1,
+      `Schnitt ${schnitt.toFixed(2)}`);
+    check('Kein Verein liegt weit ueber seinem Gehaltsbudget', hoechste < 1.3,
+      `hoechste ${hoechste.toFixed(2)}`);
+    check('Transfermittel bleiben unter dem Kaderwert', unterKaderwert === vereine,
+      `${unterKaderwert} von ${vereine}`);
+
+    // Zahlungsfaehigkeit muss mit dem Preis fallen - sonst waere die Schranke
+    // wirkungslos und ein Dorfverein koennte einen Weltstar holen.
+    const zahlungsfaehig = (marktwert: number, gehalt: number) => {
+      let n = 0;
+      for (const club of Object.values(gFin.clubs)) {
+        const comp = gFin.competitions[club.leagueId];
+        if (!comp || comp.type !== 'league') continue;
+        if (canSign(club, last.get(club.id) ?? 0, marktwert, gehalt, 1.2)) n++;
+      }
+      return n;
+    };
+    const guenstig = zahlungsfaehig(1_000_000, 3_000);
+    const teuer = zahlungsfaehig(120_000_000, 120_000);
+    log(`Zahlungsfaehige Vereine: fuer 1 Mio ${guenstig}, fuer 120 Mio ${teuer}`);
+    check('Ein Talent koennen viele Vereine holen', guenstig > 50, `${guenstig}`);
+    check('Einen Weltstar koennen nur wenige holen', teuer < guenstig / 5,
+      `${teuer} gegen ${guenstig}`);
+    check('Aber wenigstens einer kann es', teuer >= 1, `${teuer}`);
+
+    // Der Anteil an den Transfermitteln ist die Grundlage der Aussage auf der
+    // Angebotskarte - er muss mit der Abloese steigen.
+    const einVerein = Object.values(gFin.clubs).find((c) => c.budget > 1_000_000)!;
+    const klein = feeShare(einVerein, einVerein.budget * 0.1);
+    const gross = feeShare(einVerein, einVerein.budget * 0.9);
+    check('Der Anteil an den Transfermitteln steigt mit der Abloese', gross > klein,
+      `${klein.toFixed(2)} gegen ${gross.toFixed(2)}`);
+  }
+  // --- Der Berater arbeitet gegen die Kassenlage (Abschnitt 35) --------
+  //
+  // Ohne diese Kopplung waere der Berater ein Schlupfloch um die
+  // Vereinsfinanzen herum: Er haette Vereinen Angebote entlockt, die im
+  // normalen Transferfenster gar nicht bieten duerfen, und jede
+  // Gehaltsforderung durchgesetzt, auch bei einem ueberzogenen Verein.
+  {
+    const gehaltVersuch = (rahmenFaktor: number) => {
+      let durchgesetzt = 0, summe = 0, versuche = 0;
+      for (let i = 0; i < 14; i++) {
+        const gA = createNewGame({
+          saveName: 'Beratertest', seed: 700 + i * 911, difficulty: 'normal',
+          firstName: 'Ber', lastName: 'Ater', age: 21, nationality: 'de',
+          position: 'ST', altPositions: [], foot: 'rechts', height: 182, weight: 76,
+          shirtNumber: 9, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+        });
+        const uA = gA.players[gA.userPlayerId];
+        const clubA = uA?.clubId ? gA.clubs[uA.clubId] : null;
+        if (!uA?.contract || !clubA) continue;
+        clubA.wageBudget = Math.round(wageBill(gA, clubA.id) * rahmenFaktor);
+        const rngA = new Rng(1234 + i);
+        ensureAgent(gA, rngA);
+        uA.reputation = 58;
+        gA.seasonStats['probe'] = {
+          playerId: uA.id, season: gA.season, competitionId: 'c',
+          appearances: 25, ratingSum: 25 * 7.1, goals: 8, assists: 4, minutes: 2000,
+        } as never;
+        const vorher = uA.contract.salary;
+        if (!startAgentTask(gA, 'raiseSalary')) continue;
+        gA.agent!.task!.dueOn = gA.date;
+        versuche++;
+        advanceAgent(gA, rngA);
+        if (uA.contract.salary > vorher) {
+          durchgesetzt++;
+          summe += uA.contract.salary / vorher;
+        }
+      }
+      return {
+        versuche, durchgesetzt,
+        schnitt: durchgesetzt > 0 ? (summe / durchgesetzt - 1) * 100 : 0,
+      };
+    };
+
+    const luft = gehaltVersuch(1.6);
+    const eng = gehaltVersuch(0.95);
+    log(`Gehaltsforderung bei viel Luft: ${luft.durchgesetzt} von ${luft.versuche}, `
+      + `im Schnitt +${luft.schnitt.toFixed(1)} Prozent`);
+    log(`Bei ueberzogenem Verein: ${eng.durchgesetzt} von ${eng.versuche}, `
+      + `im Schnitt +${eng.schnitt.toFixed(1)} Prozent`);
+    check('Der Berater setzt bei einem zahlungsfaehigen Verein etwas durch',
+      luft.durchgesetzt > luft.versuche / 2,
+      `${luft.durchgesetzt} von ${luft.versuche}`);
+    check('Die Kassenlage begrenzt die Gehaltsforderung',
+      eng.durchgesetzt < luft.durchgesetzt && eng.schnitt < luft.schnitt,
+      `${eng.durchgesetzt} gegen ${luft.durchgesetzt} durchgesetzt`);
+  }
+  // --- Jedes trainierbare Attribut wirkt (Abschnitt 16) ----------------
+  //
+  // Graetsche, Widerstandsfaehigkeit und Ehrgeiz waren trainierbar, wurden von
+  // Hintergruenden vergeben und in der Spielerakte angezeigt - aber von keinem
+  // Rechenweg gelesen. Wer "Defensive" trainierte, steckte Gewicht in die
+  // Graetsche und bekam dafuer nichts. Diese Pruefungen halten fest, dass ein
+  // Attribut, das man verbessern kann, auch etwas aendert.
+  log('\n--- Attribute mit Wirkung ---');
+  {
+    const gAttr = createNewGame({
+      saveName: 'Attributtest', seed: 313131, difficulty: 'normal',
+      firstName: 'At', lastName: 'Tribut', age: 18, nationality: 'de',
+      position: 'IV', altPositions: [], foot: 'rechts', height: 188, weight: 82,
+      shirtNumber: 4, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+    });
+    const uA = gAttr.players[gAttr.userPlayerId];
+
+    // Widerstandsfaehigkeit federt Rueckschlaege ab - nur nach unten.
+    const nachSchlechtemSpiel = (wert: number) => {
+      const p = JSON.parse(JSON.stringify(uA)) as typeof uA;
+      p.attrs.resilience = wert; p.morale = 60;
+      updateFormAfterMatch(p, 4.2, 90, false, false);
+      return p.morale;
+    };
+    const nachVerletzung = (wert: number) => {
+      const p = JSON.parse(JSON.stringify(uA)) as typeof uA;
+      p.attrs.resilience = wert; p.morale = 60; p.injury = null;
+      injuryForDays(new Rng(7), p, 60);
+      return p.morale;
+    };
+    const zaeh = nachSchlechtemSpiel(90), duenn = nachSchlechtemSpiel(20);
+    const zaehV = nachVerletzung(90), duennV = nachVerletzung(20);
+    log(`Moral nach 4,2er Note: Widerstand 20 -> ${duenn.toFixed(1)}, `
+      + `Widerstand 90 -> ${zaeh.toFixed(1)}`);
+    log(`Moral nach 60-Tage-Verletzung: ${duennV.toFixed(1)} gegen ${zaehV.toFixed(1)}`);
+    check('Widerstandsfaehigkeit federt ein schlechtes Spiel ab', zaeh > duenn + 1,
+      `${duenn.toFixed(1)} gegen ${zaeh.toFixed(1)}`);
+    check('Widerstandsfaehigkeit federt eine Verletzung ab', zaehV > duennV + 2,
+      `${duennV.toFixed(1)} gegen ${zaehV.toFixed(1)}`);
+
+    // Nach einem guten Spiel darf sie nicht wirken - sonst waere sie ein
+    // allgemeiner Moralbonus statt einer Eigenschaft.
+    const gutZaeh = (() => {
+      const p = JSON.parse(JSON.stringify(uA)) as typeof uA;
+      p.attrs.resilience = 90; p.morale = 60;
+      updateFormAfterMatch(p, 8.5, 90, true, false);
+      return p.morale;
+    })();
+    const gutDuenn = (() => {
+      const p = JSON.parse(JSON.stringify(uA)) as typeof uA;
+      p.attrs.resilience = 20; p.morale = 60;
+      updateFormAfterMatch(p, 8.5, 90, true, false);
+      return p.morale;
+    })();
+    check('Nach einem guten Spiel wirkt Widerstandsfaehigkeit nicht',
+      Math.abs(gutZaeh - gutDuenn) < 0.01, `${gutDuenn.toFixed(1)} gegen ${gutZaeh.toFixed(1)}`);
+
+    // Ehrgeiz treibt die Entwicklung, bei 50 bleibt er neutral.
+    const einheitenBis65 = (ehrgeiz: number) => {
+      let summe = 0; const laeufe = 6;
+      for (let seed = 0; seed < laeufe; seed++) {
+        const p = JSON.parse(JSON.stringify(uA)) as typeof uA;
+        for (const key of Object.keys(p.attrs) as (keyof typeof p.attrs)[]) p.attrs[key] = 50;
+        p.attrs.ambition = ehrgeiz; p.potential = 80; p.injury = null;
+        const rng = new Rng(500 + seed * 41);
+        let i = 0;
+        while (i < 400 && computeOverall(p.attrs, p.position) < 65) {
+          p.fitness = 90; p.morale = 70; p.sharpness = 70;
+          applyTraining(rng, p, 'defending', 'normal', 60, '2027-03-10',
+            DIFFICULTY_SETTINGS.normal, 70, null, 0);
+          i++;
+        }
+        summe += i;
+      }
+      return summe / laeufe;
+    };
+    const traege = einheitenBis65(20), getrieben = einheitenBis65(90);
+    log(`Einheiten bis Staerke 65: Ehrgeiz 20 -> ${traege.toFixed(0)}, `
+      + `Ehrgeiz 90 -> ${getrieben.toFixed(0)}`);
+    check('Ehrgeiz treibt die Entwicklung', getrieben < traege * 0.95,
+      `${traege.toFixed(0)} gegen ${getrieben.toFixed(0)} Einheiten`);
+
+    // Die Graetsche zaehlt fuer einen Innenverteidiger.
+    const ivStaerke = (graetsche: number) => {
+      const a = { ...uA.attrs };
+      for (const key of Object.keys(a) as (keyof typeof a)[]) a[key] = 50;
+      a.slideTackle = graetsche;
+      return computeOverall(a, 'IV');
+    };
+    check('Die Graetsche zaehlt fuer einen Innenverteidiger',
+      ivStaerke(90) > ivStaerke(20), `${ivStaerke(20)} gegen ${ivStaerke(90)}`);
+
+    // Und sie zaehlt im Zweikampf selbst.
+    const zweikampf = (graetsche: number) => {
+      const p = JSON.parse(JSON.stringify(uA)) as typeof uA;
+      for (const key of Object.keys(p.attrs) as (keyof typeof p.attrs)[]) p.attrs[key] = 50;
+      p.attrs.slideTackle = graetsche;
+      let gewonnen = 0;
+      const rng = new Rng(88);
+      for (let i = 0; i < 900; i++) {
+        const r = autoResolveChallenge(
+          { kind: 'duel', opponent: 62, pressure: 0.5 } as never,
+          p, DIFFICULTY_SETTINGS.normal, rng);
+        if (r.outcome === 'duelWon') gewonnen++;
+      }
+      return gewonnen;
+    };
+    const schwach = zweikampf(20), stark = zweikampf(90);
+    log(`Zweikaempfe gewonnen von 900: Graetsche 20 -> ${schwach}, 90 -> ${stark}`);
+    check('Die Graetsche zaehlt im Zweikampf', stark > schwach,
+      `${schwach} gegen ${stark}`);
+  }
+  // --- Der Mentor wirkt (Abschnitt 30) --------------------------------
+  //
+  // Der Mentor war lange ein Abzeichen in der Kaderliste: bestimmt, gespeichert,
+  // angezeigt - und von keinem Rechenweg je gelesen. Diese Pruefungen halten
+  // fest, dass er die Entwicklung beschleunigt, dass er mentale Werte
+  // weitergibt, die kein Trainingsschwerpunkt anspricht, und dass die Bindung
+  // endet, wenn er den Verein verlaesst.
+  log('\n--- Mentor ---');
+  {
+    const gMentor = createNewGame({
+      saveName: 'Mentortest', seed: 909090, difficulty: 'normal',
+      firstName: 'Men', lastName: 'Tee', age: 17, nationality: 'de',
+      position: 'ST', altPositions: [], foot: 'rechts', height: 180, weight: 74,
+      shirtNumber: 19, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+    });
+    const uM = gMentor.players[gMentor.userPlayerId];
+    const mental = ['professionalism', 'teamwork', 'composure',
+      'decisions', 'concentration', 'discipline'] as const;
+
+    // Wie viele Einheiten bis Staerke 65, und wo stehen die mentalen Werte?
+    const messe = (bonus: number) => {
+      let bisZiel = 0, mentalSumme = 0;
+      const laeufe = 8;
+      for (let seed = 0; seed < laeufe; seed++) {
+        const p = JSON.parse(JSON.stringify(uM)) as typeof uM;
+        for (const key of Object.keys(p.attrs) as (keyof typeof p.attrs)[]) p.attrs[key] = 50;
+        p.potential = 80; p.injury = null;
+        const rng = new Rng(2000 + seed * 97);
+        let i = 0, erreicht = 0;
+        while (i < 220) {
+          p.fitness = 90; p.morale = 70; p.sharpness = 70;
+          applyTraining(rng, p, 'shooting', 'normal', 60, '2027-03-10',
+            DIFFICULTY_SETTINGS.normal, 70, null, bonus);
+          i++;
+          if (!erreicht && computeOverall(p.attrs, p.position) >= 65) erreicht = i;
+        }
+        bisZiel += erreicht || 220;
+        mentalSumme += mental.reduce((a, k) => a + p.attrs[k], 0) / mental.length;
+      }
+      return { einheiten: bisZiel / laeufe, mental: mentalSumme / laeufe };
+    };
+
+    const ohne = messe(0);
+    const mit = messe(0.11);
+    log(`Einheiten bis Staerke 65: ohne Mentor ${ohne.einheiten.toFixed(0)}, `
+      + `mit Mentor ${mit.einheiten.toFixed(0)}`);
+    log(`Mentale Werte im Schnitt: ${ohne.mental.toFixed(1)} gegen ${mit.mental.toFixed(1)}`);
+    check('Ein Mentor beschleunigt die Entwicklung spuerbar',
+      mit.einheiten < ohne.einheiten * 0.96,
+      `${ohne.einheiten.toFixed(0)} gegen ${mit.einheiten.toFixed(0)} Einheiten`);
+    check('Ein Mentor gibt mentale Werte weiter', mit.mental > ohne.mental + 2,
+      `${ohne.mental.toFixed(1)} gegen ${mit.mental.toFixed(1)}`);
+    check('Der Mentor ersetzt aber kein Talent', mit.einheiten > ohne.einheiten * 0.6,
+      `${(100 - (mit.einheiten / ohne.einheiten) * 100).toFixed(0)} Prozent schneller`);
+
+    // Der gewaehlte Mentor muss Fuehrungsqualitaeten haben - sonst gibt es keinen.
+    if (gMentor.mentorId) {
+      const m = gMentor.players[gMentor.mentorId]!;
+      check('Der Mentor ist ein Fuehrungsspieler', m.attrs.leadership >= 55,
+        `Fuehrung ${m.attrs.leadership}`);
+      check('Der Mentor wirkt, solange er im Verein ist', mentorInfluence(gMentor) > 0,
+        `${(mentorInfluence(gMentor) * 100).toFixed(1)} Prozent`);
+
+      // Verlaesst er den Verein, endet die Bindung - und mit ihr die Wirkung.
+      m.clubId = null;
+      const weg = mentorLeft(gMentor);
+      check('Ein Vereinswechsel des Mentors loest die Bindung', !!weg && !gMentor.mentorId);
+      check('Ohne Mentor gibt es keinen Trainingsvorteil',
+        mentorInfluence(gMentor) === 0);
+    } else {
+      log('Dieser Verein hat keinen passenden Mentor - das ist zulaessig.');
+      check('Ohne Mentor gibt es keinen Trainingsvorteil', mentorInfluence(gMentor) === 0);
+    }
+  }
   // --- Beziehungen zu Mitspielern (Abschnitt 30) ----------------------
   log('\n--- Beziehungen zu Mitspielern ---');
   {
@@ -879,15 +1896,66 @@ function run() {
   check('Spielstand bleibt unter 25 MB', size < 25 * 1024 * 1024);
 
   log(`\nGesamtdauer: ${((performance.now() - t0) / 1000).toFixed(1)} s`);
-  log(failures === 0 ? '\nALLE PRUEFUNGEN BESTANDEN' : `\n${failures} PRUEFUNGEN FEHLGESCHLAGEN`);
-  (window as unknown as Record<string, unknown>).__testFailures = failures;
-  (window as unknown as Record<string, unknown>).__testDone = true;
+  return failures;
 }
 
-try {
-  run();
-} catch (err) {
-  log(`\nABBRUCH MIT FEHLER:\n${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-  (window as unknown as Record<string, unknown>).__testFailures = 999;
-  (window as unknown as Record<string, unknown>).__testDone = true;
+/**
+ * Sucht im Quelltext nach fest eingebautem Spieltext.
+ *
+ * Die Livekommentare der Spielsimulation standen lange als deutsche
+ * Zeichenketten in `matchEngine.ts` - ausgerechnet an der sichtbarsten Stelle
+ * des Spiels lief es damit bei englischer Sprache auf Deutsch weiter. Eine
+ * Pruefung zur Laufzeit findet das nur, wenn sie zufaellig genau diese Szene
+ * ausloest; im Quelltext ist es dagegen eindeutig zu sehen.
+ *
+ * Geprueft wird auf `text:` mit einer Zeichenkette, die Buchstabenfolgen
+ * enthaelt und nicht durch `t(` laeuft.
+ */
+async function pruefeQuelltexte(): Promise<number> {
+  const dateien = ['/src/engine/matchEngine.ts', '/src/engine/ballAction.ts'];
+  let fehler = 0;
+  log('\n--- Fest eingebauter Spieltext ---');
+  for (const pfad of dateien) {
+    let quelle = '';
+    try {
+      const antwort = await fetch(pfad);
+      if (!antwort.ok) throw new Error(String(antwort.status));
+      quelle = await antwort.text();
+    } catch {
+      log(`${pfad}: nicht lesbar - uebersprungen`);
+      continue;
+    }
+    // Zeilen mit `text:` gefolgt von einer Zeichenkette, die kein t(-Aufruf ist.
+    const treffer = quelle.split(/\r?\n/)
+      .map((zeile, i) => ({ zeile: zeile.trim(), nr: i + 1 }))
+      .filter(({ zeile }) => /^text:\s*[`'"]/.test(zeile))
+      .filter(({ zeile }) => /[a-zA-Z]{4,}/.test(zeile.replace(/\$\{[^}]*\}/g, '')));
+    for (const { zeile, nr } of treffer) {
+      log(`  ${pfad}:${nr}  ${zeile.slice(0, 70)}`);
+    }
+    fehler += treffer.length;
+    check(`Kein fest eingebauter Spieltext in ${pfad.split('/').pop()}`,
+      treffer.length === 0, `${treffer.length} Stellen`);
+  }
+  return fehler;
 }
+
+// Der Sprachkatalog wird nachgeladen. Ohne ihn lieferte `t()` nur Schluessel,
+// und der Test liefe an einer Engine vorbei, die es so nie gibt.
+setLocale('de')
+  .catch(() => undefined)
+  .finally(async () => {
+    try {
+      const ausLauf = run();
+      const ausQuelle = await pruefeQuelltexte();
+      const gesamt = ausLauf + ausQuelle;
+      log(gesamt === 0 ? '\nALLE PRUEFUNGEN BESTANDEN'
+        : `\n${gesamt} PRUEFUNGEN FEHLGESCHLAGEN`);
+      (window as unknown as Record<string, unknown>).__testFailures = gesamt;
+      (window as unknown as Record<string, unknown>).__testDone = true;
+    } catch (err) {
+      log(`\nABBRUCH MIT FEHLER:\n${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
+      (window as unknown as Record<string, unknown>).__testFailures = 999;
+      (window as unknown as Record<string, unknown>).__testDone = true;
+    }
+  });

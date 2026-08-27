@@ -195,6 +195,34 @@ function generateSquad(
   return players;
 }
 
+/**
+ * Setzt Transfer- und Gehaltsbudget aus dem tatsaechlichen Kader.
+ *
+ * Vorher standen dort zwei frei gegriffene Formeln, die nie gegen die echten
+ * Zahlen gehalten wurden - es las sie ja niemand. Das Gehaltsbudget war
+ * linear im Ruf, waehrend Gehaelter exponentiell mit der Spielstaerke wachsen;
+ * dadurch lag ausgerechnet der staerkste Verein am weitesten daneben.
+ *
+ * Aus dem Kader abgeleitet stimmt die Groessenordnung von selbst, auch wenn
+ * spaeter an Gehaeltern oder Marktwerten gedreht wird.
+ */
+function setzeBudgets(club: Club, kader: Player[], rng: Rng) {
+  const gehaltslast = kader.reduce((a, p) => a + (p.contract?.salary ?? 0), 0);
+  const kaderwert = kader.reduce((a, p) => a + p.marketValue, 0);
+
+  // Spielraum nach oben: Ein Verein wirtschaftet nah an der Grenze. Wer gut
+  // gefuehrt ist, hat etwas mehr Luft - das macht Vereine unterscheidbar,
+  // ohne dass irgendwo ein weiterer Wert dafuer noetig waere.
+  const luft = 1.08 + rng.float(0, 0.22);
+  club.wageBudget = Math.max(5000, Math.round(gehaltslast * luft));
+
+  // Transferbudget als Anteil am Kaderwert. Zehn Prozent entsprechen grob
+  // dem, was ein Verein in einem Sommer bewegt: genug fuer einen teuren oder
+  // mehrere mittlere Spieler, nicht genug fuer einen Umbau.
+  const anteil = 0.07 + rng.float(0, 0.07);
+  club.budget = Math.max(50000, Math.round(kaderwert * anteil / 10000) * 10000);
+}
+
 export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
   const countries: Record<Id, Country> = {};
   const competitions: Record<Id, Competition> = {};
@@ -267,8 +295,10 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
           city,
           colors: real?.colors ?? CLUB_COLORS[(cityIndex + level) % CLUB_COLORS.length],
           reputation,
-          budget: Math.round(reputation * reputation * 900 * country.wealth),
-          wageBudget: Math.round(reputation * 1400 * country.wealth),
+          // Vorlaeufige Werte - direkt nach dem Kader werden beide aus den
+          // echten Gehaeltern und Marktwerten gesetzt (siehe unten).
+          budget: 0,
+          wageBudget: 0,
           stadiumName: stadium.name,
           stadiumCapacity: stadium.capacity,
           formation: rng.pick(FORMATIONS),
@@ -283,11 +313,11 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
         clubs[clubId] = club;
         competition.clubIds.push(clubId);
 
-        for (const p of generateSquad(
+        const kader = generateSquad(
           rng, club, level, country, opts.currentDate, opts.makeId, real?.squad,
-        )) {
-          players[p.id] = p;
-        }
+        );
+        for (const p of kader) players[p.id] = p;
+        setzeBudgets(club, kader, rng);
       }
 
       competitions[competitionId] = competition;

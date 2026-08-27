@@ -14,23 +14,23 @@ import type {
 // --- Trainingsarten ----------------------------------------------------
 
 export const TRAINING_LABELS: Record<TrainingFocus, string> = {
-  ballControl: 'Ballkontrolle',
-  dribbling: 'Dribbling',
-  passing: 'Passspiel',
-  crossing: 'Flanken',
-  shooting: 'Schusstraining',
-  freeKicks: 'Freistoesse',
-  penalties: 'Elfmeter',
-  pace: 'Schnelligkeit',
-  strength: 'Kraft',
-  stamina: 'Ausdauer',
-  agility: 'Beweglichkeit',
-  tactics: 'Taktik',
-  defending: 'Defensivverhalten',
-  heading: 'Kopfball',
-  goalkeeping: 'Torwarttraining',
-  mental: 'Mentales Training',
-  recovery: 'Regeneration',
+  ballControl: 'train.ballControl',
+  dribbling: 'train.dribbling',
+  passing: 'train.passing',
+  crossing: 'train.crossing',
+  shooting: 'train.shooting',
+  freeKicks: 'train.freeKicks',
+  penalties: 'train.penalties',
+  pace: 'train.pace',
+  strength: 'train.strength',
+  stamina: 'train.stamina',
+  agility: 'train.agility',
+  tactics: 'train.tactics',
+  defending: 'train.defending',
+  heading: 'train.heading',
+  goalkeeping: 'train.goalkeeping',
+  mental: 'train.mental',
+  recovery: 'train.recovery',
 };
 
 /** Welche Attribute eine Trainingsart verbessert und wie stark. */
@@ -97,6 +97,7 @@ export function applyTraining(
   rng: Rng, player: Player, focus: TrainingFocus, intensity: TrainingIntensity,
   clubTraining: number, currentDate: GameDate, difficulty: DifficultySettings,
   matchSharpness: number, individualGoal: TrainingFocus | null = null,
+  mentorInfluence = 0,
 ): TrainingOutcome {
   const before = computeOverall(player.attrs, player.position);
   const age = ageOn(player.birthDate, currentDate);
@@ -108,7 +109,14 @@ export function applyTraining(
   rate *= clamp(room / 12, 0.05, 1.6);
   rate *= age <= 20 ? 1.5 : age <= 23 ? 1.25 : age <= 26 ? 1.0 : age <= 29 ? 0.65 : 0.3;
   rate *= 0.55 + clubTraining / 130;
+  // Ein Mentor im Kader zeigt Dinge, die kein Trainingsplan lehrt.
+  rate *= 1 + mentorInfluence;
   rate *= 0.6 + player.attrs.professionalism / 200;
+  // Ehrgeiz war bislang nur eine Zahl in der Spielerakte, die kein Rechenweg
+  // las - obwohl ein Hintergrund sie ausdruecklich vergibt. Wer mehr will,
+  // haengt eine Einheit dran. Der Ausschlag bleibt kleiner als der der
+  // Professionalitaet: Ehrgeiz ohne Haltung traegt nur begrenzt.
+  rate *= 0.85 + player.attrs.ambition / 330;
   rate *= 0.65 + (matchSharpness / 100) * 0.55;
   rate *= 0.7 + (player.morale / 100) * 0.45;
   rate *= factors.gain;
@@ -147,6 +155,28 @@ export function applyTraining(
     if (amount > 0 && current < 99) {
       player.attrs[attr] = clamp(current + amount, 1, 99);
       gains.push({ attr, label: ATTR_LABELS[attr], amount });
+    }
+  }
+
+  // Was ein Mentor tatsaechlich weitergibt, steht in keinem Wochenplan: Haltung,
+  // Ruhe, Mannschaftsdienlichkeit. Diese Werte laufen sonst kaum mit, weil kein
+  // Trainingsschwerpunkt sie anspricht - deshalb hier ein eigener, seltener Pfad.
+  // Ohne ihn waere der Mentor nur ein Multiplikator auf eine Rate, die ohnehin
+  // gegen das Potenzial laeuft, und damit am Ende einer Laufbahn unsichtbar.
+  if (mentorInfluence > 0 && rng.chance(mentorInfluence * 0.9)) {
+    // Fuehrung gehoert ausdruecklich dazu: Sie ist der Wert, den ein junger
+    // Spieler am ehesten von einem erfahrenen abschaut - und der einzige Weg,
+    // ihn frueh zu heben.
+    const lehrbar: AttrKey[] = ['professionalism', 'teamwork', 'composure',
+      'decisions', 'concentration', 'discipline', 'leadership'];
+    const attr = rng.pick(lehrbar);
+    // Der Mentorpfad umgeht die Potenzialgrenze bewusst - Haltung ist kein
+    // Talent. Ganz frei darf er es aber nicht: Ohne diesen Riegel schoebe ein
+    // langes Mentorverhaeltnis die mentalen Werte beliebig weit ueber das,
+    // was der Spieler je sein kann.
+    if (player.attrs[attr] < Math.min(99, player.potential + 6)) {
+      player.attrs[attr] = clamp(player.attrs[attr] + 1, 1, 99);
+      gains.push({ attr, label: ATTR_LABELS[attr], amount: 1 });
     }
   }
 
@@ -228,26 +258,52 @@ interface InjuryDef {
 }
 
 const INJURY_TABLE: InjuryDef[] = [
-  { name: 'Prellung', minDays: 3, maxDays: 8, severity: 'leicht', weight: 26 },
-  { name: 'Zerrung', minDays: 7, maxDays: 18, severity: 'leicht', weight: 22 },
-  { name: 'Baenderdehnung', minDays: 14, maxDays: 32, severity: 'mittel', weight: 14 },
-  { name: 'Muskelfaserriss', minDays: 21, maxDays: 45, severity: 'mittel', weight: 12 },
-  { name: 'Knoechelverletzung', minDays: 18, maxDays: 55, severity: 'mittel', weight: 9 },
-  { name: 'Schulterverletzung', minDays: 20, maxDays: 60, severity: 'mittel', weight: 5 },
-  { name: 'Gehirnerschuetterung', minDays: 10, maxDays: 24, severity: 'mittel', weight: 4 },
+  { name: 'injury.bruise', minDays: 3, maxDays: 8, severity: 'leicht', weight: 26 },
+  { name: 'injury.strain', minDays: 7, maxDays: 18, severity: 'leicht', weight: 22 },
+  { name: 'injury.ligament', minDays: 14, maxDays: 32, severity: 'mittel', weight: 14 },
+  { name: 'injury.muscleTear', minDays: 21, maxDays: 45, severity: 'mittel', weight: 12 },
+  { name: 'injury.ankle', minDays: 18, maxDays: 55, severity: 'mittel', weight: 9 },
+  { name: 'injury.shoulder', minDays: 20, maxDays: 60, severity: 'mittel', weight: 5 },
+  { name: 'injury.concussion', minDays: 10, maxDays: 24, severity: 'mittel', weight: 4 },
   {
-    name: 'Knochenbruch', minDays: 60, maxDays: 120, severity: 'schwer', weight: 4,
+    name: 'injury.fracture', minDays: 60, maxDays: 120, severity: 'schwer', weight: 4,
     permanent: { robustness: 2 },
   },
   {
-    name: 'Kreuzbandriss', minDays: 180, maxDays: 280, severity: 'schwer', weight: 2,
+    name: 'injury.acl', minDays: 180, maxDays: 280, severity: 'schwer', weight: 2,
     permanent: { acceleration: 3, pace: 3, agility: 2 },
   },
 ];
 
+/**
+ * Verletzung zu einer bereits feststehenden Ausfalldauer.
+ *
+ * Die Spielsimulation bestimmt zuerst, wie lange jemand ausfaellt - der Name
+ * kommt danach. Frueher wurde beides unabhaengig gewuerfelt und nur die Dauer
+ * ueberschrieben; dabei entstanden Prellungen ueber 29 Tage. Schlimmer noch:
+ * Schweregrad und bleibender Attributverlust hafteten an der gewuerfelten Art
+ * statt an der tatsaechlichen Dauer, sodass ein viertaegiger "Kreuzbandriss"
+ * dauerhaft Tempo kostete.
+ */
+export function injuryForDays(rng: Rng, player: Player, days: number): Injury {
+  let passend = INJURY_TABLE.filter((d) => days >= d.minDays && days <= d.maxDays);
+  if (passend.length === 0) {
+    // Keine Spanne trifft - die mit dem kleinsten Abstand gewinnt.
+    const abstand = (d: InjuryDef) => (days < d.minDays ? d.minDays - days : days - d.maxDays);
+    const kleinster = Math.min(...INJURY_TABLE.map(abstand));
+    passend = INJURY_TABLE.filter((d) => abstand(d) === kleinster);
+  }
+  return baueVerletzung(player, rng.weighted(passend, (d) => d.weight), days);
+}
+
+/** Zufaellige Verletzung samt eigener Dauer - fuer das Training. */
 export function rollInjury(rng: Rng, player: Player, _context: string): Injury {
   const def = rng.weighted(INJURY_TABLE, (d) => d.weight);
-  const days = rng.int(def.minDays, def.maxDays);
+  return baueVerletzung(player, def, rng.int(def.minDays, def.maxDays));
+}
+
+/** Legt die Verletzung am Spieler an. Dauer und Art kommen von aussen. */
+function baueVerletzung(player: Player, def: InjuryDef, days: number): Injury {
   const injury: Injury = {
     name: def.name,
     daysOut: days,
@@ -257,7 +313,12 @@ export function rollInjury(rng: Rng, player: Player, _context: string): Injury {
   };
   player.injury = injury;
   player.fitness = clamp(player.fitness - 12, 5, 100);
-  player.morale = clamp(player.morale - (def.severity === 'schwer' ? 22 : 8), 0, 100);
+  // Widerstandsfaehigkeit entscheidet, wie hart eine Verletzung im Kopf
+  // ankommt. Bei 20 trifft sie ein Fuenftel haerter, bei 90 rund ein Drittel
+  // weniger - der Wert war bis hierher vollstaendig folgenlos.
+  const haerte = 1.35 - player.attrs.resilience / 140;
+  const schock = (def.severity === 'schwer' ? 22 : 8) * haerte;
+  player.morale = clamp(player.morale - schock, 0, 100);
   return injury;
 }
 
@@ -300,7 +361,13 @@ export function updateFormAfterMatch(
   const delta = (rating - 6.6) * 9 * weight;
   player.form = clamp(player.form + delta * 0.5 + (won ? 2 : drew ? 0 : -1.5), 5, 100);
   player.confidence = clamp(player.confidence + delta * 0.42 + (won ? 1.5 : drew ? 0 : -1.2), 5, 100);
-  player.morale = clamp(player.morale + (won ? 3.5 : drew ? 0.5 : -3) + (rating - 6.5) * 1.6, 0, 100);
+  // Auch nach einem schlechten Spiel federt Widerstandsfaehigkeit ab. Nach
+  // einem guten wirkt sie nicht - wer viel einsteckt, jubelt nicht lauter.
+  const rohDelta = (won ? 3.5 : drew ? 0.5 : -3) + (rating - 6.5) * 1.6;
+  const moralDelta = rohDelta < 0
+    ? rohDelta * (1.3 - player.attrs.resilience / 160)
+    : rohDelta;
+  player.morale = clamp(player.morale + moralDelta, 0, 100);
   player.sharpness = clamp(player.sharpness + weight * 12, 0, 100);
 }
 
@@ -308,5 +375,11 @@ export function updateFormAfterMatch(
 export function driftForm(player: Player) {
   player.form += (50 - player.form) * 0.04;
   player.confidence += (55 - player.confidence) * 0.03;
-  player.morale += (55 - player.morale) * 0.02;
+  // Wer widerstandsfaehig ist, findet schneller zurueck ins Gleichgewicht -
+  // aber nur von unten. Nach oben bleibt die Drift gleich, sonst wuerde das
+  // Attribut gute Laune genauso schnell wegziehen wie schlechte.
+  const tempo = player.morale < 55
+    ? 0.02 * (0.7 + player.attrs.resilience / 110)
+    : 0.02;
+  player.morale += (55 - player.morale) * tempo;
 }

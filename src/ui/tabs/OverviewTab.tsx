@@ -7,8 +7,11 @@ import { matchImportance } from '../../engine/rivalry';
 import { setState, useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import { Empty, FormDots, Panel, Pill, rating, ratingColor } from '../components';
+import { t } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 export default function OverviewTab() {
+  useLocale();
   const game = useAppState().game!;
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -30,8 +33,8 @@ export default function OverviewTab() {
   return (
     <>
       <div className="grid two">
-        <Panel title="Naechstes Spiel">
-          {!next && <Empty text="Aktuell ist kein Spiel angesetzt." />}
+        <Panel title={t('overview.nextMatch')}>
+          {!next && <Empty text={t('overview.noMatch')} />}
           {next && opponent && (
             <>
               <div className="row between">
@@ -53,24 +56,24 @@ export default function OverviewTab() {
                   </div>
                 </div>
                 <div className="center">
-                  <div className="tiny dim">Reputation</div>
+                  <div className="tiny dim">{t('club.reputation')}</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{opponent.reputation}</div>
                 </div>
               </div>
               <div className="row" style={{ marginTop: '0.7rem' }}>
-                <Pill>{isHome ? 'Heimspiel' : 'Auswaertsspiel'}</Pill>
+                <Pill>{isHome ? t('overview.homeMatch') : t('overview.awayMatch')}</Pill>
                 {nextImportance?.label && <Pill tone="warn">{nextImportance.label}</Pill>}
                 <Pill>{opponent.city}</Pill>
                 <Pill>{opponent.formation}</Pill>
-                {user.injury && <Pill tone="bad">Verletzt</Pill>}
-                {user.suspension > 0 && <Pill tone="warn">Gesperrt</Pill>}
+                {user.injury && <Pill tone="bad">{t('overview.injured')}</Pill>}
+                {user.suspension > 0 && <Pill tone="warn">{t('squad.suspended')}</Pill>}
               </div>
             </>
           )}
         </Panel>
 
-        <Panel title={league?.name ?? 'Liga'}>
-          {!row && <Empty text="Noch keine Spiele absolviert." />}
+        <Panel title={league?.name ?? t('contract.league')}>
+          {!row && <Empty text={t('overview.noMatchesYet')} />}
           {row && (
             <>
               <div className="row between">
@@ -82,13 +85,13 @@ export default function OverviewTab() {
                 </div>
                 <div className="center">
                   <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{row.points}</div>
-                  <div className="tiny dim">Punkte</div>
+                  <div className="tiny dim">{t('overview.points')}</div>
                 </div>
                 <div className="center">
                   <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>
                     {row.goalsFor - row.goalsAgainst > 0 ? '+' : ''}{row.goalsFor - row.goalsAgainst}
                   </div>
-                  <div className="tiny dim">Tordifferenz</div>
+                  <div className="tiny dim">{t('overview.goalDiff')}</div>
                 </div>
               </div>
               <div className="row between" style={{ marginTop: '0.6rem' }}>
@@ -104,21 +107,21 @@ export default function OverviewTab() {
 
       <Panel title={`Deine Saison ${seasonLabel(game.season)}`}>
         <div className="grid four">
-          <div className="stat"><div className="value">{season.appearances}</div><div className="label">Einsaetze</div></div>
-          <div className="stat"><div className="value">{season.goals}</div><div className="label">Tore</div></div>
-          <div className="stat"><div className="value">{season.assists}</div><div className="label">Vorlagen</div></div>
+          <div className="stat"><div className="value">{season.appearances}</div><div className="label">{t('overview.appearances')}</div></div>
+          <div className="stat"><div className="value">{season.goals}</div><div className="label">{t('stats.goals')}</div></div>
+          <div className="stat"><div className="value">{season.assists}</div><div className="label">{t('stats.assists')}</div></div>
           <div className="stat">
             <div className="value" style={{ color: ratingColor(season.avgRating) }}>
               {season.avgRating > 0 ? rating(season.avgRating) : '-'}
             </div>
-            <div className="label">Schnitt</div>
+            <div className="label">{t('overview.average')}</div>
           </div>
         </div>
       </Panel>
 
       <div className="grid two">
-        <Panel title="Saisonziele">
-          {game.objectives.length === 0 && <Empty text="Keine Ziele festgelegt." />}
+        <Panel title={t('overview.objectives')}>
+          {game.objectives.length === 0 && <Empty text={t('overview.noObjectives')} />}
           {game.objectives.map((obj) => {
             const pct = obj.kind === 'teamPosition'
               ? (obj.current > 0 ? Math.max(0, 100 - (obj.current - obj.target) * 12) : 0)
@@ -146,10 +149,10 @@ export default function OverviewTab() {
           })}
         </Panel>
 
-        <Panel title="Letzte Spiele" action={
-          <button className="small ghost" onClick={() => setState({ tab: 'calendar' })}>Kalender</button>
+        <Panel title={t('overview.lastMatches')} action={
+          <button className="small ghost" onClick={() => setState({ tab: 'calendar' })}>{t('tab.calendar')}</button>
         }>
-          {recent.length === 0 && <Empty text="Noch keine Spiele absolviert." />}
+          {recent.length === 0 && <Empty text={t('overview.noMatchesYet')} />}
           {recent.map((m) => {
             const home = game.clubs[m.homeClubId];
             const away = game.clubs[m.awayClubId];
@@ -181,21 +184,21 @@ export default function OverviewTab() {
       </div>
 
       <div className="grid two">
-        <Panel title="Trainingsplan" action={
-          <button className="small ghost" onClick={() => setState({ tab: 'training' })}>Aendern</button>
+        <Panel title={t('overview.trainingPlan')} action={
+          <button className="small ghost" onClick={() => setState({ tab: 'training' })}>{t('overview.change')}</button>
         }>
           <div className="row between">
-            <span>{TRAINING_LABELS[game.training.focus]}</span>
+            <span>{t(t(TRAINING_LABELS[game.training.focus]))}</span>
             <Pill>{game.training.intensity}</Pill>
           </div>
           {game.training.individualGoal && (
             <div className="small muted" style={{ marginTop: '0.4rem' }}>
-              Individuelles Ziel: {TRAINING_LABELS[game.training.individualGoal]}
+              Individuelles Ziel: {t(t(TRAINING_LABELS[game.training.individualGoal]))}
             </div>
           )}
         </Panel>
 
-        <Panel title="Schlagzeilen" action={
+        <Panel title={t('overview.headlines')} action={
           <button className="small ghost" onClick={() => setState({ tab: 'news' })}>Alle</button>
         }>
           {game.news.slice(0, 4).map((n) => (
@@ -204,7 +207,7 @@ export default function OverviewTab() {
               <div className="tiny dim">{formatDate(n.date)}</div>
             </div>
           ))}
-          {game.news.length === 0 && <Empty text="Keine Meldungen." />}
+          {game.news.length === 0 && <Empty text={t('overview.noHeadlines')} />}
         </Panel>
       </div>
     </>

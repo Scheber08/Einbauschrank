@@ -8,6 +8,8 @@
  * Beides beantwortet die Frage, die eine durchlaufende Textliste offen laesst:
  * Wie ist dieses Spiel eigentlich verlaufen?
  */
+import { useLocale } from '../../i18n/useLocale';
+import { t } from '../../i18n';
 import type { LiveEvent } from '../../engine/matchTypes';
 
 const W = 640;
@@ -48,6 +50,8 @@ export default function MatchTimeline(
     awayShort: string;
   },
 ) {
+  // Damit die Beschriftung dem Sprachwechsel folgt.
+  useLocale();
   const span = Math.max(90, fullTime);
   const x = (m: number) => 30 + (Math.min(m, span) / span) * (W - 60);
 
@@ -76,7 +80,7 @@ export default function MatchTimeline(
 
   return (
     <svg viewBox={`0 0 ${W} 150`} className="timeline-svg"
-      role="img" aria-label="Spielverlauf">
+      role="img" aria-label={t('ms.timeline')}>
       {/* Achse */}
       <line x1={30} y1={AXIS_Y} x2={W - 30} y2={AXIS_Y}
         stroke="var(--border)" strokeWidth="2" strokeLinecap="round" />

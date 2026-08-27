@@ -9,8 +9,11 @@ import { CUP_ROUNDS } from '../../engine/cup';
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import { Empty, FormDots, Panel, Pill, shortName } from '../components';
+import { t } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 export default function TableTab() {
+  useLocale();
   const game = useAppState().game!;
   const club = userClub(game);
   // Nur Laender mit erzeugten Ligen anbieten.
@@ -58,7 +61,7 @@ export default function TableTab() {
       <ChampionsCupPanel />
       <TrophyPanel />
 
-      <Panel title="Wettbewerbe" action={
+      <Panel title={t('table.title')} action={
         <div className="chip-row">
           {leagues.map((l) => (
             <span key={l.id} className={`chip ${selected === l.id ? 'active' : ''}`}
@@ -66,7 +69,7 @@ export default function TableTab() {
           ))}
           {cup && (
             <span className={`chip ${selected === cup.id ? 'active' : ''}`}
-              onClick={() => setSelected(cup.id)}>Pokal</span>
+              onClick={() => setSelected(cup.id)}>{t('table.cup')}</span>
           )}
         </div>
       }>
@@ -82,7 +85,7 @@ export default function TableTab() {
 
         {isCup && (
           <>
-            {cupMatches.length === 0 && <Empty text="Der Pokal hat noch nicht begonnen." />}
+            {cupMatches.length === 0 && <Empty text={t('table.cupNotStarted')} />}
             <div className="scroll">
               <table>
                 <tbody>
@@ -112,15 +115,15 @@ export default function TableTab() {
               <thead>
                 <tr>
                   <th style={{ width: 28 }}>#</th>
-                  <th>Verein</th>
+                  <th>{t('table.club')}</th>
                   <th className="num">Sp</th>
                   <th className="num">S</th>
                   <th className="num">U</th>
                   <th className="num">N</th>
-                  <th className="num">Tore</th>
-                  <th className="num">Diff</th>
+                  <th className="num">{t('table.goals')}</th>
+                  <th className="num">{t('table.diff')}</th>
                   <th className="num">Pkt</th>
-                  <th>Form</th>
+                  <th>{t('table.form')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,8 +167,8 @@ export default function TableTab() {
       </Panel>
 
       <div className="grid two">
-        <Panel title="Torjaeger">
-          {scorers.length === 0 && <Empty text="Noch keine Tore." />}
+        <Panel title={t('table.topScorers')}>
+          {scorers.length === 0 && <Empty text={t('table.noGoals')} />}
           <table>
             <tbody>
               {scorers.map((s, i) => {
@@ -187,8 +190,8 @@ export default function TableTab() {
           </table>
         </Panel>
 
-        <Panel title="Vorlagen">
-          {assists.length === 0 && <Empty text="Noch keine Vorlagen." />}
+        <Panel title={t('table.topAssists')}>
+          {assists.length === 0 && <Empty text={t('table.noAssists')} />}
           <table>
             <tbody>
               {assists.map((s, i) => {
@@ -232,7 +235,7 @@ function ChampionsCupPanel() {
     <Panel title={CC_NAME} action={
       <div className="chip-row">
         <span className={`chip ${view === 'table' ? 'active' : ''}`}
-          onClick={() => setView('table')}>Ligaphase</span>
+          onClick={() => setView('table')}>{t('table.leaguePhase')}</span>
         <span className={`chip ${view === 'ko' ? 'active' : ''}`}
           onClick={() => setView('ko')}>K.-o.-Phase</span>
       </div>
@@ -240,16 +243,16 @@ function ChampionsCupPanel() {
       {view === 'table' && (
         <>
           {table.every((r) => r.played === 0) && (
-            <Empty text="Die Ligaphase hat noch nicht begonnen." />
+            <Empty text={t('table.leaguePhaseNotStarted')} />
           )}
           {table.some((r) => r.played > 0) && (
             <div className="scroll">
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: 28 }}>#</th><th>Verein</th>
-                    <th className="num">Sp</th><th className="num">Tore</th>
-                    <th className="num">Diff</th><th className="num">Pkt</th><th>Form</th>
+                    <th style={{ width: 28 }}>#</th><th>{t('table.club')}</th>
+                    <th className="num">Sp</th><th className="num">{t('table.goals')}</th>
+                    <th className="num">{t('table.diff')}</th><th className="num">Pkt</th><th>{t('table.form')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,7 +287,7 @@ function ChampionsCupPanel() {
 
       {view === 'ko' && (
         <>
-          {koMatches.length === 0 && <Empty text="Die K.-o.-Phase beginnt nach der Ligaphase." />}
+          {koMatches.length === 0 && <Empty text={t('empty.koLater')} />}
           <div className="scroll">
             <table>
               <tbody>
@@ -326,7 +329,7 @@ function TrophyPanel() {
 
   return (
     <Panel title={CT_NAME} action={<Pill>{ct.clubIds.length} Teilnehmer</Pill>}>
-      {matches.length === 0 && <Empty text="Die Auslosung steht noch aus." />}
+      {matches.length === 0 && <Empty text={t('empty.drawPending')} />}
       {matches.length > 0 && (
         <div className="scroll">
           <table>

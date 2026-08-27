@@ -5,19 +5,17 @@ import { COUNTRIES } from '../engine/countries';
 import { realCountry } from '../engine/realData';
 import { HAIR_COLORS, SKIN_TONES } from './PlayerAvatar';
 import { NAME_POOLS } from '../engine/names';
-import { namePoolOf, nationsByRegion } from '../engine/nations';
+import { namePoolOf, nationName, nationsByRegion, regionName } from '../engine/nations';
 import { Rng, randomSeed } from '../engine/rng';
 import { startNewCareer } from '../state/actions';
 import { setState } from '../state/store';
 import type { BackgroundKey, Difficulty, Foot } from '../engine/types';
 import { Panel } from './components';
+import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 
-const DIFFICULTIES: { key: Difficulty; label: string; hint: string }[] = [
-  { key: 'einfach', label: 'Einfach', hint: 'Groessere Trefferbereiche, schnellere Entwicklung, mehr Einsatzzeit.' },
-  { key: 'normal', label: 'Normal', hint: 'Ausgeglichene Simulation und realistische Entwicklung.' },
-  { key: 'schwer', label: 'Schwer', hint: 'Kleinere Trefferbereiche, langsamere Entwicklung, strengere Trainer.' },
-  { key: 'simulation', label: 'Karriere-Simulation', hint: 'Sehr realistisch, wenig Einfluss durch Minispiele, kein sichtbares Potenzial.' },
-];
+/** Nur die Kennung steht hier - Name und Beschreibung liegen im Katalog. */
+const DIFFICULTIES: Difficulty[] = ['einfach', 'normal', 'schwer', 'simulation'];
 
 // Haut- und Haarfarben teilt sich die Erstellung mit dem Portraet, sonst
 // sieht der fertige Spieler anders aus als in der Vorschau.
@@ -25,7 +23,8 @@ const EYE_COLORS = ['#4a3120', '#2f6b8f', '#3f7a4a', '#6b6b6b'];
 const BOOT_COLORS = ['#ffffff', '#111111', '#e0261f', '#1f6ee0', '#37d67a', '#f5c542'];
 
 export default function CreateCareer() {
-  const [saveName, setSaveName] = useState('Meine Karriere');
+  useLocale();
+  const [saveName, setSaveName] = useState(t('create.defaultSaveName'));
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [age, setAge] = useState(17);
@@ -90,73 +89,74 @@ export default function CreateCareer() {
     <div className="menu-wrap" style={{ alignItems: 'start' }}>
       <div className="menu">
         <div className="row between" style={{ marginBottom: '1rem' }}>
-          <h1 style={{ margin: 0 }}>Spieler erstellen</h1>
-          <button className="ghost" onClick={() => setState({ screen: 'menu' })}>Zurueck</button>
+          <h1 style={{ margin: 0 }}>{t('create.title')}</h1>
+          <button className="ghost" onClick={() => setState({ screen: 'menu' })}>{t('common.back')}</button>
         </div>
 
-        <Panel title="Grunddaten">
+        <Panel title={t('create.basics')}>
           <div className="grid two">
             <div>
-              <label>Name des Spielstands</label>
+              <label>{t('create.saveName')}</label>
               <input value={saveName} onChange={(e) => setSaveName(e.target.value)} />
             </div>
             <div>
-              <label>Land, in dem du spielst</label>
+              <label>{t('create.playCountry')}</label>
               <select value={homeCountry} onChange={(e) => setHomeCountry(e.target.value)}>
                 {COUNTRIES.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {realCountry(c.id)?.displayName ?? c.name} - {c.style}
+                    {realCountry(c.id)?.displayName ?? nationName(c.id)}
+                    {' - '}{t(`country.${c.id}.style`)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label>Herkunftsland</label>
+              <label>{t('create.homeCountry')}</label>
               <select value={nationality} onChange={(e) => setNationality(e.target.value)}>
                 {nationsByRegion().map((group) => (
-                  <optgroup key={group.region} label={group.region}>
+                  <optgroup key={group.region} label={regionName(group.region)}>
                     {group.nations.map((n) => (
-                      <option key={n.id} value={n.id}>{n.name}</option>
+                      <option key={n.id} value={n.id}>{nationName(n.id)}</option>
                     ))}
                   </optgroup>
                 ))}
               </select>
             </div>
             <div>
-              <label>Vorname</label>
-              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="z. B. Jonas" />
+              <label>{t('create.firstName')}</label>
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder={t('create.firstNamePlaceholder')} />
             </div>
             <div>
-              <label>Nachname</label>
+              <label>{t('create.lastName')}</label>
               <div className="row" style={{ flexWrap: 'nowrap' }}>
-                <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="z. B. Falkner" />
-                <button className="small ghost" onClick={randomName} title="Zufaelliger Name">Zufall</button>
+                <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder={t('create.lastNamePlaceholder')} />
+                <button className="small ghost" onClick={randomName} title={t('create.randomName')}>{t('create.random')}</button>
               </div>
             </div>
             <div>
-              <label>Alter: {age} Jahre</label>
+              <label>{t('create.age', { n: age })}</label>
               <input type="range" min={15} max={18} value={age}
                 onChange={(e) => setAge(Number(e.target.value))} />
             </div>
             <div>
-              <label>Rueckennummer</label>
+              <label>{t('create.shirtNumber')}</label>
               <input type="number" min={1} max={99} value={shirtNumber}
                 onChange={(e) => setShirtNumber(Math.max(1, Math.min(99, Number(e.target.value) || 1)))} />
             </div>
             <div>
-              <label>Groesse: {height} cm</label>
+              <label>{t('create.height', { n: height })}</label>
               <input type="range" min={160} max={205} value={height}
                 onChange={(e) => setHeight(Number(e.target.value))} />
             </div>
             <div>
-              <label>Gewicht: {weight} kg</label>
+              <label>{t('create.weight', { n: weight })}</label>
               <input type="range" min={55} max={100} value={weight}
                 onChange={(e) => setWeight(Number(e.target.value))} />
             </div>
           </div>
 
           <div style={{ marginTop: '0.8rem' }}>
-            <label>Starker Fuss</label>
+            <label>{t('create.strongFoot')}</label>
             <div className="chip-row">
               {(['rechts', 'links'] as Foot[]).map((f) => (
                 <span key={f} className={`chip ${foot === f ? 'active' : ''}`}
@@ -166,83 +166,86 @@ export default function CreateCareer() {
           </div>
         </Panel>
 
-        <Panel title="Position">
-          <label>Hauptposition</label>
+        <Panel title={t('create.position')}>
+          <label>{t('create.mainPosition')}</label>
           <div className="chip-row" style={{ marginBottom: '0.8rem' }}>
             {POSITIONS.map((p) => (
               <span key={p} className={`chip ${position === p ? 'active' : ''}`}
                 onClick={() => { setPosition(p); setAltPositions([]); }}>
-                {p} - {POSITION_LABELS[p]}
+                {p} - {t(t(POSITION_LABELS[p]))}
               </span>
             ))}
           </div>
           {neighbours.length > 0 && (
             <>
-              <label>Nebenpositionen (bis zu zwei)</label>
+              <label>{t('create.altPositions')}</label>
               <div className="chip-row">
                 {neighbours.map((p) => (
                   <span key={p} className={`chip ${altPositions.includes(p) ? 'active' : ''}`}
-                    onClick={() => toggleAlt(p)}>{POSITION_LABELS[p]}</span>
+                    onClick={() => toggleAlt(p)}>{t(t(POSITION_LABELS[p]))}</span>
                 ))}
               </div>
             </>
           )}
         </Panel>
 
-        <Panel title="Karrierehintergrund">
+        <Panel title={t('create.background')}>
           <div className="grid two">
             {BACKGROUND_LIST.map((b) => (
               <button key={b.key}
                 className={background === b.key ? 'primary' : ''}
                 style={{ textAlign: 'left', padding: '0.7rem 0.85rem', height: '100%' }}
                 onClick={() => setBackground(b.key)}>
-                <div style={{ fontWeight: 680, marginBottom: 2 }}>{b.name}</div>
-                <div className="tiny" style={{ opacity: 0.85 }}>{b.description}</div>
+                <div style={{ fontWeight: 680, marginBottom: 2 }}>{t(b.name)}</div>
+                <div className="tiny" style={{ opacity: 0.85 }}>{t(b.description)}</div>
               </button>
             ))}
           </div>
           <div className="grid two small" style={{ marginTop: '0.8rem' }}>
             <div>
-              <h4>Vorteile</h4>
+              <h4>{t('create.pros')}</h4>
               <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                {bg.pros.map((x) => <li key={x} className="muted">{x}</li>)}
+                {bg.pros.map((x) => <li key={x} className="muted">{t(x)}</li>)}
               </ul>
             </div>
             <div>
-              <h4>Nachteile</h4>
+              <h4>{t('create.cons')}</h4>
               <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                {bg.cons.map((x) => <li key={x} className="muted">{x}</li>)}
+                {bg.cons.map((x) => <li key={x} className="muted">{t(x)}</li>)}
               </ul>
             </div>
           </div>
           <p className="tiny dim" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
-            Startliga: {bg.startLevel === 1 ? 'erste Liga' : bg.startLevel === 2 ? 'zweite Liga' : 'dritte Liga'}
+            {t('create.startLeague', {
+              tier: t(bg.startLevel === 1 ? 'tier.first'
+                : bg.startLevel === 2 ? 'tier.second' : 'tier.third'),
+            })}
           </p>
         </Panel>
 
-        <Panel title="Aussehen">
+        <Panel title={t('create.appearance')}>
           <div className="row" style={{ gap: '1.4rem', alignItems: 'flex-start' }}>
             <PlayerPreview
               skin={SKIN_TONES[skinTone]} hair={hairColor} hairStyle={hairStyle}
               beard={beard} eye={eyeColor} boots={boots} number={shirtNumber}
             />
             <div style={{ flex: 1, minWidth: 240 }}>
-              <SwatchRow label="Hautfarbe" colors={SKIN_TONES}
+              <SwatchRow label={t('create.skinTone')} colors={SKIN_TONES}
                 selected={SKIN_TONES[skinTone]} onPick={(_, i) => setSkinTone(i)} />
-              <SwatchRow label="Haarfarbe" colors={HAIR_COLORS}
+              <SwatchRow label={t('create.hairColor')} colors={HAIR_COLORS}
                 selected={hairColor} onPick={(c) => setHairColor(c)} />
-              <SwatchRow label="Augenfarbe" colors={EYE_COLORS}
+              <SwatchRow label={t('create.eyeColor')} colors={EYE_COLORS}
                 selected={eyeColor} onPick={(c) => setEyeColor(c)} />
-              <SwatchRow label="Schuhe" colors={BOOT_COLORS}
+              <SwatchRow label={t('create.boots')} colors={BOOT_COLORS}
                 selected={boots} onPick={(c) => setBoots(c)} />
               <div className="grid two" style={{ marginTop: '0.5rem' }}>
                 <div>
-                  <label>Frisur</label>
+                  <label>{t('create.hairStyle')}</label>
                   <input type="range" min={0} max={4} value={hairStyle}
                     onChange={(e) => setHairStyle(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label>Bart</label>
+                  <label>{t('create.beard')}</label>
                   <input type="range" min={0} max={3} value={beard}
                     onChange={(e) => setBeard(Number(e.target.value))} />
                 </div>
@@ -251,25 +254,23 @@ export default function CreateCareer() {
           </div>
         </Panel>
 
-        <Panel title="Schwierigkeitsgrad">
+        <Panel title={t('create.difficulty')}>
           <div className="grid two">
-            {DIFFICULTIES.map((d) => (
-              <button key={d.key}
-                className={difficulty === d.key ? 'primary' : ''}
+            {DIFFICULTIES.map((key) => (
+              <button key={key}
+                className={difficulty === key ? 'primary' : ''}
                 style={{ textAlign: 'left', padding: '0.6rem 0.8rem' }}
-                onClick={() => setDifficulty(d.key)}>
-                <div style={{ fontWeight: 680 }}>{d.label}</div>
-                <div className="tiny" style={{ opacity: 0.85 }}>{d.hint}</div>
+                onClick={() => setDifficulty(key)}>
+                <div style={{ fontWeight: 680 }}>{t(`difficulty.${key}.name`)}</div>
+                <div className="tiny" style={{ opacity: 0.85 }}>{t(`difficulty.${key}.desc`)}</div>
               </button>
             ))}
           </div>
         </Panel>
 
         <div className="row" style={{ margin: '1rem 0 2rem' }}>
-          <button className="primary" disabled={!valid} onClick={submit}>
-            Karriere beginnen
-          </button>
-          {!valid && <span className="small dim">Bitte Vor- und Nachnamen eintragen.</span>}
+          <button className="primary" disabled={!valid} onClick={submit}>{t('create.start')}</button>
+          {!valid && <span className="small dim">{t('create.nameRequired')}</span>}
         </div>
       </div>
     </div>
@@ -304,7 +305,7 @@ function PlayerPreview(
   { skin: string; hair: string; hairStyle: number; beard: number; eye: string; boots: string; number: number },
 ) {
   return (
-    <svg width={140} height={210} viewBox="0 0 140 210" role="img" aria-label="Spielervorschau"
+    <svg width={140} height={210} viewBox="0 0 140 210" role="img" aria-label={t('create.preview')}
       style={{ background: '#0c1729', border: '1px solid var(--border-soft)', borderRadius: 10 }}>
       {/* Beine */}
       <rect x={54} y={132} width={13} height={48} rx={5} fill={skin} />

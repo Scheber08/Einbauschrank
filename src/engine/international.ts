@@ -19,6 +19,7 @@ import { Rng } from './rng';
 import { buildTable, sortTable } from './table';
 import { leaguesOfCountry, tableKey } from './season';
 import type { Club, Competition, GameState, Id, Match, TableRow } from './types';
+import { t } from '../i18n';
 
 export const CC_ID = 'cc';
 export const CC_NAME = 'Continental Champions Cup';
@@ -26,7 +27,8 @@ export const CC_NAME = 'Continental Champions Cup';
 const KO_BASE = 100;
 const LEAGUE_ROUNDS = 8;
 
-const KO_ROUNDS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'] as const;
+/** K.-o.-Runden als Katalogschluessel, nicht als fertiger Text. */
+const KO_ROUNDS = ['round.r16', 'round.quarter', 'round.semi', 'round.final'] as const;
 
 /** Startplaetze je Land, nach Laenderreputation absteigend: 5,5,5,5,4 = 24. */
 function slotsPerCountry(): Record<Id, number> {
@@ -113,7 +115,7 @@ export function startChampionsCup(state: GameState, rng: Rng, prevSeason: number
   });
   const leaguePhase = full.filter((m) => m.matchday <= LEAGUE_ROUNDS);
   for (const m of leaguePhase) {
-    m.roundName = 'Ligaphase';
+    m.roundName = t('round.leaguePhase');
     m.date = dates[m.matchday - 1];
     addMatch(state, m);
   }
@@ -122,10 +124,13 @@ export function startChampionsCup(state: GameState, rng: Rng, prevSeason: number
 
   const userClubId = state.players[state.userPlayerId]?.clubId;
   if (userClubId && qualifiers.includes(userClubId)) {
-    addNews(state, 'season', `${state.clubs[userClubId]?.name} im ${CC_NAME}`,
-      'Dein Verein hat sich fuer den internationalen Wettbewerb qualifiziert.', true);
-    addCareerEvent(state, 'international', 'Internationaler Wettbewerb',
-      `Mit ${state.clubs[userClubId]?.name} im ${CC_NAME} vertreten.`, { competitionId: CC_ID });
+    addNews(state, 'season',
+      t('eu.cc.news', { club: state.clubs[userClubId]?.name ?? '', competition: CC_NAME }),
+      t('eu.cc.newsBody'), true);
+    addCareerEvent(state, 'international', t('eu.cc.eventTitle'),
+      t('eu.cc.eventBody', {
+        club: state.clubs[userClubId]?.name ?? '', competition: CC_NAME,
+      }), { competitionId: CC_ID });
   }
 }
 
@@ -190,12 +195,12 @@ export function advanceChampionsCup(state: GameState, _rng: Rng): boolean {
     if (top16.length < 16) { info.finished = true; return true; }
     const matches: Match[] = [];
     for (let i = 0; i < 8; i++) {
-      matches.push(ccMatch(state, KO_BASE, 'Achtelfinale', dates[8], top16[i], top16[15 - i]));
+      matches.push(ccMatch(state, KO_BASE, t('round.r16'), dates[8], top16[i], top16[15 - i]));
     }
     for (const m of matches) addMatch(state, m);
     info.round = 1;
     info.alive = top16;
-    announcePhase(state, 'Achtelfinale');
+    announcePhase(state, t('round.r16'));
     return true;
   }
 
@@ -217,9 +222,10 @@ export function advanceChampionsCup(state: GameState, _rng: Rng): boolean {
   }
 
   const nextRound = info.round + 1;
-  const roundName = KO_ROUNDS[Math.min(nextRound - 1, KO_ROUNDS.length - 1)];
+  const roundIdx = Math.min(nextRound - 1, KO_ROUNDS.length - 1);
+  const roundName = t(KO_ROUNDS[roundIdx]);
   const date = dates[8 + nextRound - 1] ?? dates[dates.length - 1];
-  const isFinal = roundName === 'Finale';
+  const isFinal = roundIdx === KO_ROUNDS.length - 1;
 
   const matches: Match[] = [];
   for (let i = 0; i < winners.length; i += 2) {
@@ -238,8 +244,9 @@ function announcePhase(state: GameState, roundName: string) {
   const userClubId = state.players[state.userPlayerId]?.clubId;
   const info = state.cupState[CC_ID];
   if (userClubId && info?.alive.includes(userClubId)) {
-    addNews(state, 'season', `${CC_NAME}: ${roundName}`,
-      `Dein Verein steht im ${roundName} des ${CC_NAME}.`, true);
+    addNews(state, 'season',
+      t('eu.phase.news', { competition: CC_NAME, round: roundName }),
+      t('eu.phase.newsBodyOf', { round: roundName, competition: CC_NAME }), true);
   }
 }
 
@@ -248,16 +255,17 @@ function recordChampion(state: GameState, clubId: Id) {
   if (!club) return;
   club.history.push({
     season: state.season, competitionId: CC_ID, played: 0, won: 0, drawn: 0, lost: 0,
-    goalsFor: 0, goalsAgainst: 0, points: 0, note: `${CC_NAME}-Sieger`,
+    goalsFor: 0, goalsAgainst: 0, points: 0, note: t('honour.winner', { competition: CC_NAME }),
   });
-  addNews(state, 'season', `${club.name} gewinnt den ${CC_NAME}`,
-    `${club.name} kroent sich zum internationalen Champion der Saison.`, true);
+  addNews(state, 'season',
+    t('eu.cc.wonNews', { club: club.name, competition: CC_NAME }),
+    t('eu.cc.wonNewsBody', { club: club.name }), true);
 
   const user = state.players[state.userPlayerId];
   if (user && user.clubId === clubId) {
-    state.honours.push({ season: state.season, label: `${CC_NAME}-Sieger` });
-    addCareerEvent(state, 'title', `${CC_NAME} gewonnen`,
-      `Den ${CC_NAME} mit ${club.name} geholt - der groesste Vereinserfolg.`,
+    state.honours.push({ season: state.season, label: t('honour.winner', { competition: CC_NAME }) });
+    addCareerEvent(state, 'title', t('eu.cc.wonTitle', { competition: CC_NAME }),
+      t('eu.cc.wonBody', { competition: CC_NAME, club: club.name }),
       { clubId, competitionId: CC_ID });
   }
 }

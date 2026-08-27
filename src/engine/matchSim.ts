@@ -2,7 +2,7 @@
  * Gemeinsame Simulationsbausteine und die Hintergrundsimulation
  * (Konzept Abschnitt 27 und 56).
  */
-import { POSITION_LINE, effectiveOverall, type PositionCode } from './attributes';
+import { POSITION_LINE, effectiveOverall, type PositionCode, computeOverall } from './attributes';
 import { isAvailable, quickTeamRating } from './lineup';
 import { Rng, clamp } from './rng';
 import { FORMATION_SLOTS } from './worldGen';
@@ -215,10 +215,47 @@ export function simulateLight(
     });
   };
 
-  const homeMinutes = home.map(() => 90);
-  const awayMinutes = away.map(() => 90);
-  register(home, homeClub.id, homeMinutes);
-  register(away, awayClub.id, awayMinutes);
+  // Auswechslungen: zwei bis vier je Mannschaft zwischen der 58. und 85.
+  // Minute. Der Torwart bleibt drauf.
+  const wechsel = (
+    aufstellung: OnPitchPlayer[], kader: Player[], club: Club,
+  ) => {
+    const minuten = aufstellung.map(() => 90);
+    const drin = new Set(aufstellung.map((o) => o.player.id));
+    const bank = kader.filter((p) => isAvailable(p) && !drin.has(p.id) && p.position !== 'TW')
+      .sort((a, b) => computeOverall(b.attrs, b.position) - computeOverall(a.attrs, a.position))
+      .slice(0, 7);
+    // Drei bis fuenf, wie in der vollen Engine: Dort stehen vier spaete
+    // Wechselfenster und bis zu fuenf Wechsel zur Verfuegung. Mit nur zwei bis
+    // vier blieben die computergesteuerten Mannschaften laenger unveraendert
+    // als die des eigenen Spielers - und ihre Stammspieler sammelten dadurch
+    // Minuten, die ueber jede Auszeichnung entscheiden.
+    const anzahl = Math.min(rng.int(3, 5), bank.length);
+
+    for (let i = 0; i < anzahl; i++) {
+      // Wer geht: der schwaechste Feldspieler, der noch drauf ist - mit etwas
+      // Zufall, damit nicht immer derselbe Rang das Feld raeumt.
+      const drinFeld = aufstellung
+        .map((o, idx) => ({ o, idx })).filter((x) => x.o.slot !== 'TW' && minuten[x.idx] === 90);
+      if (drinFeld.length === 0) break;
+      const raus = rng.weighted(drinFeld, (x) => Math.max(0.2, 100 - x.o.rating));
+      const minute = rng.int(58, 85);
+      minuten[raus.idx] = minute;
+      const rein = bank[i];
+      const st = emptyMatchStats(rein.id, matchId, club.id, raus.o.slot);
+      st.started = false;
+      st.minutes = 90 - minute;
+      appearances.push(st);
+      // Der Einwechselspieler steht ab jetzt auf dem Platz und kann treffen.
+      aufstellung.push({ player: rein, slot: raus.o.slot, rating: raus.o.rating * 0.92 });
+    }
+    return minuten;
+  };
+
+  const homeMinutes = wechsel(home, homeSquad, homeClub);
+  const awayMinutes = wechsel(away, awaySquad, awayClub);
+  register(home.slice(0, homeMinutes.length), homeClub.id, homeMinutes);
+  register(away.slice(0, awayMinutes.length), awayClub.id, awayMinutes);
 
   const statById = new Map(appearances.map((s) => [s.playerId, s]));
 

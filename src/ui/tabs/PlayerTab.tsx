@@ -1,9 +1,13 @@
+import { DIFFICULTY_SETTINGS } from '../../engine/types';
 import { useState } from 'react';
 import {
   ATTR_GROUPS, POSITION_LABELS, computeOverall, effectiveOverall,
 } from '../../engine/attributes';
 import { BACKGROUNDS } from '../../engine/backgrounds';
+import { isFinalContractSeason } from '../../engine/contract';
 import { nationName } from '../../engine/nations';
+import { t, tNumber } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 import { ageOn, formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { renewContract } from '../../state/actions';
@@ -12,6 +16,7 @@ import AttributeRadar from '../AttributeRadar';
 import { AttrList, Meter, Panel, Pill, money, salary } from '../components';
 
 export default function PlayerTab() {
+  useLocale();
   const game = useAppState().game!;
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -19,7 +24,7 @@ export default function PlayerTab() {
   const [group, setGroup] = useState(user.position === 'TW' ? 'goalkeeping' : 'technical');
 
   const ability = computeOverall(user.attrs, user.position);
-  const showPotential = game.difficulty !== 'schwer' && game.difficulty !== 'simulation';
+  const showPotential = DIFFICULTY_SETTINGS[game.difficulty].showPotential;
 
   const bg = user.background ? BACKGROUNDS[user.background] : null;
 
@@ -29,7 +34,7 @@ export default function PlayerTab() {
   const groupMeans = ATTR_GROUPS
     .filter((g) => (g.key === 'goalkeeping' ? user.position === 'TW' : true))
     .map((g) => ({
-      label: g.label,
+      label: t(g.label),
       value: g.attrs.reduce((a, k) => a + (user.attrs[k] ?? 0), 0) / Math.max(1, g.attrs.length),
     }));
   const strongest = groupMeans.reduce((b, g) => (g.value > b.value ? g : b), groupMeans[0]);
@@ -40,76 +45,96 @@ export default function PlayerTab() {
       <Panel title={`${user.firstName} ${user.lastName}`} action={
         <div className="row">
           <Pill>Nr. {user.shirtNumber}</Pill>
-          <Pill>{user.foot === 'links' ? 'Linksfuss' : 'Rechtsfuss'}</Pill>
+          <Pill>{t(user.foot === 'links' ? 'player.leftFooted' : 'player.rightFooted')}</Pill>
         </div>
       }>
         <div className="grid four">
-          <div className="stat"><div className="value">{ability}</div><div className="label">Gesamtstaerke</div></div>
+          <div className="stat"><div className="value">{ability}</div>
+            <div className="label">{t('player.overall')}</div></div>
           <div className="stat">
             <div className="value">{showPotential ? user.potential : '?'}</div>
-            <div className="label">Potenzial</div>
+            <div className="label">{t('player.potential')}</div>
           </div>
-          <div className="stat"><div className="value">{ageOn(user.birthDate, game.date)}</div><div className="label">Alter</div></div>
-          <div className="stat"><div className="value">{user.reputation}</div><div className="label">Reputation</div></div>
+          <div className="stat"><div className="value">{ageOn(user.birthDate, game.date)}</div>
+            <div className="label">{t('squad.age')}</div></div>
+          <div className="stat"><div className="value">{user.reputation}</div>
+            <div className="label">{t('club.reputation')}</div></div>
         </div>
 
         <div className="grid two" style={{ marginTop: '0.9rem' }}>
           <div>
-            <div className="row between small"><span className="muted">Position</span>
-              <span>{POSITION_LABELS[user.position]}</span></div>
-            <div className="row between small"><span className="muted">Nebenpositionen</span>
+            <div className="row between small"><span className="muted">{t('squad.position')}</span>
+              <span>{t(t(POSITION_LABELS[user.position]))}</span></div>
+            <div className="row between small"><span className="muted">{t('player.altPositions')}</span>
               <span>{user.altPositions.length ? user.altPositions.join(', ') : '-'}</span></div>
-            <div className="row between small"><span className="muted">Nationalitaet</span>
+            <div className="row between small"><span className="muted">{t('player.nationality')}</span>
               <span>{nationName(user.nationality)}</span></div>
-            <div className="row between small"><span className="muted">Geboren</span>
+            <div className="row between small"><span className="muted">{t('player.born')}</span>
               <span>{formatShort(user.birthDate)}</span></div>
-            <div className="row between small"><span className="muted">Groesse / Gewicht</span>
+            <div className="row between small"><span className="muted">{t('player.heightWeight')}</span>
               <span>{user.height} cm / {user.weight} kg</span></div>
-            <div className="row between small"><span className="muted">Marktwert</span>
+            <div className="row between small"><span className="muted">{t('player.marketValue')}</span>
               <span>{money(user.marketValue)}</span></div>
           </div>
           <div>
-            <Meter label="Form" value={user.form} />
-            <Meter label="Fitness" value={user.fitness} />
-            <Meter label="Moral" value={user.morale} />
-            <Meter label="Selbstvertrauen" value={user.confidence} />
-            <Meter label="Spielpraxis" value={user.sharpness} />
+            <Meter label={t('player.form')} value={user.form} />
+            <Meter label={t('player.fitness')} value={user.fitness} />
+            <Meter label={t('player.morale')} value={user.morale} />
+            <Meter label={t('player.confidence')} value={user.confidence} />
+            <Meter label={t('training.sharpness')} value={user.sharpness} />
           </div>
         </div>
 
+        {/* Der Kartenstand stand nirgends. Ohne ihn gibt es die Anspannung nicht,
+            die vier Verwarnungen im Fussball ausmachen - man erfaehrt von der
+            Sperre erst, wenn sie da ist. */}
+        {(user.yellowCardsInLeague > 0 || user.suspension > 0) && (
+          <div className='row' style={{ marginTop: '0.6rem', gap: 8, flexWrap: 'wrap' }}>
+            {user.yellowCardsInLeague > 0 && (
+              <Pill tone={user.yellowCardsInLeague >= 4 ? 'bad' : undefined}>
+                {t('player.yellowCards')}: {user.yellowCardsInLeague} / 5
+              </Pill>
+            )}
+            {user.yellowCardsInLeague === 4 && (
+              <span className='tiny' style={{ color: 'var(--bad, #c86)' }}>
+                {t('player.yellowWarn')}
+              </span>
+            )}
+            {user.suspension > 0 && (
+              <Pill tone='bad'>{t('shell.suspendedGames', { n: user.suspension })}</Pill>
+            )}
+          </div>
+        )}
+
         {bg && (
           <p className="tiny dim" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
-            Hintergrund: {bg.name} - {bg.description}
+            {t('player.background', { name: t(bg.name), description: t(bg.description) })}
           </p>
         )}
       </Panel>
 
-      <Panel title="Profil">
+      <Panel title={t('player.profile')}>
         <div className="profile-split">
           <AttributeRadar player={user} />
           <div className="small muted">
-            <p style={{ marginTop: 0 }}>
-              Das Netz zeigt den Durchschnitt jeder Attributgruppe. Es macht auf
-              einen Blick sichtbar, welcher Spielertyp du geworden bist - und wo
-              gezieltes Training am meisten bewirkt.
-            </p>
+            <p style={{ marginTop: 0 }}>{t('player.radarHint')}</p>
             <div className="row between small">
-              <span className="muted">Staerkste Gruppe</span>
+              <span className="muted">{t('player.strongestGroup')}</span>
               <span style={{ color: 'var(--accent)' }}>{strongest.label}</span>
             </div>
             <div className="row between small">
-              <span className="muted">Schwaechste Gruppe</span>
+              <span className="muted">{t('player.weakestGroup')}</span>
               <span style={{ color: 'var(--warn)' }}>{weakest.label}</span>
             </div>
           </div>
         </div>
       </Panel>
 
-      <Panel title="Attribute" action={
+      <Panel title={t('player.attributes')} action={
         <div className="chip-row">
           {ATTR_GROUPS.map((g) => (
             <span key={g.key} className={`chip ${group === g.key ? 'active' : ''}`}
-              onClick={() => setGroup(g.key)}>{g.label}</span>
+              onClick={() => setGroup(g.key)}>{t(g.label)}</span>
           ))}
         </div>
       }>
@@ -117,9 +142,9 @@ export default function PlayerTab() {
       </Panel>
 
       <div className="grid two">
-        <Panel title="Positionsstaerken">
+        <Panel title={t('player.positionStrengths')}>
           <p className="tiny dim">
-            So stark waerst du auf anderen Positionen. Fremde Rollen kosten Leistung.
+            {t('player.positionHint')}
           </p>
           {[user.position, ...user.altPositions,
             ...(['IV', 'ZM', 'OM', 'ST'] as const).filter(
@@ -129,7 +154,7 @@ export default function PlayerTab() {
               const value = effectiveOverall(user.attrs, user.position, user.altPositions, pos);
               return (
                 <div className="row between small" key={pos} style={{ padding: '0.2rem 0' }}>
-                  <span className="muted">{POSITION_LABELS[pos]}</span>
+                  <span className="muted">{t(t(POSITION_LABELS[pos]))}</span>
                   <span className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
                     <span className="bar" style={{ width: 110 }}>
                       <span style={{ width: `${value}%`, background: pos === user.position ? '#2fae63' : '#3a8fd0' }} />
@@ -141,22 +166,36 @@ export default function PlayerTab() {
             })}
         </Panel>
 
-        <Panel title="Vertrag">
-          {!user.contract && <p className="muted small">Kein laufender Vertrag.</p>}
+        <Panel title={t('contract.title')}>
+          {!user.contract && <p className="muted small">{t('contract.none')}</p>}
+          {/* Ein auslaufender Vertrag darf nicht nur im Postfach stehen - er
+              entscheidet darueber, ob man den Verein im Sommer verlaesst. */}
+          {user.contract && isFinalContractSeason(game) && (
+            <div className="pill warn" style={{ display: 'block', marginBottom: '0.6rem' }}>
+              {t('contract.expiryWarning')}
+            </div>
+          )}
           {user.contract && (
             <>
-              <div className="row between small"><span className="muted">Verein</span><span>{club?.name}</span></div>
-              <div className="row between small"><span className="muted">Liga</span><span>{league?.name}</span></div>
-              <div className="row between small"><span className="muted">Rolle</span><span>{user.contract.role}</span></div>
-              <div className="row between small"><span className="muted">Gehalt</span><span>{salary(user.contract.salary)}</span></div>
-              <div className="row between small"><span className="muted">Laufzeit bis</span><span>{formatShort(user.contract.until)}</span></div>
+              <div className="row between small"><span className="muted">{t('contract.club')}</span>
+                <span>{club?.name}</span></div>
+              <div className="row between small"><span className="muted">{t('contract.league')}</span>
+                <span>{league?.name}</span></div>
+              <div className="row between small"><span className="muted">{t('contract.role')}</span>
+                <span>{t(`role.${user.contract.role}`)}</span></div>
+              <div className="row between small"><span className="muted">{t('contract.salary')}</span>
+                <span>{salary(user.contract.salary)}</span></div>
+              <div className="row between small"><span className="muted">{t('contract.until')}</span>
+                <span>{formatShort(user.contract.until)}</span></div>
               {user.contract.goalBonus > 0 && (
-                <div className="row between small"><span className="muted">Torpraemie</span>
-                  <span>{user.contract.goalBonus.toLocaleString('de-DE')} EUR</span></div>
+                <div className="row between small"><span className="muted">{t('contract.goalBonus')}</span>
+                  <span>{tNumber(user.contract.goalBonus)} EUR</span></div>
               )}
               <div className="row" style={{ marginTop: '0.8rem' }}>
-                <button className="small" onClick={() => renewContract(3)}>Um 3 Jahre verlaengern</button>
-                <button className="small ghost" onClick={() => renewContract(5)}>Um 5 Jahre</button>
+                <button className="small" onClick={() => renewContract(3)}>
+                  {t('contract.extendYears', { n: 3 })}</button>
+                <button className="small ghost" onClick={() => renewContract(5)}>
+                  {t('contract.extendYearsShort', { n: 5 })}</button>
               </div>
             </>
           )}
