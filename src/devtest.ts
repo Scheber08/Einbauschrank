@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { TALENT_PROFILE, reviewPotential } from './engine/potential';
 import { DEFENSIVER_TEST, matchFormation } from './engine/formation';
 import {
   formatKickoff, kickoffAuslastung, matchKickoff,
@@ -30,6 +31,7 @@ import { buildWageIndex, canSign, feeShare, wageBill } from './engine/finance';
 import { checkCaptaincy, dropCaptaincyOnTransfer, growLeadership } from './engine/captain';
 import { learnAltPosition } from './engine/versatility';
 import { freeKickStanding, penaltyStanding } from './engine/setpieces';
+import { START_POINTS, type NewGameOptions } from './engine/game';
 import { createObjectives } from './engine/game';
 import { advanceAgent, ensureAgent, startAgentTask } from './engine/agent';
 import {
@@ -2187,6 +2189,114 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       }
     }
   }
+  // --- Potenzial und Startoptionen (Abschnitt 38) -----------------------
+  //
+  // Das Potenzial des eigenen Spielers wurde beim Start einmal gewuerfelt
+  // und danach **nie wieder angefasst**. Die wichtigste Frage einer Laufbahn
+  // - wie weit reicht es - war damit vor dem ersten Anpfiff beantwortet.
+  // Und der Spieler nahm hin, was der Wuerfel ihm gab: Attribute, Startliga
+  // und Entwicklungsverlauf standen alle fest.
+  log('\n--- Potenzial und Startoptionen ---');
+  {
+    // Der Verlauf ueber rund drei Saisons. Sechs Bewertungen je Saison.
+    const verlauf = (note: number, alter: number, minuten: number) => {
+      const p = { ...user, attrs: { ...user.attrs }, potential: 74 } as Player;
+      const rngP = new Rng(99);
+      let drift = 0;
+      for (let i = 0; i < 18; i++) {
+        const b = reviewPotential(
+          rngP, p, alter, TALENT_PROFILE.steady, note, 6, minuten, drift);
+        drift = b.drift;
+        p.potential += b.schritt;
+      }
+      return p.potential;
+    };
+
+    const stark = verlauf(7.6, 18, 80);
+    const erwartet = verlauf(6.6, 18, 80);
+    const schwach = verlauf(5.6, 18, 80);
+    const ohneZeit = verlauf(6.6, 18, 10);
+    const spaet = verlauf(7.6, 29, 85);
+
+    log(`Potenzial ab 74 nach drei Saisons: stark ${stark}, erwartungsgemaess `
+      + `${erwartet}, schwach ${schwach}, ohne Spielzeit ${ohneZeit}, `
+      + `mit 29 trotz starker Leistung ${spaet}`);
+
+    check('Starke Leistungen heben das Potenzial', stark > 74, `${stark}`);
+    check('Schwache Leistungen senken es', schwach < 74, `${schwach}`);
+    check('Wer erwartungsgemaess spielt, bleibt in der Naehe',
+      Math.abs(erwartet - 74) <= 3, `${erwartet}`);
+    check('Ohne Spielzeit sinkt es auch bei guter Note', ohneZeit < 74,
+      `${ohneZeit}`);
+    check('Mit geschlossenem Fenster geht es nur noch abwaerts', spaet < 74,
+      `${spaet}`);
+    // Der Ausschlag muss klein bleiben: ein erster Anlauf hob das Potenzial
+    // in derselben Zeit von 74 auf 97 und liess es bei schwacher Leistung auf
+    // 49 fallen - damit war es keine Einschaetzung mehr, sondern eine zweite
+    // Formkurve.
+    check('Der Ausschlag bleibt in drei Saisons im Rahmen',
+      stark - 74 < 16 && 74 - schwach < 16,
+      `+${stark - 74} / -${74 - schwach}`);
+
+    // Und die Startoptionen: wirken sie ueberhaupt?
+    const bau = (extra: Partial<NewGameOptions>) => {
+      const g = createNewGame({
+        saveName: 'Probe', seed: 123456, difficulty: 'normal',
+        firstName: 'Probe', lastName: 'Spieler', age: 17, nationality: 'de',
+        position: 'ST', altPositions: ['OM'], foot: 'rechts',
+        height: 182, weight: 76, shirtNumber: 9,
+        appearance: {
+          skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0,
+          eyeColor: '#4a3120', boots: '#fff',
+        },
+        background: 'academy',
+        ...extra,
+      });
+      const u = g.players[g.userPlayerId];
+      const liga = u.clubId ? g.competitions[g.clubs[u.clubId]?.leagueId] : null;
+      return {
+        staerke: computeOverall(u.attrs, u.position),
+        potenzial: u.potential,
+        level: liga?.level ?? 0,
+      };
+    };
+
+    const ohne = bau({});
+    const mitPunkten = bau({ attributePoints: { technical: 6, physical: 6 } });
+    const frueh = bau({ talent: 'early' });
+    const spaeter = bau({ talent: 'late' });
+    const oben = bau({ startLevel: 1 });
+    const unten = bau({ startLevel: 3 });
+
+    log(`Start ohne Optionen: Staerke ${ohne.staerke}, Potenzial ${ohne.potenzial}, `
+      + `Liga ${ohne.level}`);
+    log(`Mit zwoelf Punkten: Staerke ${mitPunkten.staerke}; `
+      + `frueh ${frueh.staerke}/${frueh.potenzial}, `
+      + `spaet ${spaeter.staerke}/${spaeter.potenzial}`);
+
+    check('Verteilte Punkte machen den Spieler staerker',
+      mitPunkten.staerke > ohne.staerke,
+      `${mitPunkten.staerke} gegen ${ohne.staerke}`);
+    check('Der Frueh­entwickler startet staerker als der Spaetzuender',
+      frueh.staerke > spaeter.staerke,
+      `${frueh.staerke} gegen ${spaeter.staerke}`);
+    check('Die gewaehlte Startliga wird genommen',
+      oben.level === 1 && unten.level === 3,
+      `${oben.level} und ${unten.level}`);
+    check('Ohne Angabe entscheidet weiter die Herkunft', ohne.level >= 1,
+      `${ohne.level}`);
+
+    // Der Deckel muss halten - sonst waere die Verteilung ein Freifahrtschein.
+    const ueberzogen = bau({
+      attributePoints: {
+        technical: 99, physical: 99, mental: 99, defensive: 99, goalkeeping: 99,
+      },
+    });
+    const genauDeckel = bau({ attributePoints: { technical: START_POINTS } });
+    check('Mehr als der Deckel bringt nichts',
+      ueberzogen.staerke <= genauDeckel.staerke + 6,
+      `${ueberzogen.staerke} gegen ${genauDeckel.staerke}`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -3022,6 +3132,12 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchSim.ts', name: 'matchFormation', mindestens: 3 },
     { datei: '/src/engine/lineup.ts', name: 'aufstellung', mindestens: 3 },
     { datei: '/src/engine/matchEngine.ts', name: 'torArt', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'reviewPotential', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'potentialDrift', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'verteilt', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'startLevel', mindestens: 3 },
+    { datei: '/src/ui/CreateCareer.tsx', name: 'attributePoints', mindestens: 1 },
+    { datei: '/src/ui/CreateCareer.tsx', name: 'talent', mindestens: 4 },
   ];
   let fehler = 0;
   const quellen = new Map<string, string>();

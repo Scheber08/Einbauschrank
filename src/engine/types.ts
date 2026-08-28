@@ -1,4 +1,5 @@
 /** Zentrale Datentypen des Spielstands (Konzept Abschnitt 55). */
+import type { TalentProfile } from './potential';
 import type { Attributes, PositionCode } from './attributes';
 import type { GameDate } from './date';
 
@@ -554,6 +555,32 @@ export interface WncResult {
 // --- Spielstand ---------------------------------------------------------
 
 export interface GameState {
+  /**
+   * Wie sich die Laufbahn entfaltet - beim Start gewaehlt.
+   *
+   * Fehlt die Angabe, ist es ein gleichmaessiger Verlauf; so bleiben
+   * aeltere Spielstaende gueltig.
+   */
+  talentProfile?: TalentProfile;
+  /**
+   * Pflichtspiele seit der letzten Potenzialbewertung.
+   *
+   * Bewertet wird in Abstaenden, nicht nach jedem Spiel - sonst waere die
+   * Zahl staendig in Bewegung und ein einzelner schwacher Nachmittag
+   * wuerde eine Laufbahn umschreiben.
+   */
+  potentialCounter?: number;
+  /** Notensumme seit der letzten Bewertung. */
+  potentialRatingSum?: number;
+  /**
+   * Bruchteil, der noch nicht in das Potenzial eingeflossen ist.
+   *
+   * Der Ausschlag je Bewertung ist absichtlich klein - ohne diesen Speicher
+   * wuerde er beim Runden verschwinden und das Potenzial nie bewegen.
+   */
+  potentialDrift?: number;
+  /** Minutensumme seit der letzten Bewertung. */
+  potentialMinutes?: number;
   saveId: Id;
   saveName: string;
   seed: number;

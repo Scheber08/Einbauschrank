@@ -1,3 +1,5 @@
+import { START_POINTS, type AttrGroup } from '../engine/game';
+import { talentLabelKey, type TalentProfile } from '../engine/potential';
 import { useMemo, useState } from 'react';
 import { POSITIONS, POSITION_LABELS, POSITION_NEIGHBOURS, type PositionCode } from '../engine/attributes';
 import { BACKGROUND_LIST } from '../engine/backgrounds';
@@ -22,6 +24,11 @@ const DIFFICULTIES: Difficulty[] = ['einfach', 'normal', 'schwer', 'simulation']
 const EYE_COLORS = ['#4a3120', '#2f6b8f', '#3f7a4a', '#6b6b6b'];
 const BOOT_COLORS = ['#ffffff', '#111111', '#e0261f', '#1f6ee0', '#37d67a', '#f5c542'];
 
+/** Reihenfolge der Attributgruppen in der Punkteverteilung. */
+const GRUPPEN_ORDNUNG: AttrGroup[] = [
+  'technical', 'physical', 'mental', 'defensive', 'goalkeeping',
+];
+
 export default function CreateCareer() {
   useLocale();
   const [saveName, setSaveName] = useState(t('create.defaultSaveName'));
@@ -39,6 +46,13 @@ export default function CreateCareer() {
   const [shirtNumber, setShirtNumber] = useState(9);
   const [background, setBackground] = useState<BackgroundKey>('academy');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [talent, setTalent] = useState<TalentProfile>('steady');
+  /** Frei gewaehlte Startliga; null heisst: die Herkunft entscheidet. */
+  const [startLevel, setStartLevel] = useState<number | null>(null);
+  /** Verteilte Startpunkte je Attributgruppe. */
+  const [punkte, setPunkte] = useState<Record<AttrGroup, number>>({
+    technical: 0, physical: 0, mental: 0, defensive: 0, goalkeeping: 0,
+  });
 
   const [skinTone, setSkinTone] = useState(0);
   const [hairStyle, setHairStyle] = useState(1);
@@ -57,6 +71,9 @@ export default function CreateCareer() {
     setFirstName(rng.pick(pool.firstNames));
     setLastName(rng.pick(pool.lastNames));
   }
+
+  /** Wie viele Punkte schon vergeben sind. */
+  const vergeben = GRUPPEN_ORDNUNG.reduce((a, g) => a + punkte[g], 0);
 
   function toggleAlt(pos: PositionCode) {
     setAltPositions((prev) => prev.includes(pos)
@@ -82,6 +99,9 @@ export default function CreateCareer() {
       shirtNumber,
       appearance: { skinTone, hairStyle, hairColor, beard, eyeColor, boots },
       background,
+      talent,
+      attributePoints: punkte,
+      startLevel: startLevel ?? undefined,
     });
   }
 
@@ -252,6 +272,70 @@ export default function CreateCareer() {
               </div>
             </div>
           </div>
+        </Panel>
+
+        {/* Der Spieler nahm bisher hin, was gewuerfelt wurde: Attribute,
+            Startliga und die Frage, wie weit es reicht, standen alle fest,
+            bevor er zum ersten Mal auf dem Platz stand. */}
+        <Panel title={t('create.talent')}>
+          <div className="grid two">
+            {(['early', 'steady', 'late'] as TalentProfile[]).map((key) => (
+              <button key={key}
+                className={talent === key ? 'primary' : ''}
+                style={{ textAlign: 'left', padding: '0.6rem 0.8rem' }}
+                onClick={() => setTalent(key)}>
+                <div style={{ fontWeight: 680 }}>{t(talentLabelKey(key))}</div>
+                <div className="tiny" style={{ opacity: 0.85 }}>
+                  {t(`talent.${key}.desc`)}
+                </div>
+              </button>
+            ))}
+          </div>
+          <p className="tiny dim" style={{ marginTop: '0.5rem' }}>
+            {t('create.talentHint')}
+          </p>
+        </Panel>
+
+        <Panel title={t('create.points', { n: START_POINTS - vergeben })}>
+          {GRUPPEN_ORDNUNG.map((gruppe) => (
+            <div key={gruppe} className="row between" style={{ marginBottom: '0.3rem' }}>
+              <span className="small">{t(`create.group.${gruppe}`)}</span>
+              <span className="row" style={{ gap: '0.3rem' }}>
+                <button className="small ghost" disabled={punkte[gruppe] <= 0}
+                  onClick={() => setPunkte((p) => ({ ...p, [gruppe]: p[gruppe] - 1 }))}>
+                  &minus;
+                </button>
+                <span className="mono" style={{ minWidth: '1.6rem', textAlign: 'center' }}>
+                  {punkte[gruppe]}
+                </span>
+                <button className="small ghost" disabled={vergeben >= START_POINTS}
+                  onClick={() => setPunkte((p) => ({ ...p, [gruppe]: p[gruppe] + 1 }))}>
+                  +
+                </button>
+              </span>
+            </div>
+          ))}
+          <p className="tiny dim" style={{ marginTop: '0.5rem' }}>
+            {t('create.pointsHint')}
+          </p>
+        </Panel>
+
+        <Panel title={t('create.startLevel')}>
+          <div className="row" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
+            <button className={startLevel === null ? 'primary' : ''}
+              onClick={() => setStartLevel(null)}>
+              {t('create.startLevel.auto')}
+            </button>
+            {[1, 2, 3].map((lvl) => (
+              <button key={lvl} className={startLevel === lvl ? 'primary' : ''}
+                onClick={() => setStartLevel(lvl)}>
+                {t(`create.startLevel.${lvl}`)}
+              </button>
+            ))}
+          </div>
+          <p className="tiny dim" style={{ marginTop: '0.5rem' }}>
+            {t('create.startLevelHint')}
+          </p>
         </Panel>
 
         <Panel title={t('create.difficulty')}>

@@ -2,7 +2,17 @@
  * Spielablauf: Karrierestart, Tageslogik und Spielabwicklung
  * (Konzept Abschnitt 14, 18, 41, 51).
  */
-import { computeOverall, POSITION_LINE, type PositionCode } from './attributes';
+import {
+  REVIEW_ALLE, TALENT_PROFILE, reviewPotential, type TalentProfile,
+} from './potential';
+import { matchFormation } from './formation';
+import { formatKickoff, matchKickoff } from './kickoff';
+import { matchReferee } from './referee';
+import { matchWeather, weatherEffect } from './weather';
+import {
+  DEFENSIVE_ATTRS, GK_ATTRS, MENTAL_ATTRS, PHYSICAL_ATTRS, TECHNICAL_ATTRS,
+  computeOverall, POSITION_LINE, type AttrKey, type PositionCode,
+} from './attributes';
 import { BACKGROUNDS } from './backgrounds';
 import { COUNTRIES, COUNTRY_BY_ID } from './countries';
 import {
@@ -37,10 +47,6 @@ import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
 import { socialAfterMatch } from './social';
 import { attendanceRoll, expectedAttendance, matchImportance } from './rivalry';
-import { matchFormation } from './formation';
-import { formatKickoff, matchKickoff } from './kickoff';
-import { matchReferee } from './referee';
-import { matchWeather, weatherEffect } from './weather';
 import { Rng, clamp, randomSeed } from './rng';
 import {
   advanceCup, cupOfCountry, endSeason, leaguesFinished, leaguesOfCountry,
@@ -98,7 +104,48 @@ export interface NewGameOptions {
   shirtNumber: number;
   appearance: Appearance;
   background: BackgroundKey;
+  /**
+   * Wie sich die Laufbahn entfaltet. Ohne Angabe gleichmaessig - so bleiben
+   * aeltere Aufrufe gueltig.
+   */
+  talent?: TalentProfile;
+  /**
+   * Verteilte Zusatzpunkte je Attributgruppe.
+   *
+   * Vorher wurden alle Werte gewuerfelt und der Spieler nahm hin, was kam.
+   * Die Punkte sind kein Geschenk: was hier hineingeht, fehlt woanders,
+   * denn die Summe ist gedeckelt.
+   */
+  attributePoints?: Partial<Record<AttrGroup, number>>;
+  /**
+   * In welcher Liga es losgeht, 1 bis 3.
+   *
+   * Ohne Angabe entscheidet die Herkunft. Wer hoeher einsteigt, spielt
+   * seltener - das ist der Preis, nicht ein Bonus.
+   */
+  startLevel?: number;
 }
+
+/** Gruppen, auf die sich Startpunkte verteilen lassen. */
+export type AttrGroup = 'technical' | 'physical' | 'mental' | 'defensive' | 'goalkeeping';
+
+/** So viele Punkte stehen beim Start zur Verfuegung. */
+export const START_POINTS = 12;
+
+/**
+ * Die Attribute je Gruppe - fuer die Verteilung beim Karrierestart.
+ *
+ * Ein Punkt hebt die ganze Gruppe leicht an, nicht ein einzelnes Attribut.
+ * Sonst haette man in zwei Minuten einen Spieler mit 99 im Abschluss und
+ * 3 im Rest gebaut, und der Rest des Spiels waere sinnlos.
+ */
+const GRUPPEN: Record<AttrGroup, readonly AttrKey[]> = {
+  technical: TECHNICAL_ATTRS,
+  physical: PHYSICAL_ATTRS,
+  mental: MENTAL_ATTRS,
+  defensive: DEFENSIVE_ATTRS,
+  goalkeeping: GK_ATTRS,
+};
 
 // --- Karrierestart -----------------------------------------------------
 
@@ -148,6 +195,7 @@ export function createNewGame(opts: NewGameOptions): GameState {
     relationships: {},
     mentorId: null,
     pendingMatchId: null,
+    talentProfile: opts.talent ?? 'steady',
     cupState: {},
     offers: [],
     agent: createAgent(rng),
@@ -216,14 +264,41 @@ function createUserPlayer(state: GameState, rng: Rng, opts: NewGameOptions): Pla
     attrs[attr] = clamp(attrs[attr] + (bg.attrBonus[key] ?? 0), 3, 99);
   }
 
+  // Verteilte Startpunkte: jeder Punkt hebt eine ganze Gruppe leicht an.
+  // Der Deckel steht in START_POINTS, mehr laesst sich nicht ausgeben.
+  const verteilt = opts.attributePoints ?? {};
+  let ausgegeben = 0;
+  for (const gruppe of Object.keys(GRUPPEN) as AttrGroup[]) {
+    const punkte = Math.max(0, Math.round(verteilt[gruppe] ?? 0));
+    if (punkte === 0) continue;
+    const rest = Math.min(punkte, START_POINTS - ausgegeben);
+    if (rest <= 0) break;
+    ausgegeben += rest;
+    for (const attr of GRUPPEN[gruppe]) {
+      attrs[attr] = clamp(attrs[attr] + rest * 2, 3, 99);
+    }
+  }
+
+  const talent = TALENT_PROFILE[opts.talent ?? 'steady'];
+  // Das Talentprofil ist ein Tausch: der Frueh­entwickler startet staerker
+  // mit kurzem Fenster, der Spaetentwickler schwaecher mit langem.
+  if (talent.koennenMod !== 0) {
+    for (const attr of Object.keys(attrs) as AttrKey[]) {
+      attrs[attr] = clamp(attrs[attr] + talent.koennenMod, 3, 99);
+    }
+  }
+
   const ability = computeOverall(attrs, opts.position);
   const youthRoom = Math.max(0, 25 - opts.age);
   const potential = clamp(
-    Math.round(ability + youthRoom * rng.float(1.2, 2.6) + bg.potentialMod + rng.float(0, 5)),
+    Math.round(ability + youthRoom * rng.float(1.2, 2.6) + bg.potentialMod
+      + talent.startMod + rng.float(0, 5)),
     ability + 2, 97,
   );
 
-  const club = pickStartingClub(state, rng, bg.startLevel, bg.clubReputationBand, homeCountryOf(opts));
+  // Wer hoeher einsteigt, spielt seltener - der Preis steht in der Auswahl.
+  const startLevel = clamp(opts.startLevel ?? bg.startLevel, 1, 3);
+  const club = pickStartingClub(state, rng, startLevel, bg.clubReputationBand, homeCountryOf(opts));
   const league = club ? state.competitions[club.leagueId] : null;
   const level = league?.level ?? 3;
 
@@ -876,6 +951,63 @@ export function simulateUserMatch(state: GameState, matchId: Id): MatchOutcome |
   return ergebnis;
 }
 
+/**
+ * Schreibt das Potenzial nach ein paar Pflichtspielen fort.
+ *
+ * Es stand seit dem Karrierestart fest - die wichtigste Frage einer
+ * Laufbahn war damit vor dem ersten Anpfiff beantwortet. Bewertet wird in
+ * Abstaenden von sechs Spielen, nicht nach jedem: sonst waere die Zahl
+ * staendig in Bewegung und ein schwacher Nachmittag wuerde eine Laufbahn
+ * umschreiben.
+ */
+function pruefePotenzial(state: GameState, rng: Rng) {
+  const user = state.players[state.userPlayerId];
+  if (!user || state.retirement) return;
+
+  const letzte = state.matches[state.pendingMatchId ?? '']?.userStats
+    ?? null;
+  void letzte;
+  const zaehler = (state.potentialCounter ?? 0);
+  if (zaehler < REVIEW_ALLE) return;
+
+  const einsaetze = zaehler;
+  const schnitt = einsaetze > 0
+    ? (state.potentialRatingSum ?? 0) / einsaetze : 0;
+  const minuten = einsaetze > 0
+    ? (state.potentialMinutes ?? 0) / einsaetze : 0;
+
+  state.potentialCounter = 0;
+  state.potentialRatingSum = 0;
+  state.potentialMinutes = 0;
+
+  const profil = TALENT_PROFILE[state.talentProfile ?? 'steady'];
+  const alter = ageOn(user.birthDate, state.date);
+  const bericht = reviewPotential(
+    rng, user, alter, profil, schnitt, einsaetze, minuten,
+    state.potentialDrift ?? 0);
+
+  // Der Bruchteil bleibt liegen, bis ein ganzer Punkt zusammenkommt.
+  state.potentialDrift = bericht.drift;
+  if (bericht.schritt === 0) return;
+
+  const vorher = user.potential;
+  user.potential = vorher + bericht.schritt;
+
+  // Nur melden, wenn das Potenzial ueberhaupt sichtbar ist - sonst verraet
+  // die Nachricht eine Zahl, die der Schwierigkeitsgrad absichtlich
+  // verbirgt.
+  if (!DIFFICULTY_SETTINGS[state.difficulty].showPotential) return;
+  addNews(state,
+    'coach',
+    t(`news.potential.${bericht.grund}.title`),
+    t(`news.potential.${bericht.grund}.body`, {
+      last: user.lastName,
+      from: vorher,
+      to: user.potential,
+    }),
+    true);
+}
+
 export function finishUserMatch(state: GameState, matchId: Id, outcome: MatchOutcome) {
   const rng = new Rng(state.rngState);
   const match = state.matches[matchId];
@@ -942,6 +1074,15 @@ function commitMatch(
   match.penalties = input.penalties ?? undefined;
   match.extraTime = input.extraTime;
   match.events = input.events;
+
+  // Leistung seit der letzten Bewertung mitschreiben.
+  const eigene = match.userStats;
+  if (eigene && eigene.minutes > 0) {
+    state.potentialCounter = (state.potentialCounter ?? 0) + 1;
+    state.potentialRatingSum = (state.potentialRatingSum ?? 0) + eigene.rating;
+    state.potentialMinutes = (state.potentialMinutes ?? 0) + eigene.minutes;
+  }
+  pruefePotenzial(state, rng);
 
   // Zuschauerzahl aus Stadion, Zugkraft des Gegners und Bedeutung der Partie.
   match.attendance = expectedAttendance(state, match, attendanceRoll(match.id));
