@@ -551,10 +551,55 @@ function SkipModal({ bericht, onClose }:
         </div>
         <p className="muted">{t(grundText[bericht.grund])}</p>
 
+        {/* Ueber ein paar Tage aendert sich nichts; ueber eine ganze Saison
+            ist genau das die Geschichte, die man lesen will. */}
+        {(bericht.staerkeNachher !== bericht.staerkeVorher
+          || bericht.potenzialNachher !== bericht.potenzialVorher) && (
+          <div className="row" style={{ flexWrap: 'wrap', gap: '0.3rem' }}>
+            {bericht.staerkeNachher !== bericht.staerkeVorher && (
+              <Pill tone={bericht.staerkeNachher > bericht.staerkeVorher ? 'good' : 'bad'}>
+                {t('calendar.report.ability', {
+                  from: bericht.staerkeVorher, to: bericht.staerkeNachher,
+                })}
+              </Pill>
+            )}
+            {bericht.potenzialNachher !== bericht.potenzialVorher && (
+              <Pill tone={bericht.potenzialNachher > bericht.potenzialVorher ? 'good' : 'bad'}>
+                {t('calendar.report.potential', {
+                  from: bericht.potenzialVorher, to: bericht.potenzialNachher,
+                })}
+              </Pill>
+            )}
+          </div>
+        )}
+
+        {/* Als Pillen statt als Satz: sonst braucht jede Zahl ihre eigene
+            Mehrzahlregel und man liest "1 Vorlagen".
+
+            Gezaehlt werden **Einsaetze**, nicht Vereinspartien. Die Liste
+            unten enthaelt auch Spiele, in denen er nicht auf dem Platz
+            stand - stuenden die hier mit, waere die Zahl hoeher als im
+            Saisonbericht und niemand wuesste, welche stimmt. */}
+        {bericht.eigeneSpiele.length > 3 && (
+          <div className="row" style={{ flexWrap: 'wrap', gap: '0.3rem' }}>
+            <Pill>{tn('calendar.report.matches',
+              bericht.eigeneSpiele.filter((s) => s.note !== null).length)}</Pill>
+            <Pill>{tn('calendar.report.goalsTotal', bericht.tore)}</Pill>
+            <Pill>{tn('calendar.report.assistsTotal', bericht.vorlagen)}</Pill>
+            {bericht.schnittnote > 0 && (
+              <Pill>{t('calendar.report.avg', {
+                rating: tDecimal(bericht.schnittnote, 2),
+              })}</Pill>
+            )}
+          </div>
+        )}
+
+        {/* Ueber eine ganze Saison sind es vierzig Zeilen - dann zaehlt die
+            Zusammenfassung oben, und hier stehen nur die letzten zwoelf. */}
         {bericht.eigeneSpiele.length > 0 && (
           <table>
             <tbody>
-              {bericht.eigeneSpiele.map((s: SkipSummary['eigeneSpiele'][number]) => (
+              {bericht.eigeneSpiele.slice(-12).map((s: SkipSummary['eigeneSpiele'][number]) => (
                 <tr key={s.matchId}>
                   <td className="tiny dim" style={{ whiteSpace: 'nowrap' }}>
                     {formatDate(s.datum)}

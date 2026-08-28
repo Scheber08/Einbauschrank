@@ -4,7 +4,7 @@ import {
 } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { formatKickoff, matchKickoff } from '../../engine/kickoff';
-import { advanceUntil } from '../../state/actions';
+import { advanceSeason, advanceUntil } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
 import { t } from '../../i18n';
@@ -29,6 +29,8 @@ export default function CalendarTab() {
   const [showAll, setShowAll] = useState(false);
   const [eigeneSimulieren, setEigeneSimulieren] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
+  /** Rueckfrage vor dem Saisonsprung - er laesst sich nicht zuruecknehmen. */
+  const [saisonFrage, setSaisonFrage] = useState(false);
 
   const matches = useMemo(() => {
     const all = Object.values(game.matches)
@@ -72,6 +74,14 @@ export default function CalendarTab() {
     setLaeuft(false);
   }
 
+  function saisonSpringen() {
+    setSaisonFrage(false);
+    if (game.retirement || laeuft) return;
+    setLaeuft(true);
+    advanceSeason();
+    setLaeuft(false);
+  }
+
   const ziele: { label: string; datum: string }[] = [
     { label: t('calendar.jump.week'), datum: addDays(game.date, 7) },
     { label: t('calendar.jump.twoWeeks'), datum: addDays(game.date, 14) },
@@ -88,6 +98,13 @@ export default function CalendarTab() {
               {z.label}
             </button>
           ))}
+          {/* Eine ganze Saison auf einen Schlag. Bewusst abgesetzt und mit
+              Rueckfrage: der Sprung laesst sich nicht zuruecknehmen, und er
+              verzichtet auf alle Entscheidungen unterwegs. */}
+          <button className="small" disabled={laeuft || !!game.retirement}
+            onClick={() => setSaisonFrage(true)}>
+            {t('calendar.jump.season')}
+          </button>
           <label className="tiny dim row" style={{ gap: '0.3rem', marginLeft: 'auto' }}>
             <input type="checkbox" checked={eigeneSimulieren}
               onChange={(e) => setEigeneSimulieren(e.target.checked)} />
@@ -99,6 +116,22 @@ export default function CalendarTab() {
         </p>
       </Panel>
 
+      {saisonFrage && (
+        <div className="modal-overlay" onClick={() => setSaisonFrage(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('calendar.season.confirmTitle')}</h2>
+            <p className="muted">{t('calendar.season.confirmBody')}</p>
+            <div className="row">
+              <button className="primary" onClick={saisonSpringen}>
+                {t('calendar.season.confirmYes')}
+              </button>
+              <button className="ghost" onClick={() => setSaisonFrage(false)}>
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Panel title={t('calendar.title')} action={
         <div className="row">

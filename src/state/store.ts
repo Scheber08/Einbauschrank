@@ -53,6 +53,20 @@ export interface SkipSummary {
   trainingsPlus: number;
   /** Neue Meldungen im Feed. */
   meldungen: number;
+  /**
+   * Wie sich der eigene Spieler ueber den Sprung entwickelt hat.
+   *
+   * Bei einem Sprung ueber wenige Tage bleibt das gleich; ueber eine ganze
+   * Saison ist genau das die Geschichte, die man lesen will.
+   */
+  staerkeVorher: number;
+  staerkeNachher: number;
+  potenzialVorher: number;
+  potenzialNachher: number;
+  /** Tore, Vorlagen und Note ueber die simulierten eigenen Partien. */
+  tore: number;
+  vorlagen: number;
+  schnittnote: number;
   /** Warum der Sprung geendet hat. */
   grund: 'ziel' | 'spiel' | 'ereignis' | 'saison' | 'ende' | 'grenze';
   matchToPlay: Id | null;

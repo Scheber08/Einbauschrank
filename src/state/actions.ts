@@ -1,6 +1,8 @@
 /** Aktionen, die den Spielstand veraendern. */
 import { ensureAgent, startAgentTask } from '../engine/agent';
-import { ageOn, isBefore, makeDate, type GameDate } from '../engine/date';
+import {
+  addDays, ageOn, isBefore, makeDate, type GameDate,
+} from '../engine/date';
 import {
   advanceDay, createNewGame, createObjectives, simulateUserMatch, userClub,
   type DayResult, type NewGameOptions,
@@ -99,19 +101,38 @@ const MAX_SPRUNG = 400;
  * Sammelbericht. Sonst waere das Vorspulen kein Vorspulen.
  */
 export function advanceUntil(
-  ziel: GameDate, opts: { eigeneSimulieren?: boolean } = {},
+  ziel: GameDate,
+  opts: {
+    eigeneSimulieren?: boolean;
+    /**
+     * Ereignisse abseits des Platzes ueberspringen statt anzuhalten.
+     *
+     * Nur fuer den Sprung ueber eine ganze Saison gedacht. Wer eine Saison
+     * am Stueck ueberspringt, will nicht zwoelfmal nach einer Entscheidung
+     * gefragt werden - er verzichtet bewusst darauf. Denselben Weg geht
+     * "Direkt zum Anpfiff" schon lange.
+     */
+    ereignisseUeberspringen?: boolean;
+  } = {},
 ): SkipSummary {
   const game = getState().game;
   const leer: SkipSummary = {
     days: 0, von: ziel, bis: ziel, eigeneSpiele: [], trainingsPlus: 0,
     meldungen: 0, grund: 'ziel', matchToPlay: null, lifeEvent: null,
     seasonReport: null, wnc: null,
+    staerkeVorher: 0, staerkeNachher: 0, potenzialVorher: 0, potenzialNachher: 0,
+    tore: 0, vorlagen: 0, schnittnote: 0,
   };
   if (!game) return leer;
 
+  const spieler = game.players[game.userPlayerId];
   const von = game.date;
   const meldungenVorher = game.news.length;
-  const bericht: SkipSummary = { ...leer, von, bis: von, eigeneSpiele: [] };
+  const bericht: SkipSummary = {
+    ...leer, von, bis: von, eigeneSpiele: [],
+    staerkeVorher: spieler ? computeOverall(spieler.attrs, spieler.position) : 0,
+    potenzialVorher: spieler?.potential ?? 0,
+  };
 
   for (let i = 0; i < MAX_SPRUNG; i++) {
     if (!isBefore(game.date, ziel)) { bericht.grund = 'ziel'; break; }
@@ -165,7 +186,7 @@ export function advanceUntil(
         bericht.trainingsPlus += zuwachs.amount;
       }
     }
-    if (tag.lifeEvent) {
+    if (tag.lifeEvent && !opts.ereignisseUeberspringen) {
       bericht.lifeEvent = tag.lifeEvent;
       bericht.grund = 'ereignis';
       break;
@@ -179,6 +200,16 @@ export function advanceUntil(
 
   bericht.bis = game.date;
   bericht.meldungen = Math.max(0, game.news.length - meldungenVorher);
+
+  const danach = game.players[game.userPlayerId];
+  bericht.staerkeNachher = danach
+    ? computeOverall(danach.attrs, danach.position) : bericht.staerkeVorher;
+  bericht.potenzialNachher = danach?.potential ?? bericht.potenzialVorher;
+  bericht.tore = bericht.eigeneSpiele.reduce((a, p) => a + p.eigeneTore, 0);
+  bericht.vorlagen = bericht.eigeneSpiele.reduce((a, p) => a + p.vorlagen, 0);
+  const benotet = bericht.eigeneSpiele.filter((p) => p.note !== null);
+  bericht.schnittnote = benotet.length > 0
+    ? benotet.reduce((a, p) => a + (p.note ?? 0), 0) / benotet.length : 0;
   if (bericht.grund === 'ziel' && isBefore(game.date, ziel)) bericht.grund = 'grenze';
 
   commit();
@@ -187,6 +218,32 @@ export function advanceUntil(
   // der Sprung an einem Ereignis endet und der Reiter wechselt.
   setState({ skipReport: bericht });
   return bericht;
+}
+
+/**
+ * Spielt die laufende Saison in einem Zug zu Ende.
+ *
+ * Der Kalender konnte bis zu einem Datum vorspulen, hielt dabei aber an
+ * jedem eigenen Spiel und jeder Entscheidung an. Fuer eine ganze Saison
+ * waren das drei Dutzend Unterbrechungen - der Sprung war moeglich, aber
+ * niemand hat ihn gemacht.
+ *
+ * Hier wird durchgezogen: eigene Spiele werden simuliert, Entscheidungen
+ * abseits des Platzes ausgelassen. Angehalten wird nur am Saisonende, am
+ * Karriereende und an der Sicherheitsgrenze. Was dabei passiert ist,
+ * steht hinterher im Bericht - sonst waere eine ganze Saison ein
+ * schwarzes Loch.
+ */
+export function advanceSeason(): SkipSummary {
+  const game = getState().game;
+  // Ohne Spielstand gibt es nichts zu ueberspringen - `advanceUntil`
+  // liefert dafuer einen leeren Bericht zurueck.
+  if (!game) return advanceUntil('2000-01-01');
+  // Weit genug fuer jede Saison; die Schleife bricht am Saisonbericht ab.
+  return advanceUntil(addDays(game.date, MAX_SPRUNG - 1), {
+    eigeneSimulieren: true,
+    ereignisseUeberspringen: true,
+  });
 }
 
 export function advanceCalendar(maxDays = 60): AdvanceSummary {

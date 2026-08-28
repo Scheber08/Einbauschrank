@@ -9,7 +9,7 @@ import {
   formatKickoff, kickoffAuslastung, matchKickoff,
 } from './engine/kickoff';
 import { minutenGewicht, zieheTorminute } from './engine/tempo';
-import { advanceUntil } from './state/actions';
+import { advanceSeason, advanceUntil } from './state/actions';
 import { getState, setState } from './state/store';
 import type { Challenge } from './engine/matchTypes';
 import { matchReferee, type RefereeStyle } from './engine/referee';
@@ -1914,6 +1914,41 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       const rueckwaerts = advanceUntil(addDays(game.date, -5));
       check('Ein Ziel in der Vergangenheit bewegt nichts',
         rueckwaerts.days === 0, `${rueckwaerts.days} Tage`);
+
+      // Der Sprung ueber eine ganze Saison: bis zum Saisonende durchziehen,
+      // eigene Spiele simulieren, Entscheidungen auslassen. Vorher war das
+      // zwar moeglich, aber mit drei Dutzend Unterbrechungen - der Sprung
+      // existierte auf dem Papier und niemand hat ihn gemacht.
+      const saisonVorher = game.season;
+      const saison = advanceSeason();
+      log(`Saisonsprung: ${saison.days} Tage, ${saison.eigeneSpiele.length} `
+        + `eigene Partien, ${saison.tore} Tore, Grund ${saison.grund}, `
+        + `Staerke ${saison.staerkeVorher} auf ${saison.staerkeNachher}`);
+
+      check('Der Saisonsprung deckt einen grossen Teil des Jahres ab',
+        saison.days > 150, `${saison.days} Tage`);
+      check('Er endet am Saisonende oder am Karriereende',
+        saison.grund === 'saison' || saison.grund === 'ende'
+        || saison.grund === 'grenze',
+        saison.grund);
+      check('Ereignisse halten ihn nicht auf', saison.lifeEvent === null);
+      check('Eigene Spiele halten ihn nicht auf', saison.matchToPlay === null);
+      if (saison.eigeneSpiele.length > 10) {
+        check('Ueber eine Saison kommen viele eigene Partien zusammen',
+          saison.eigeneSpiele.length >= 20, `${saison.eigeneSpiele.length}`);
+        check('Alle simulierten Partien sind hinterher gespielt',
+          saison.eigeneSpiele.every((p) => game.matches[p.matchId]?.played));
+      }
+      if (saison.grund === 'saison') {
+        check('Die Saison ist danach eine weiter', game.season === saisonVorher + 1,
+          `${saisonVorher} auf ${game.season}`);
+      }
+
+      // Der Bogen der Laufbahn gehoert in den Bericht - sonst waere eine
+      // ganze Saison ein schwarzes Loch.
+      check('Der Bericht traegt Staerke und Potenzial',
+        saison.staerkeVorher > 0 && saison.potenzialVorher > 0,
+        `${saison.staerkeVorher}/${saison.potenzialVorher}`);
     } finally {
       setState({ game: vorher });
     }
@@ -3121,6 +3156,9 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/game.ts', name: 'simulateUserMatch', mindestens: 1 },
     { datei: '/src/state/actions.ts', name: 'simulateUserMatch', mindestens: 2 },
     { datei: '/src/state/actions.ts', name: 'advanceUntil', mindestens: 1 },
+    { datei: '/src/state/actions.ts', name: 'advanceSeason', mindestens: 1 },
+    { datei: '/src/state/actions.ts', name: 'ereignisseUeberspringen', mindestens: 2 },
+    { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceSeason', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },
     { datei: '/src/engine/matchEngine.ts', name: 'schwung', mindestens: 5 },
