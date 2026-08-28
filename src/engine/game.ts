@@ -36,6 +36,7 @@ import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
 import { socialAfterMatch } from './social';
 import { attendanceRoll, expectedAttendance, matchImportance } from './rivalry';
+import { matchWeather, weatherEffect } from './weather';
 import { Rng, clamp, randomSeed } from './rng';
 import {
   advanceCup, cupOfCountry, endSeason, leaguesFinished, leaguesOfCountry,
@@ -622,6 +623,7 @@ function simulateBackgroundMatch(
 
   const result = simulateLight(
     rng, match.id, homeClub, awayClub, homeSquad, awaySquad, match.neutralVenue,
+    matchWeather(match.id, match.date),
   );
 
   const homeScore = result.homeScore;
@@ -654,8 +656,11 @@ function simulateResultOnly(
   const awayRating = quickTeamRating(awaySquad);
   const diff = (homeRating - awayRating) / 9;
   const advantage = match.neutralVenue ? 0 : 0.26;
-  const homeScore = rng.poisson(clamp(1.32 + diff * 0.44 + advantage, 0.18, 5));
-  const awayScore = rng.poisson(clamp(1.12 - diff * 0.44, 0.14, 4.6));
+  // Dieselbe Wetterwirkung wie in den beiden anderen Tiefen.
+  const w = weatherEffect(matchWeather(match.id, match.date));
+  const nass = (w.accuracy + w.longShot) / 2;
+  const homeScore = rng.poisson(clamp((1.32 + diff * 0.44 + advantage) * nass, 0.18, 5));
+  const awayScore = rng.poisson(clamp((1.12 - diff * 0.44) * nass, 0.14, 4.6));
 
   match.homeScore = homeScore;
   match.awayScore = awayScore;
@@ -796,6 +801,7 @@ export function prepareUserMatch(
       relationships: state.relationships,
       importance: matchImportance(state, match),
       attendance: expectedAttendance(state, match, attendanceRoll(match.id)),
+      weather: matchWeather(match.id, match.date),
     },
     homeLineup, awayLineup, userInLineup, userOnBench,
   };

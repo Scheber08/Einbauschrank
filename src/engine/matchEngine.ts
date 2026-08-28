@@ -3,6 +3,7 @@
  * Simuliert Minute fuer Minute und haelt an, sobald der eigene Spieler
  * eine Schluesselsituation hat, die selbst gespielt werden kann.
  */
+import { weatherEffect, type Weather } from './weather';
 import { POSITION_LINE, effectiveOverall } from './attributes';
 import { GOAL_HALF_WIDTH } from './ballAction';
 import type { Lineup } from './lineup';
@@ -52,6 +53,8 @@ export interface MatchEngineSetup {
   importance?: MatchImportance;
   /** Erwartete Zuschauerzahl - fuer die Atmosphaere in den Szenen. */
   attendance?: number;
+  /** Wetter am Spieltag. Faerbt Zielgenauigkeit, Fernschuesse und Kraft. */
+  weather?: Weather;
 }
 
 export interface MatchOutcome {
@@ -415,7 +418,10 @@ export class MatchEngine {
     if (this.minute === 0) {
       this.emit(evts, {
         minute: 0, type: 'kickoff', side: null,
-        text: tVariant('live.kickoff', this.rng.next(), { home: this.setup.homeClub.name, away: this.setup.awayClub.name }),
+        text: tVariant('live.kickoff', this.rng.next(), { home: this.setup.homeClub.name, away: this.setup.awayClub.name })
+          + (this.setup.weather
+            ? ' ' + tVariant(`live.weather.${this.setup.weather}`, this.rng.next())
+            : ''),
       });
     }
 
@@ -587,7 +593,10 @@ export class MatchEngine {
       const teamEffort = side === this.userSide ? this.secondHalfEffortMod : 1;
       for (const o of this.onPitch[side]) {
         const stamina = o.player.attrs.stamina;
-        let drain = (0.28 + (100 - stamina) / 100 * 0.3) * teamEffort;
+        // Hitze zehrt deutlich, Kaelte kaum - deshalb haengt der Verbrauch
+        // mit am Wetter.
+        let drain = (0.28 + (100 - stamina) / 100 * 0.3) * teamEffort
+          * this.wetter.stamina;
         // Die eigene Ausrichtung steuert, wie viel Kraft der Spieler laesst.
         if (o.player.id === userId) drain *= effort;
         const current = this.liveFitness.get(o.player.id) ?? 90;
@@ -765,6 +774,9 @@ export class MatchEngine {
     if (kind === 'oneOnOne') xg = clamp(xg * 1.9, 0.12, 0.62);
     xg *= 0.72 + balance * 0.6;
     xg *= xgBonus;
+    // Aus der Distanz macht das Wetter am meisten aus: ein Ball, der im Wind
+    // steht oder auf nassem Rasen aufsetzt, kommt selten dort an, wo er soll.
+    if (kind === 'longShot') xg *= this.wetter.longShot;
     xg = clamp(xg, 0.01, 0.82);
 
     return { kind, distance, offset, xg, bigChance: xg >= 0.27 };
@@ -868,8 +880,9 @@ export class MatchEngine {
     const defSide = this.other(side);
     const keeperRating = this.strengthOf(defSide).keeper;
 
-    // Ist der Schuss auf dem Tor?
-    const accuracy = 0.32 + shooter.player.attrs.finishing / 230 + (inputBonus - 1) * 0.18;
+    // Ist der Schuss auf dem Tor? Bei Wind, Regen und Schnee seltener.
+    const accuracy = (0.32 + shooter.player.attrs.finishing / 230
+      + (inputBonus - 1) * 0.18) * this.wetter.accuracy;
     const onTarget = this.rng.chance(clamp(accuracy, 0.2, 0.85));
 
     if (!onTarget) {
@@ -1210,6 +1223,14 @@ export class MatchEngine {
    * der Chancenqualitaet niederschlaegt. Ohne diesen Zusatz fuehlte sich
    * jeder Gegner gleich an.
    */
+  /**
+   * Wetterwirkung dieser Partie. Einmal nachgeschlagen statt in jeder
+   * Szene - das Wetter aendert sich waehrend eines Spiels nicht.
+   */
+  private get wetter() {
+    return weatherEffect(this.setup.weather);
+  }
+
   private withImportance(base: number): number {
     return clamp(
       base + (this.setup.importance?.pressure ?? 0) + this.gegnerDruck()

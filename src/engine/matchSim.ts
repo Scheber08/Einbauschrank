@@ -2,6 +2,7 @@
  * Gemeinsame Simulationsbausteine und die Hintergrundsimulation
  * (Konzept Abschnitt 27 und 56).
  */
+import { weatherEffect, type Weather } from './weather';
 import { POSITION_LINE, effectiveOverall, type PositionCode, computeOverall } from './attributes';
 import { isAvailable, quickTeamRating } from './lineup';
 import { Rng, clamp } from './rng';
@@ -186,6 +187,7 @@ function pickLightLineup(squad: Player[], formation: keyof typeof FORMATION_SLOT
 export function simulateLight(
   rng: Rng, matchId: Id, homeClub: Club, awayClub: Club,
   homeSquad: Player[], awaySquad: Player[], neutral = false,
+  weather?: Weather,
 ): LightResult {
   const home = pickLightLineup(homeSquad, homeClub.formation);
   const away = pickLightLineup(awaySquad, awayClub.formation);
@@ -195,8 +197,14 @@ export function simulateLight(
   const diff = (homeRating - awayRating) / 9;
   const homeAdvantage = neutral ? 0 : 0.26;
 
-  const lambdaHome = clamp(1.32 + diff * 0.44 + homeAdvantage, 0.18, 5);
-  const lambdaAway = clamp(1.12 - diff * 0.44, 0.14, 4.6);
+  // Dieselbe Wetterwirkung wie in der ausgespielten Partie, nur eine Stufe
+  // grober: dort trifft sie Zielgenauigkeit und Fernschuesse, hier direkt
+  // die Torerwartung.
+  const wetter = weatherEffect(weather);
+  const nass = (wetter.accuracy + wetter.longShot) / 2;
+
+  const lambdaHome = clamp((1.32 + diff * 0.44 + homeAdvantage) * nass, 0.18, 5);
+  const lambdaAway = clamp((1.12 - diff * 0.44) * nass, 0.14, 4.6);
 
   const homeScore = rng.poisson(lambdaHome);
   const awayScore = rng.poisson(lambdaAway);

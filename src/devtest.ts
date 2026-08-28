@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { matchWeather, type Weather } from './engine/weather';
 import { attendanceRoll } from './engine/rivalry';
 import { autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
 import { computeOverall } from './engine/attributes';
@@ -1358,6 +1359,80 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         .slice(0, 200).map((m) => attendanceRoll(m.id));
       check('Verschiedene Partien bekommen verschiedene Wuerfe',
         new Set(andere).size > 60, `${new Set(andere).size} von ${andere.length}`);
+    }
+  }
+  // --- Wetter (Abschnitt 30) -------------------------------------------
+  //
+  // Wetter gab es gar nicht: ein Januarspiel im Schneetreiben und ein
+  // Augustnachmittag bei dreissig Grad liefen ueber dieselben Zahlen. Es ist
+  // die billigste Abwechslung, die Fussball kennt - sie faerbt das Bild,
+  // ohne dass der Spieler etwas dafuer tun muss.
+  log('\n--- Wetter ---');
+  {
+    // Aus der Kennung abgeleitet, nicht gewuerfelt: Vorbereitung,
+    // Oberflaeche und Abrechnung sehen garantiert dasselbe Wetter.
+    const partien = Object.values(game.matches).slice(0, 400);
+    check('Dieselbe Partie bekommt immer dasselbe Wetter',
+      partien.every((m) => matchWeather(m.id, m.date) === matchWeather(m.id, m.date)));
+
+    const zaehle = (monat: number) => {
+      const tag = `2027-${String(monat).padStart(2, '0')}-15`;
+      const n: Record<string, number> = {};
+      for (const m of partien) {
+        const w = matchWeather(m.id, tag);
+        n[w] = (n[w] ?? 0) + 1;
+      }
+      return n;
+    };
+    const januar = zaehle(1);
+    const juli = zaehle(7);
+    log(`Januar: ${Object.entries(januar).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+    log(`Juli:   ${Object.entries(juli).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+
+    check('Im Januar faellt Schnee, im Juli nicht',
+      (januar.snow ?? 0) > 0 && (juli.snow ?? 0) === 0,
+      `Januar ${januar.snow ?? 0}, Juli ${juli.snow ?? 0}`);
+    check('Hitze gibt es im Juli, im Januar nicht',
+      (juli.heat ?? 0) > 0 && (januar.heat ?? 0) === 0,
+      `Juli ${juli.heat ?? 0}, Januar ${januar.heat ?? 0}`);
+    check('Ueber ein Jahr kommen mindestens sieben Wetterlagen vor',
+      new Set([...Object.keys(januar), ...Object.keys(juli),
+        ...Object.keys(zaehle(4)), ...Object.keys(zaehle(10))]).size >= 7,
+      `${new Set([...Object.keys(januar), ...Object.keys(juli),
+        ...Object.keys(zaehle(4)), ...Object.keys(zaehle(10))]).size}`);
+
+    // Die Wirkung selbst: dieselbe Partie, dieselben Wuerfel, nur das Wetter
+    // unterscheidet sich. Gezaehlt wird, wie viele Schuesse aufs Tor kommen.
+    const partie = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (partie) {
+      const quoteBei = (w: Weather) => {
+        let schuesse = 0, aufsTor = 0;
+        for (let i = 0; i < 8; i++) {
+          const vorbereitet = prepareUserMatch(game, partie.id, true);
+          if (!vorbereitet) break;
+          const rngW = new Rng(8800 + i * 191);
+          const engine = new MatchEngine({
+            ...vorbereitet.setup, rng: rngW, highlightMode: 'own', weather: w,
+          });
+          engine.runToEnd(
+            (c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngW));
+          const t = engine.teamStats;
+          schuesse += t.home.shots + t.away.shots;
+          aufsTor += t.home.shotsOnTarget + t.away.shotsOnTarget;
+        }
+        return schuesse > 0 ? aufsTor / schuesse : 0;
+      };
+      const sonne = quoteBei('clear');
+      const schnee = quoteBei('snow');
+      log(`Schuesse aufs Tor: bei Sonne ${(sonne * 100).toFixed(1)} %, `
+        + `bei Schneefall ${(schnee * 100).toFixed(1)} %`);
+      if (sonne > 0 && schnee > 0) {
+        check('Im Schnee kommen weniger Schuesse aufs Tor', schnee < sonne,
+          `${(schnee * 100).toFixed(1)} % gegen ${(sonne * 100).toFixed(1)} %`);
+        check('Das Wetter entscheidet die Partie nicht', schnee > sonne * 0.7,
+          `Faktor ${(schnee / sonne).toFixed(2)}`);
+      }
     }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
