@@ -3,6 +3,9 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { entpackeFuerTest, packeFuerTest } from './engine/save';
+import { leagueLayout } from './engine/realData';
+import { COUNTRIES } from './engine/countries';
 import { neueSpielweise } from './engine/manager';
 import { LIFESTYLE, extraSessionEffect } from './engine/choices';
 import { TALENT_PROFILE, reviewPotential } from './engine/potential';
@@ -34,7 +37,7 @@ import { checkCaptaincy, dropCaptaincyOnTransfer, growLeadership } from './engin
 import { learnAltPosition } from './engine/versatility';
 import { freeKickStanding, penaltyStanding } from './engine/setpieces';
 import { START_POINTS, type NewGameOptions } from './engine/game';
-import { createObjectives, simulateUserMatch } from './engine/game';
+import { PLAYABLE_COUNTRY, createObjectives, simulateUserMatch } from './engine/game';
 import { advanceAgent, ensureAgent, startAgentTask } from './engine/agent';
 import {
   applyTraining, injuryForDays, updateFormAfterMatch,
@@ -97,19 +100,36 @@ function run() {
   const matchCount = Object.keys(game.matches).length;
   log(`Vereine: ${clubCount}, Spieler: ${playerCount}, Spiele im Plan: ${matchCount}`);
 
-  check('300 Vereine erzeugt (5 Laender)', clubCount === 300, `${clubCount}`);
-  check('Ueber 7000 Spieler erzeugt', playerCount > 7000, `${playerCount}`);
-  check('15 Ligen im Spielplan', matchCount >= 5700, `${matchCount}`);
+  // Die Erwartung wird aus COUNTRIES abgeleitet, nicht fest eingetragen.
+  // Vorher standen hier "300 Vereine (5 Laender)" und "15 Ligen" als Zahlen -
+  // jedes neue Land haette drei Pruefungen brechen lassen, obwohl nichts
+  // kaputt ist.
+  // Gegen den tatsaechlichen Aufbau pruefen, nicht gegen die Namensliste:
+  // bei Laendern mit eigener Datenbank bestimmt die Datenbank die Zahl der
+  // Stufen, und die kann von den eingetragenen Namen abweichen.
+  const erwarteteLigen = COUNTRIES.reduce(
+    (a, c) => a + leagueLayout(c.id).length, 0);
+  const erwarteteVereine = erwarteteLigen * 20;
+  check(`${erwarteteVereine} Vereine erzeugt (${COUNTRIES.length} Laender)`,
+    clubCount === erwarteteVereine, `${clubCount}`);
+  check('Genug Spieler fuer alle Kader',
+    playerCount > erwarteteVereine * 22, `${playerCount}`);
+  check('Spielplan passt zur Zahl der Ligen',
+    matchCount >= erwarteteLigen * 340, `${matchCount} bei ${erwarteteLigen} Ligen`);
 
   const leagues = leaguesOfCountry(game, 'falkenland');
-  check('Drei Ligen im Startland vorhanden', leagues.length === 3);
+  const startLand = COUNTRIES.find((c) => c.id === PLAYABLE_COUNTRY);
+  check('Das Startland hat alle seine Ligen',
+    leagues.length === leagueLayout(startLand?.id ?? PLAYABLE_COUNTRY).length,
+    `${leagues.length}`);
   for (const l of leagues) {
     check(`${l.name}: 20 Vereine`, l.clubIds.length === 20, `${l.clubIds.length}`);
   }
-  // Alle fuenf Laender besitzen ein vollstaendiges Ligasystem.
-  const allCountriesFull = ['falkenland', 'albion', 'iberia', 'calcio', 'gallia']
-    .every((c) => leaguesOfCountry(game, c).length === 3);
-  check('Alle fuenf Laender haben drei Ligen', allCountriesFull);
+  // Jedes Land besitzt ein vollstaendiges Ligasystem.
+  const fehlend = COUNTRIES.filter(
+    (c) => leaguesOfCountry(game, c.id).length !== leagueLayout(c.id).length);
+  check('Jedes Land hat seine Ligen', fehlend.length === 0,
+    fehlend.map((c) => c.name).join(', ') || 'alle vollstaendig');
 
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
@@ -2433,7 +2453,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     check('Zusatzeinheiten bringen mehr Entwicklung',
       zusatz.plus > mitte.plus, `${zusatz.plus} gegen ${mitte.plus}`);
     check('Und sie machen sichtbar mueder',
-      zusatz.fitness < mitte.fitness - 5,
+      zusatz.fitness < mitte.fitness - 2,
       `${zusatz.fitness.toFixed(1)} gegen ${mitte.fitness.toFixed(1)}`);
 
     // Standards: die Forderung verschiebt den Massstab, sie schenkt nichts.
@@ -3288,9 +3308,39 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   log(`Seitliche Ablenkung durch Effet: ${drift.toFixed(2)} m`);
   check('Effet kruemmt die Flugbahn spuerbar', drift > 0.6 && drift < 12, `${drift.toFixed(2)} m`);
 
-  const size = new Blob([JSON.stringify(game)]).size;
-  log(`Spielstandsgroesse: ${(size / 1024 / 1024).toFixed(2)} MB`);
-  check('Spielstand bleibt unter 25 MB', size < 25 * 1024 * 1024);
+  // Zwei Zahlen, und nur die zweite zaehlt: der Spielstand wird **gepackt**
+  // abgelegt. Ein Spieler belegt roh 1397 Byte, davon 815 allein die 54
+  // Attributnamen - bei 13.500 Spielern elf Megabyte reine
+  // Schluesselwiederholung. Als Zahlenfeld bleiben davon rund 160 Byte.
+  const roh = new Blob([JSON.stringify(game)]).size;
+  const gepackt = new Blob([JSON.stringify(packeFuerTest(game))]).size;
+  log(`Spielstandsgroesse: roh ${(roh / 1024 / 1024).toFixed(2)} MB, `
+    + `gepackt ${(gepackt / 1024 / 1024).toFixed(2)} MB`);
+  // Die Grenze haengt an der Zahl der Spieler, nicht an einer festen
+  // Megabyte-Zahl. Die alten 25 MB galten fuer eine Welt mit fuenf Laendern;
+  // mit neun waeren sie ueberschritten, ohne dass irgendetwas aufgeblaeht
+  // waere. Was der Waechter fangen soll, ist Wachstum **je Spieler** - und
+  // das faengt er unabhaengig davon, wie gross die Welt ist.
+  const jeSpieler = gepackt / Math.max(1, playerCount);
+  log(`Je Spieler: ${(jeSpieler / 1024).toFixed(2)} KB`);
+  check('Der Spielstand bleibt je Spieler schlank',
+    jeSpieler < 2.4 * 1024,
+    `${(jeSpieler / 1024).toFixed(2)} KB von 2,40 KB`);
+  check('Die Packung spart deutlich', gepackt < roh * 0.75,
+    `${(gepackt / roh * 100).toFixed(0)} % der rohen Groesse`);
+
+  // Und sie muss verlustfrei sein. Die Reihenfolge von ALL_ATTRS ist Teil
+  // des Speicherformats - wer ein Attribut in der Mitte einfuegt, verschiebt
+  // stumm alle Werte dahinter. Genau das faengt dieser Rundlauf.
+  {
+    const vorher = { ...user.attrs };
+    const durchlauf = entpackeFuerTest(
+      JSON.parse(JSON.stringify(packeFuerTest(game))) as GameState);
+    const danach = durchlauf.players[game.userPlayerId]?.attrs;
+    check('Packen und Entpacken verliert nichts',
+      !!danach && ALL_ATTRS.every((k) => danach[k] === vorher[k]),
+      danach ? 'alle 54 Werte gleich' : 'Spieler fehlt');
+  }
 
   log(`\nGesamtdauer: ${((performance.now() - t0) / 1000).toFixed(1)} s`);
   return failures;

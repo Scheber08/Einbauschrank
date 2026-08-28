@@ -1,5 +1,5 @@
 /**
- * Die fuenf bespielbaren Laender (Konzept Abschnitt 5).
+ * Die bespielbaren Laender (Konzept Abschnitt 5).
  *
  * Laendernamen sind geografische Bezeichnungen und frei verwendbar. Die
  * Liganamen sind bewusst allgemein gehalten ("Erste Liga" statt geschuetzter
@@ -47,7 +47,10 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['highPress', 'buildUp', 'possession', 'counter', 'direct'],
     wealth: 1.0,
     youth: 85,
-    leagueNames: ['Deutschland Erste Liga', 'Deutschland Zweite Liga', 'Deutschland Dritte Liga'],
+    leagueNames: [
+      'Deutschland Erste Liga', 'Deutschland Zweite Liga',
+      'Deutschland Dritte Liga', 'Deutschland Vierte Liga',
+    ],
     cupName: 'Deutschland-Pokal',
   },
   {
@@ -65,7 +68,10 @@ export const COUNTRIES: CountryDef[] = [
     tactics: ['highPress', 'direct', 'wingPlay', 'counter', 'longBall'],
     wealth: 1.4,
     youth: 72,
-    leagueNames: ['England Erste Liga', 'England Zweite Liga', 'England Dritte Liga'],
+    leagueNames: [
+      'England Erste Liga', 'England Zweite Liga',
+      'England Dritte Liga', 'England Vierte Liga',
+    ],
     cupName: 'England-Pokal',
   },
   {
@@ -121,6 +127,78 @@ export const COUNTRIES: CountryDef[] = [
     youth: 90,
     leagueNames: ['Frankreich Erste Liga', 'Frankreich Zweite Liga', 'Frankreich Dritte Liga'],
     cupName: 'Frankreich-Pokal',
+  },
+  {
+    id: 'batavia',
+    name: 'Niederlande',
+    short: 'NED',
+    reputation: 70,
+    description: 'Ballbesitz, Ausbildung und fruehe Chancen fuer junge Spieler.',
+    style: 'Ballbesitz und Ausbildung',
+    specials: ['Beste Nachwuchsarbeit', 'Junge Mannschaften', 'Bescheidene Gehaelter'],
+    attrBias: {
+      shortPass: 7, vision: 6, firstTouch: 6, ballControl: 5,
+      decisions: 5, teamwork: 4, pressing: 4,
+    },
+    tactics: ['possession', 'buildUp', 'highPress', 'wingPlay'],
+    wealth: 0.78,
+    youth: 94,
+    leagueNames: ['Niederlande Erste Liga', 'Niederlande Zweite Liga', 'Niederlande Dritte Liga'],
+    cupName: 'Niederlande-Pokal',
+  },
+  {
+    id: 'lusitania',
+    name: 'Portugal',
+    short: 'POR',
+    reputation: 74,
+    description: 'Technisch, dribbelstark, mit einem Auge fuer den Weiterverkauf.',
+    style: 'Technisch und dribbelstark',
+    specials: ['Talentschmiede fuer groessere Ligen', 'Enge Stadien', 'Viel Technik'],
+    attrBias: {
+      dribbling: 7, ballControl: 6, curve: 5, agility: 5,
+      crossing: 4, freeKicks: 4, composure: 3,
+    },
+    tactics: ['possession', 'wingPlay', 'counter', 'buildUp'],
+    wealth: 0.72,
+    youth: 88,
+    leagueNames: ['Portugal Erste Liga', 'Portugal Zweite Liga', 'Portugal Dritte Liga'],
+    cupName: 'Portugal-Pokal',
+  },
+  {
+    id: 'amazonia',
+    name: 'Brasilien',
+    short: 'BRA',
+    reputation: 76,
+    description: 'Technik, Uebersteiger und Spieler, die schon mit achtzehn abgeworben werden.',
+    style: 'Technisch und einfallsreich',
+    specials: ['Riesiger Talentpool', 'Frueher Wechsel nach Europa', 'Wenig Geld'],
+    attrBias: {
+      dribbling: 8, ballControl: 7, agility: 6, balance: 5,
+      curve: 5, finishing: 3, discipline: -4,
+    },
+    tactics: ['possession', 'wingPlay', 'direct', 'counter'],
+    wealth: 0.6,
+    youth: 92,
+    leagueNames: ['Brasilien Erste Liga', 'Brasilien Zweite Liga', 'Brasilien Dritte Liga'],
+    cupName: 'Brasilien-Pokal',
+  },
+  {
+    id: 'anatolia',
+    name: 'Tuerkei',
+    short: 'TUR',
+    reputation: 66,
+    description: 'Leidenschaft auf den Raengen, direkter Fussball, hitzige Derbys.',
+    style: 'Leidenschaftlich und direkt',
+    specials: ['Lauteste Kulissen', 'Viele Derbys', 'Schnelle Trainerwechsel'],
+    attrBias: {
+      bravery: 6, strength: 5, longShots: 5, stamina: 4,
+      tackling: 4, composure: -3,
+    },
+    tactics: ['direct', 'counter', 'longBall', 'highPress'],
+    wealth: 0.7,
+    youth: 66,
+    leagueNames: ['Tuerkei Erste Liga', 'Tuerkei Zweite Liga', 'Tuerkei Dritte Liga'],
+    cupName: 'Tuerkei-Pokal',
   },
 ];
 

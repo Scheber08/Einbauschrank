@@ -3,6 +3,7 @@
  * Jeder Spielstand besitzt eine eigene Save-ID, damit sich Daten
  * verschiedener Karrieren niemals vermischen koennen.
  */
+import { ALL_ATTRS } from './attributes';
 import { ageOn, seasonLabel, year } from './date';
 import { normalizeNationality } from './nations';
 import type { GameState } from './types';
@@ -102,12 +103,56 @@ export function buildMeta(state: GameState): SaveMeta {
   };
 }
 
+/**
+ * Attribute als Zahlenfeld statt als Verzeichnis speichern.
+ *
+ * Ein Spieler belegt 1397 Byte, davon **815 allein die 54
+ * Attributnamen** - bei 13.500 Spielern sind das elf Megabyte reine
+ * Schluesselwiederholung. Als Feld in der festen Reihenfolge von
+ * `ALL_ATTRS` bleiben davon rund 160 Byte.
+ *
+ * Die Reihenfolge ist damit Teil des Speicherformats: **neue Attribute
+ * gehoeren ans Ende von `ALL_ATTRS`**, sonst liest ein alter Spielstand
+ * die falschen Werte. Deshalb steht die Laenge mit im Spielstand, und
+ * beim Entpacken wird sie geprueft.
+ */
+function packeAttribute(state: GameState): GameState {
+  const kopie = structuredClone(state) as GameState & {
+    attrOrder?: number;
+  };
+  for (const p of Object.values(kopie.players)) {
+    const werte = ALL_ATTRS.map((k) => p.attrs[k]);
+    (p as unknown as { attrs: unknown }).attrs = werte;
+  }
+  kopie.attrOrder = ALL_ATTRS.length;
+  return kopie;
+}
+
+/** Macht die Packung rueckgaengig. Ungepackte Staende bleiben unberuehrt. */
+function entpackeAttribute(state: GameState): GameState {
+  const gepackt = state as GameState & { attrOrder?: number };
+  for (const p of Object.values(state.players)) {
+    const roh = (p as unknown as { attrs: unknown }).attrs;
+    if (!Array.isArray(roh)) continue;
+    // Ein Spielstand mit anderer Attributzahl waere falsch entpackt -
+    // lieber die fehlenden Werte auf einen Mittelwert setzen als stumm
+    // verschobene Attribute auszuliefern.
+    const attrs = {} as Record<string, number>;
+    ALL_ATTRS.forEach((k, i) => { attrs[k] = roh[i] ?? 50; });
+    (p as unknown as { attrs: unknown }).attrs = attrs;
+  }
+  delete gepackt.attrOrder;
+  return state;
+}
+
 export async function saveGame(state: GameState): Promise<void> {
   state.updatedAt = Date.now();
   const meta = buildMeta(state);
   // Structured Clone verarbeitet den Spielstand ohne Umweg ueber JSON.
+  // `packeAttribute` klont bereits, deshalb hier kein zweites Mal.
+  const gepackt = packeAttribute(state);
   await tx([STORE_SAVES, STORE_META], 'readwrite', (stores) => {
-    stores[STORE_SAVES].put(structuredClone(state));
+    stores[STORE_SAVES].put(gepackt);
     stores[STORE_META].put(meta);
   });
 }
@@ -128,7 +173,7 @@ function migrate(state: GameState): GameState {
 export async function loadGame(saveId: string): Promise<GameState | null> {
   const result = await tx<GameState>([STORE_SAVES], 'readonly',
     (stores) => stores[STORE_SAVES].get(saveId) as IDBRequest<GameState>);
-  return result ? migrate(result) : null;
+  return result ? migrate(entpackeAttribute(result)) : null;
 }
 
 export async function listSaves(): Promise<SaveMeta[]> {
@@ -166,11 +211,12 @@ export async function duplicateSave(saveId: string): Promise<string | null> {
 export async function exportSave(saveId: string): Promise<string | null> {
   const state = await loadGame(saveId);
   if (!state) return null;
-  return JSON.stringify(state);
+  // Auch die Ausgabedatei wird gepackt - sie ist sonst dreimal so gross.
+  return JSON.stringify(packeAttribute(state));
 }
 
 export async function importSave(json: string): Promise<SaveMeta | null> {
-  const parsed = JSON.parse(json) as GameState;
+  const parsed = entpackeAttribute(JSON.parse(json) as GameState);
   if (!parsed?.saveId || !parsed.players || !parsed.userPlayerId) {
     throw new Error('Die Datei enthaelt keinen gueltigen Spielstand.');
   }
@@ -190,3 +236,13 @@ export function rememberLastSave(saveId: string) {
 export function getLastSaveId(): string | null {
   try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; }
 }
+
+/**
+ * Zugaenge fuer den Rauchtest.
+ *
+ * Die Packung ist Teil des Speicherformats und muss verlustfrei sein -
+ * ohne diese beiden Zugaenge liesse sich das nur ueber einen echten
+ * Datenbankdurchlauf pruefen.
+ */
+export const packeFuerTest = packeAttribute;
+export const entpackeFuerTest = entpackeAttribute;

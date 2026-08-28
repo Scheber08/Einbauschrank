@@ -10,6 +10,7 @@
  * gelangt jemals ins Repository.
  */
 
+import { COUNTRY_BY_ID } from './countries';
 import { activeDatabase } from './customDb';
 
 /** Ein Verein aus einem Datenpaket. Nur `name` ist Pflicht. */
@@ -205,11 +206,21 @@ export const DEFAULT_CLUBS_PER_LEAGUE = 20;
  * Sehr kleine Ligen sind nicht sinnvoll: Unter vier Vereinen liesse sich kein
  * Spielplan bauen, darum wird nach oben aufgefuellt.
  */
+/**
+ * Der Aufbau des Ligasystems eines Landes.
+ *
+ * Ohne eigene Daten richtet er sich nach `leagueNames` des Landes.
+ * Vorher stand dort eine feste Zahl: das Feld versprach im Kommentar
+ * "beliebig viele moeglich", steuerte aber nur die **Namen** - ein Land mit
+ * vier eingetragenen Ligen bekam trotzdem drei, und die vierte Bezeichnung
+ * wurde nie benutzt.
+ */
 export function leagueLayout(countryId: string): LeagueLayout[] {
   const data = current()[countryId];
   const leagues = data?.leagues?.filter((l) => l.clubs.length > 0) ?? [];
   if (leagues.length === 0) {
-    return Array.from({ length: DEFAULT_LEVELS }, (_, i) => ({
+    const stufen = COUNTRY_BY_ID[countryId]?.leagueNames.length ?? DEFAULT_LEVELS;
+    return Array.from({ length: Math.max(1, stufen) }, (_, i) => ({
       level: i + 1, clubs: DEFAULT_CLUBS_PER_LEAGUE,
     }));
   }
