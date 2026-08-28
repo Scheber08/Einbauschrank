@@ -48,6 +48,118 @@ interface EventTemplate {
  */
 const EVENT_POOL: EventTemplate[] = [
   {
+    key: 'karaoke',
+    options: [
+      {
+        id: 'sing',
+        effect: {morale:6,image:5,coach:-2},
+        hasNews: true,
+      },
+      {
+        id: 'watch',
+        effect: {morale:2},
+      },
+    ],
+  },
+  {
+    key: 'nachbar',
+    options: [
+      {
+        id: 'apologise',
+        effect: {image:3,morale:-1},
+      },
+      {
+        id: 'ignore',
+        effect: {image:-4,morale:2},
+        hasNews: true,
+      },
+    ],
+  },
+  {
+    key: 'schiedsrichterkurs',
+    options: [
+      {
+        id: 'attend',
+        effect: {coach:4,sharpness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'skip',
+        effect: {fitness:2},
+      },
+    ],
+  },
+  {
+    key: 'wettbuero',
+    options: [
+      {
+        id: 'refuse',
+        effect: {image:6,coach:4},
+        hasNews: true,
+      },
+      {
+        id: 'listen',
+        effect: {image:-8,coach:-6,morale:2},
+      },
+    ],
+  },
+  {
+    key: 'schulbesuch',
+    options: [
+      {
+        id: 'go',
+        effect: {fans:6,image:4,fitness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'send',
+        effect: {fans:1},
+      },
+    ],
+  },
+  {
+    key: 'tattoo',
+    options: [
+      {
+        id: 'crest',
+        effect: {fans:8,image:3,coach:-1},
+        hasNews: true,
+      },
+      {
+        id: 'nothing',
+        effect: {morale:1},
+      },
+    ],
+  },
+  {
+    key: 'stromausfall',
+    options: [
+      {
+        id: 'improvise',
+        effect: {morale:4,sharpness:3},
+        hasNews: true,
+      },
+      {
+        id: 'home',
+        effect: {fitness:3,coach:-3},
+      },
+    ],
+  },
+  {
+    key: 'oldtimer',
+    options: [
+      {
+        id: 'buy',
+        effect: {image:7,morale:5,fans:-3},
+        hasNews: true,
+      },
+      {
+        id: 'save',
+        effect: {coach:3,morale:-1},
+      },
+    ],
+  },
+  {
     key: 'sponsorentermin',
     options: [
       {

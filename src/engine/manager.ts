@@ -14,6 +14,7 @@
  * Gewechselt wird nur zum Saisonende. Ein Rauswurf mitten in der Serie waere
  * realistischer, wuerde aber den Spielplan und die laufenden Ziele stoeren.
  */
+import { TACTIC_LABELS, type TacticStyle } from './types';
 import { t } from '../i18n';
 import { COUNTRY_BY_ID } from './countries';
 import { addCareerEvent, addNews } from './ids';
@@ -26,6 +27,33 @@ import type { Club, GameState, Id } from './types';
 const GRUNDRISIKO = 0.07;
 
 /** Ein neuer Name aus dem Pool des Vereinslandes. */
+/**
+ * Die Spielweise, die ein neuer Trainer mitbringt.
+ *
+ * Meistens bleibt es bei der Ausrichtung des Vereins - ein Klub hat eine
+ * Tradition, und die meisten Trainer werden gerade deshalb geholt. In
+ * gut einem Drittel der Faelle bringt der Neue aber eine eigene Idee mit,
+ * und dann passt sie zum Verein: ein grosser Klub laesst spielen, ein
+ * kleiner steht tief.
+ */
+export function neueSpielweise(rng: Rng, club: Club): TacticStyle {
+  if (!rng.chance(0.38)) return club.tacticStyle;
+
+  const gross: TacticStyle[] = [
+    'possession', 'highPress', 'wingPlay', 'buildUp', 'possession',
+  ];
+  const mittel: TacticStyle[] = [
+    'counter', 'wingPlay', 'direct', 'possession', 'highPress', 'buildUp',
+  ];
+  const klein: TacticStyle[] = [
+    'deepBlock', 'counter', 'longBall', 'direct', 'deepBlock',
+  ];
+
+  const pool = club.reputation >= 70 ? gross
+    : club.reputation >= 45 ? mittel : klein;
+  return rng.pick(pool);
+}
+
 function neuerTrainerName(rng: Rng, club: Club): string {
   const country = COUNTRY_BY_ID[club.countryId];
   const pool = NAME_POOLS[country?.id ?? ''] ?? NAME_POOLS.falkenland;
@@ -90,6 +118,17 @@ export function runManagerChanges(state: GameState, rng: Rng, absteiger: Set<Id>
       club.managerName = neuerTrainerName(rng, club);
       if (club.managerName === alter) continue;
 
+      // Ein neuer Trainer bringt seine eigenen Vorstellungen mit.
+      //
+      // `tacticStyle` wurde bei der Weltgenerierung gesetzt und danach nie
+      // wieder angefasst: ein Verein spielte dieselbe Philosophie ueber
+      // fuenfzehn Jahre und ein Dutzend Trainer hinweg. Seit die Spielweise
+      // des Gegners im Spiel tatsaechlich zu spueren ist, faellt das auf -
+      // man trifft nach zehn Saisons noch immer auf dieselbe Mannschaft.
+      const alterStil = club.tacticStyle;
+      club.tacticStyle = neueSpielweise(rng, club);
+      const stilNeu = club.tacticStyle !== alterStil;
+
       const eigenerVerein = user?.clubId === clubId;
       if (eigenerVerein) {
         // Der neue Trainer bringt eine eigene Meinung mit. Sie kann besser
@@ -103,7 +142,11 @@ export function runManagerChanges(state: GameState, rng: Rng, absteiger: Set<Id>
 
         addNews(state, 'coach',
           t('mg.own.news', { club: club.name, name: club.managerName }),
-          t('mg.own.newsBody', { old: alter, direction: richtung }), true);
+          t('mg.own.newsBody', { old: alter, direction: richtung })
+          + (stilNeu
+            ? ' ' + t('mg.own.newStyle', { style: t(TACTIC_LABELS[club.tacticStyle]) })
+            : ''),
+          true);
         addCareerEvent(state, 'coach',
           t('mg.own.title', { name: club.managerName }),
           t('mg.own.body', { old: alter, club: club.name, name: club.managerName }),

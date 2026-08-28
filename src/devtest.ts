@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { neueSpielweise } from './engine/manager';
 import { LIFESTYLE, extraSessionEffect } from './engine/choices';
 import { TALENT_PROFILE, reviewPotential } from './engine/potential';
 import { DEFENSIVER_TEST, matchFormation } from './engine/formation';
@@ -2449,6 +2450,71 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         `${ohne.gap} auf ${mit.gap}`);
     }
   }
+  // --- Spielweise und Ereignisse (Abschnitt 40) -------------------------
+  //
+  // `club.tacticStyle` wurde bei der Weltgenerierung gesetzt und **nie
+  // wieder angefasst**: ein Verein spielte dieselbe Philosophie ueber
+  // fuenfzehn Jahre und ein Dutzend Trainer hinweg. Seit die Spielweise des
+  // Gegners im Spiel zu spueren ist, faellt das auf - man trifft nach zehn
+  // Saisons noch immer auf dieselbe Mannschaft.
+  log('\n--- Spielweise und Ereignisse ---');
+  {
+    // Ein neuer Trainer bringt in gut einem Drittel der Faelle eine eigene
+    // Idee mit - und sie passt zum Verein.
+    const rngS = new Rng(2024);
+    const probe = Object.values(game.clubs).slice(0, 40);
+    let gewechselt = 0, gesamt = 0;
+    let grossDefensiv = 0, kleinDefensiv = 0, gross = 0, klein = 0;
+    for (const c of probe) {
+      const vorher = c.tacticStyle;
+      for (let i = 0; i < 12; i++) {
+        const neu = neueSpielweise(rngS, c);
+        gesamt++;
+        if (neu !== vorher) gewechselt++;
+        if (c.reputation >= 70) {
+          gross++;
+          if (neu === 'deepBlock' || neu === 'longBall') grossDefensiv++;
+        } else if (c.reputation < 45) {
+          klein++;
+          if (neu === 'deepBlock' || neu === 'longBall') kleinDefensiv++;
+        }
+      }
+    }
+    log(`Neue Trainer: ${(gewechselt / gesamt * 100).toFixed(1)} % bringen eine `
+      + `andere Spielweise mit`);
+    check('Meistens bleibt es bei der Vereinsausrichtung',
+      gewechselt / gesamt < 0.5, `${(gewechselt / gesamt * 100).toFixed(1)} %`);
+    check('Aber nicht immer', gewechselt / gesamt > 0.15,
+      `${(gewechselt / gesamt * 100).toFixed(1)} %`);
+    if (gross > 20 && klein > 20) {
+      const g = grossDefensiv / gross;
+      const k = kleinDefensiv / klein;
+      log(`Defensive Ausrichtung: grosse Vereine ${(g * 100).toFixed(1)} %, `
+        + `kleine ${(k * 100).toFixed(1)} %`);
+      check('Kleine Vereine stehen haeufiger tief als grosse', k > g,
+        `${(k * 100).toFixed(1)} % gegen ${(g * 100).toFixed(1)} %`);
+    }
+
+    // Die Ereignistexte muessen vollstaendig sein - fehlt einer, steht der
+    // rohe Schluessel im Dialog, und niemand merkt es beim Typecheck.
+    const rngE = new Rng(31337);
+    const gesehen = new Set<string>();
+    let fehlend = 0;
+    for (let i = 0; i < 600; i++) {
+      const ev = buildLifeEvent(rngE, i);
+      if (!ev) continue;
+      // Die Kennung ist je Ziehung neu - gezaehlt wird der Titel, sonst
+      // besteht die Pruefung immer und sagt nichts.
+      gesehen.add(ev.title);
+      const roh = [ev.title, ev.description, ev.category,
+        ...ev.options.flatMap((o) => [o.label, o.description])];
+      for (const text of roh) if (text.startsWith('life.')) fehlend++;
+    }
+    log(`Ereignisse: ${gesehen.size} verschiedene in 600 Ziehungen`);
+    check('Es gibt reichlich Ereignisse', gesehen.size >= 24, `${gesehen.size}`);
+    check('Kein Ereignis zeigt einen rohen Schluessel', fehlend === 0,
+      `${fehlend} Stellen`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -3290,6 +3356,7 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchEngine.ts', name: 'beansprucht', mindestens: 3 },
     { datei: '/src/engine/setpieces.ts', name: 'claimsPenalties', mindestens: 2 },
     { datei: '/src/engine/agent.ts', name: 'wunsch', mindestens: 3 },
+    { datei: '/src/engine/manager.ts', name: 'neueSpielweise', mindestens: 2 },
     { datei: '/src/ui/tabs/TrainingTab.tsx', name: 'setLifestyle', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },
