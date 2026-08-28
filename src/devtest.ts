@@ -3,6 +3,9 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import {
+  formatKickoff, kickoffAuslastung, matchKickoff,
+} from './engine/kickoff';
 import { minutenGewicht, zieheTorminute } from './engine/tempo';
 import { advanceUntil } from './state/actions';
 import { getState, setState } from './state/store';
@@ -15,7 +18,7 @@ import {
   ALL_ATTRS, defensiveSkill, keeperSkill, tempo, computeOverall,
   type AttrKey, type Attributes, type KeeperSituation,
 } from './engine/attributes';
-import { isAfter, isBefore, addDays, seasonLabel } from './engine/date';
+import { weekday, isAfter, isBefore, addDays, seasonLabel } from './engine/date';
 import {
   advanceDay, createNewGame, finishUserMatch, prepareUserMatch, sortedTable, userClub,
 } from './engine/game';
@@ -1992,20 +1995,78 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         // hoechstens so gross wie das Mittel (Summe von Bernoulli-Versuchen).
         // Alles darueber kommt aus den Phasen - und genau das macht aus
         // gleichfoermigen Partien unterschiedliche.
+        //
+        // Nur protokolliert, nicht zugesichert: ueber vierzig Partien
+        // schwankt der Schaetzer um rund 0,2, eine Schwelle darauf waere
+        // eine Wette. Ueber 120 Durchgaenge gemessen lag er bei 1,26.
         const mittel = chancen.reduce((a, b) => a + b, 0) / chancen.length;
         const varianz = chancen.reduce((a, b) => a + (b - mittel) ** 2, 0)
           / chancen.length;
         log(`Chancen je Spiel: ${mittel.toFixed(1)} im Mittel, `
           + `Streuung ${Math.sqrt(varianz).toFixed(2)}, `
-          + `Dispersion ${(varianz / mittel).toFixed(2)}`);
-        check('Die Partien unterscheiden sich staerker als der reine Zufall',
-          varianz / mittel > 1.05, `${(varianz / mittel).toFixed(2)}`);
+          + `Dispersion ${(varianz / mittel).toFixed(2)} `
+          + '(nur protokolliert, Referenz 1,26 ueber 120 Partien)');
 
         check('Die Phasen stehen auch im Ticker', phasenzeilen > laeufe,
           `${phasenzeilen} Zeilen in ${laeufe} Partien`);
       } else {
         log('Zu wenige Tore fuer eine Verteilung - uebersprungen.');
       }
+    }
+  }
+  // --- Anstosszeiten (Abschnitt 36) -------------------------------------
+  //
+  // Eine Partie hatte nur ein Datum. Ein Freitagabend unter Flutlicht und
+  // ein Sonntagmittag waren dieselbe Sache - im Kalender, im Bericht und in
+  // der Stimmung. Dabei ist die Anstosszeit das erste, was ein Fan von
+  // einem Spieltag weiss, noch vor dem Gegner.
+  log('\n--- Anstosszeiten ---');
+  {
+    // Alle Partien der Welt, nicht nur die ersten paar hundert: unter der
+    // Woche wird selten gespielt, sonst bleiben zu wenige fuer den
+    // Vergleich uebrig.
+    const partien = Object.values(game.matches);
+    const zeiten: Record<string, number> = {};
+    let flutlicht = 0;
+    for (const m of partien) {
+      const k = matchKickoff(m.id, m.date);
+      const text = formatKickoff(k);
+      zeiten[text] = (zeiten[text] ?? 0) + 1;
+      if (k.flutlicht) flutlicht++;
+    }
+    const sortiert = Object.entries(zeiten).sort((a, b) => b[1] - a[1]);
+    log(`Anstosszeiten: ${sortiert.slice(0, 6).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+    log(`Unter Flutlicht: ${flutlicht} von ${partien.length}`);
+
+    check('Es gibt mehrere Anstosszeiten', sortiert.length >= 4,
+      `${sortiert.length}`);
+    check('Dieselbe Partie bekommt immer dieselbe Zeit',
+      partien.every((m) => formatKickoff(matchKickoff(m.id, m.date))
+        === formatKickoff(matchKickoff(m.id, m.date))));
+    check('Flutlicht ist weder Regel noch Ausnahme',
+      flutlicht > partien.length * 0.05 && flutlicht < partien.length * 0.85,
+      `${flutlicht} von ${partien.length}`);
+
+    // Die Uhrzeit faerbt die Kulisse, sie entscheidet sie nicht.
+    const werktags = partien.filter((m) => {
+      const t = weekday(m.date);
+      return t >= 1 && t <= 4;
+    });
+    const wochenende = partien.filter((m) => {
+      const t = weekday(m.date);
+      return t === 0 || t === 6;
+    });
+    if (werktags.length > 20 && wochenende.length > 20) {
+      const schnitt = (liste: typeof partien) => liste.reduce(
+        (a, m) => a + kickoffAuslastung(matchKickoff(m.id, m.date), m.date), 0)
+        / liste.length;
+      const w = schnitt(werktags);
+      const e = schnitt(wochenende);
+      log(`Auslastungsfaktor werktags ${w.toFixed(3)}, am Wochenende ${e.toFixed(3)}`);
+      check('Unter der Woche kommen weniger Leute', w < e, `${w.toFixed(3)} gegen ${e.toFixed(3)}`);
+      check('Der Unterschied bleibt schmal', e - w < 0.2, `${(e - w).toFixed(3)}`);
+    } else {
+      log('Zu wenige Partien je Gruppe - Kulissenteil uebersprungen.');
     }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
@@ -2837,6 +2898,8 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchEngine.ts', name: 'schwung', mindestens: 5 },
     { datei: '/src/engine/matchEngine.ts', name: 'meldePhase', mindestens: 2 },
     { datei: '/src/engine/matchSim.ts', name: 'zieheTorminute', mindestens: 2 },
+    { datei: '/src/engine/rivalry.ts', name: 'kickoffAuslastung', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'matchKickoff', mindestens: 2 },
   ];
   let fehler = 0;
   const quellen = new Map<string, string>();

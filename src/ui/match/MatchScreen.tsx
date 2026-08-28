@@ -14,6 +14,7 @@ import {
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { attendanceRoll, expectedAttendance, matchImportance } from '../../engine/rivalry';
 import { matchReferee, refereeLabelKey } from '../../engine/referee';
+import { formatKickoff, matchKickoff } from '../../engine/kickoff';
 import { matchWeather, weatherLabelKey } from '../../engine/weather';
 import { Rng } from '../../engine/rng';
 import { TACTIC_LABELS, DIFFICULTY_SETTINGS } from '../../engine/types';
@@ -265,6 +266,7 @@ export default function MatchScreen() {
   const fuelle = auslastung >= 0.85 ? 'Full' : auslastung >= 0.5 ? 'Mid' : 'Thin';
   const heimseite = user?.clubId === homeClub?.id ? 'home' : 'away';
   const wetter = match ? matchWeather(match.id, match.date) : null;
+  const anstoss = match ? matchKickoff(match.id, match.date) : null;
   const schiri = match && homeClub
     ? matchReferee(match.id, homeClub.countryId) : null;
   const kulisse = match
@@ -301,6 +303,9 @@ export default function MatchScreen() {
           <Pill>{homeClub.stadiumName}</Pill>
           <Pill>{t('ms.attendance', { n: tNumber(attendance) })}</Pill>
           {wetter && <Pill>{t(weatherLabelKey(wetter))}</Pill>}
+          {anstoss && (
+            <Pill>{t('calendar.kickoff', { time: formatKickoff(anstoss) })}</Pill>
+          )}
           {importance.label && <Pill tone="warn">{importance.label}</Pill>}
         </div>
         {phase === 'running' && mode !== 'simulate' && (

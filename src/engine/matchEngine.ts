@@ -60,6 +60,8 @@ export interface MatchEngineSetup {
   attendance?: number;
   /** Wetter am Spieltag. Faerbt Zielgenauigkeit, Fernschuesse und Kraft. */
   weather?: Weather;
+  /** Anstosszeit als Text, und ob unter Flutlicht gespielt wird. */
+  kickoff?: { text: string; flutlicht: boolean };
   /** Spielart des Schiedsrichters: Pfiffe, Karten, Naehe zum Publikum. */
   refereeStyle?: RefereeStyle;
 }
@@ -455,6 +457,9 @@ export class MatchEngine {
       this.emit(evts, {
         minute: 0, type: 'kickoff', side: null,
         text: tVariant('live.kickoff', this.rng.next(), { home: this.setup.homeClub.name, away: this.setup.awayClub.name })
+          + (this.setup.kickoff?.flutlicht
+            ? ' ' + tVariant('live.floodlight', this.rng.next())
+            : '')
           + (this.setup.weather
             ? ' ' + tVariant(`live.weather.${this.setup.weather}`, this.rng.next())
             : ''),

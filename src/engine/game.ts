@@ -37,6 +37,7 @@ import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
 import { socialAfterMatch } from './social';
 import { attendanceRoll, expectedAttendance, matchImportance } from './rivalry';
+import { formatKickoff, matchKickoff } from './kickoff';
 import { matchReferee } from './referee';
 import { matchWeather, weatherEffect } from './weather';
 import { Rng, clamp, randomSeed } from './rng';
@@ -805,6 +806,10 @@ export function prepareUserMatch(
       importance: matchImportance(state, match),
       attendance: expectedAttendance(state, match, attendanceRoll(match.id)),
       weather: matchWeather(match.id, match.date),
+      kickoff: (() => {
+        const k = matchKickoff(match.id, match.date);
+        return { text: formatKickoff(k), flutlicht: k.flutlicht };
+      })(),
       refereeStyle: matchReferee(match.id, homeClub.countryId).style,
     },
     homeLineup, awayLineup, userInLineup, userOnBench,

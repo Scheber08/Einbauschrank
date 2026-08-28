@@ -3,6 +3,7 @@ import {
   addDays, dayOfMonth, formatDate, isBefore, month, monthName, weekday, year,
 } from '../../engine/date';
 import { userClub } from '../../engine/game';
+import { formatKickoff, matchKickoff } from '../../engine/kickoff';
 import { advanceUntil } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
@@ -139,6 +140,11 @@ export default function CalendarTab() {
                         <tr key={m.id} className={isUser ? 'user' : ''}>
                           <td className="tiny dim" style={{ whiteSpace: 'nowrap' }}>
                             {formatDate(m.date)}
+                            {/* Ein Freitagabend unter Flutlicht und ein
+                                Sonntagmittag sahen im Plan gleich aus. */}
+                            <div className="tiny dim">
+                              {formatKickoff(matchKickoff(m.id, m.date))}
+                            </div>
                           </td>
                           <td className="tiny dim">{comp?.short}</td>
                           <td style={{ textAlign: 'right' }}>{home?.name}</td>

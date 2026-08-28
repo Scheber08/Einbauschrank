@@ -5,6 +5,7 @@
  * abgeleitet statt gespeichert - bestehende Spielstaende bekommen ihre Derbys
  * damit sofort, ohne Migration.
  */
+import { kickoffAuslastung, matchKickoff } from './kickoff';
 import type { Club, GameState, Match } from './types';
 import { t } from '../i18n';
 
@@ -123,6 +124,9 @@ export function expectedAttendance(
   fill *= importance.crowd;
   // Etwas Streuung, damit nicht jedes Spiel gleich aussieht.
   fill *= 0.88 + randomFactor * 0.24;
+  // Und die Anstosszeit: ein Dienstagabend fuellt schlechter als der
+  // Samstagnachmittag, ein Freitagabend etwas besser.
+  fill *= kickoffAuslastung(matchKickoff(match.id, match.date), match.date);
 
   const capped = Math.min(1, Math.max(0.22, fill));
   return Math.round((home.stadiumCapacity * capped) / 50) * 50;
