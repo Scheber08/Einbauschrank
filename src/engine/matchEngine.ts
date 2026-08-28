@@ -5,7 +5,10 @@
  */
 import { CARD_SHARE, refereeEffect, type RefereeStyle } from './referee';
 import { weatherEffect, type Weather } from './weather';
-import { defensiveSkill, tempo, POSITION_LINE, effectiveOverall } from './attributes';
+import {
+  defensiveSkill, keeperSkill, tempo, POSITION_LINE, effectiveOverall,
+  type KeeperSituation,
+} from './attributes';
 import { GOAL_HALF_WIDTH } from './ballAction';
 import type { Lineup } from './lineup';
 import {
@@ -376,6 +379,25 @@ export class MatchEngine {
 
   private emit(evts: LiveEvent[], e: Omit<LiveEvent, 'score'>) {
     evts.push({ ...e, score: [this.homeScore, this.awayScore] });
+  }
+
+  /**
+   * Torwartstaerke fuer eine bestimmte Situation.
+   *
+   * `strengthOf(side).keeper` ist eine einzige Zahl aus der Gesamtstaerke -
+   * sieben der zehn Torwartwerte machten damit nirgends einen Unterschied.
+   * Hier wird daraus eine situative Zahl: der Grundwert bleibt die Form- und
+   * Fitnessgewichtete Staerke, das Profil verschiebt ihn.
+   */
+  private keeperFor(side: Side, situation: KeeperSituation): number {
+    const basis = this.strengthOf(side).keeper;
+    const tw = this.onPitch[side].find((o) => o.slot === 'TW');
+    if (!tw) return basis;
+    const profil = keeperSkill(tw.player.attrs, situation);
+    const schnitt = keeperSkill(tw.player.attrs, 'shot');
+    // Nur die Abweichung vom eigenen Grundprofil verschiebt den Wert, damit
+    // die Gesamtbalance der Torwartstaerke unangetastet bleibt.
+    return clamp(basis + (profil - schnitt) * 0.8, 10, 99);
   }
 
   /** Aktuelle Mannschaftsstaerke unter Beruecksichtigung von Platzverweisen. */
@@ -883,7 +905,9 @@ export class MatchEngine {
   ) {
     const st = this.statOf(shooter.player.id, side, shooter.slot);
     const defSide = this.other(side);
-    const keeperRating = this.strengthOf(defSide).keeper;
+    // Welche Werte des Torwarts zaehlen, haengt an der Art der Chance.
+    const keeperRating = this.keeperFor(
+      defSide, (chance.kind as KeeperSituation) ?? 'shot');
 
     // Ist der Schuss auf dem Tor? Bei Wind, Regen und Schnee seltener.
     const accuracy = (0.32 + shooter.player.attrs.finishing / 230
@@ -934,22 +958,25 @@ export class MatchEngine {
       0.02, 0.94,
     );
 
-    this.finishShot(side, shooter, creator, goalProb, chance.bigChance, evts);
+    this.finishShot(side, shooter, creator, goalProb, chance.bigChance, evts,
+      chance.kind);
   }
 
   /** Schliesst einen Abschluss ab: Tor oder Parade des Torhueters. */
   private finishShot(
     side: Side, shooter: OnPitchPlayer, creator: OnPitchPlayer | null,
     goalProb: number, bigChance: boolean, evts: LiveEvent[],
+    kind?: string,
   ) {
     if (this.rng.chance(goalProb)) {
-      this.scoreGoal(side, shooter, creator, evts, bigChance);
+      this.scoreGoal(side, shooter, creator, evts, bigChance, kind);
     } else {
       const gk = this.onPitch[this.other(side)].find((o) => o.slot === 'TW');
       if (gk) this.statOf(gk.player.id, this.other(side), 'TW').saves++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side,
         playerId: shooter.player.id,
+        chanceKind: kind,
         text: tVariant('live.keeperSave', this.rng.next(), { player: this.name(shooter.player.id) }),
       });
     }
@@ -957,7 +984,7 @@ export class MatchEngine {
 
   private scoreGoal(
     side: Side, shooter: OnPitchPlayer, creator: OnPitchPlayer | null,
-    evts: LiveEvent[], bigChance: boolean,
+    evts: LiveEvent[], bigChance: boolean, kind?: string,
   ) {
     if (side === 'home') this.homeScore++; else this.awayScore++;
     const st = this.statOf(shooter.player.id, side, shooter.slot);
@@ -972,11 +999,15 @@ export class MatchEngine {
     const gk = this.onPitch[defSide].find((o) => o.slot === 'TW');
     if (gk) this.statOf(gk.player.id, defSide, 'TW').goalsConceded++;
 
-    const assistText = creator ? ` nach Vorlage von ${this.name(creator.player.id)}` : '';
+    const assistText = creator
+      ? tVariant('live.assistBy', this.rng.next(),
+        { player: this.name(creator.player.id) })
+      : '';
     this.emit(evts, {
       minute: this.minute, type: 'goal', side,
       playerId: shooter.player.id,
       assistId: creator?.player.id,
+      chanceKind: kind,
       user: shooter.player.id === this.setup.userPlayerId,
       text: tVariant('live.goal', this.rng.next(), { club: this.clubName(side), scorer: this.name(shooter.player.id), assist: assistText }),
     });
@@ -1145,7 +1176,7 @@ export class MatchEngine {
     const st = this.statOf(taker.player.id, side, taker.slot);
     st.shots++;
     const quality = taker.player.attrs.freeKicks * 0.6 + taker.player.attrs.curve * 0.4;
-    const keeperRating = this.strengthOf(this.other(side)).keeper;
+    const keeperRating = this.keeperFor(this.other(side), 'longShot');
     const goalProb = clamp(
       expectedGoals(distance, offset) * (0.5 + quality / 90) * keeperModifier(keeperRating),
       0.005, 0.3,

@@ -196,6 +196,58 @@ export function defensiveSkill(attrs: Attributes): number {
     + attrs.defPositioning * 0.24 + attrs.pressing * 0.18;
 }
 
+/** Was fuer eine Situation der Torwart vor sich hat. */
+export type KeeperSituation = 'shot' | 'longShot' | 'header' | 'oneOnOne';
+
+/**
+ * Torwartstaerke fuer eine bestimmte Situation.
+ *
+ * Bisher war der Torwart ueberall eine einzige Zahl aus seiner
+ * Gesamtstaerke. Sieben seiner zehn Werte machten damit nirgends einen
+ * Unterschied: ein Torwart, der Flanken pflueckt, aber im Eins gegen
+ * eins nichts taugt, war von seinem Gegenteil nicht zu unterscheiden.
+ *
+ * Die Gewichte summieren sich in jeder Situation auf 1 - ein Torwart mit
+ * lauter gleichen Werten ist also genau so stark wie vorher.
+ */
+export function keeperSkill(
+  attrs: Attributes, situation: KeeperSituation,
+): number {
+  switch (situation) {
+    case 'oneOnOne':
+      // Herauslaufen und die Entscheidung im Duell schlagen alles andere.
+      return attrs.oneOnOne * 0.34 + attrs.rushingOut * 0.24
+        + attrs.reflexes * 0.16 + attrs.gkPositioning * 0.16
+        + attrs.handling * 0.10;
+    case 'header':
+      // Koepfe kommen aus Flanken - wer sie abfaengt, hat den Kopfball nie.
+      return attrs.crossHandling * 0.32 + attrs.gkPositioning * 0.22
+        + attrs.reflexes * 0.20 + attrs.handling * 0.16
+        + attrs.communication * 0.10;
+    case 'longShot':
+      // Aus der Distanz zaehlen Stellung und sicheres Fangen.
+      return attrs.gkPositioning * 0.30 + attrs.handling * 0.26
+        + attrs.reflexes * 0.24 + attrs.deflecting * 0.20;
+    default:
+      return attrs.reflexes * 0.34 + attrs.handling * 0.24
+        + attrs.gkPositioning * 0.22 + attrs.deflecting * 0.20;
+  }
+}
+
+/**
+ * Was der Torwart fuer die Feldspieler tut.
+ *
+ * Coaching organisiert die Abwehr, Abstoss und Abwurf eroeffnen das
+ * Spiel. Beides stand im Attributblatt und wirkte nirgends. Der Zuschlag
+ * bleibt klein: ein Torwart gewinnt kein Mittelfeld.
+ */
+export function keeperOutfield(attrs: Attributes): { defence: number; midfield: number } {
+  return {
+    defence: (attrs.communication - 50) / 100,
+    midfield: ((attrs.goalKicks + attrs.throwing) / 2 - 50) / 130,
+  };
+}
+
 /** Gesamtstaerke eines Spielers auf einer bestimmten Position (1-100). */
 export function computeOverall(attrs: Attributes, position: PositionCode): number {
   const weights = POSITION_WEIGHTS[position];

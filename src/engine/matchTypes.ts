@@ -95,6 +95,12 @@ export interface LiveEvent {
   text: string;
   /** Betrifft das Ereignis den eigenen Spieler? */
   user?: boolean;
+  /**
+   * Aus welcher Art Situation das Ereignis entstand - Kopfball, Fernschuss,
+   * Eins gegen eins. Der Ticker kann es benennen, und es macht nachpruefbar,
+   * welche Chancen ein Torwart haelt.
+   */
+  chanceKind?: string;
   score?: [number, number];
 }
 

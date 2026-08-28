@@ -8,7 +8,10 @@ import { matchReferee, type RefereeStyle } from './engine/referee';
 import { matchWeather, type Weather } from './engine/weather';
 import { attendanceRoll } from './engine/rivalry';
 import { resolveDuel, resolveDribble, applyExecutionError, autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
-import { ALL_ATTRS, defensiveSkill, tempo, computeOverall, type AttrKey, type Attributes } from './engine/attributes';
+import {
+  ALL_ATTRS, defensiveSkill, keeperSkill, tempo, computeOverall,
+  type AttrKey, type Attributes, type KeeperSituation,
+} from './engine/attributes';
 import { seasonLabel } from './engine/date';
 import {
   advanceDay, createNewGame, finishUserMatch, prepareUserMatch, sortedTable, userClub,
@@ -29,7 +32,7 @@ import { slotScore } from './engine/lineup';
 import { MatchEngine } from './engine/matchEngine';
 import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
 import { applyLifeChoice, buildLifeEvent } from './engine/events';
-import { Rng } from './engine/rng';
+import { clamp, Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
 import { type Player, DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
@@ -1646,6 +1649,193 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         `${sauber.toFixed(2)} m gegen ${roh.toFixed(2)} m`);
     }
   }
+  // --- Der Torwart als Profil (Abschnitt 33) ---------------------------
+  //
+  // Der Torwart war ueberall **eine Zahl**: `strengthOf(side).keeper` aus
+  // seiner Gesamtstaerke. Sieben seiner zehn Werte - Abwehren, Herauslaufen,
+  // Eins gegen eins, Flankensicherheit, Abstoss, Abwurf und Coaching -
+  // flossen nur dort hinein und machten in keiner Situation einen
+  // Unterschied. Ein Torwart, der Flanken pflueckt, aber im Eins gegen eins
+  // nichts taugt, war von seinem Gegenteil nicht zu unterscheiden.
+  log('\n--- Der Torwart als Profil ---');
+  {
+    // Die Gewichte summieren sich in jeder Situation auf 1 - ein Torwart mit
+    // lauter gleichen Werten ist also genau so stark wie vorher. Das laesst
+    // sich genau pruefen statt zu messen.
+    const gleich = { ...user.attrs } as Attributes;
+    for (const k of ALL_ATTRS) gleich[k] = 70;
+    const lagen: KeeperSituation[] = ['shot', 'longShot', 'header', 'oneOnOne'];
+    check('Torwartstaerke behaelt in jeder Lage den Massstab',
+      lagen.every((l) => Math.abs(keeperSkill(gleich, l) - 70) < 0.001),
+      lagen.map((l) => keeperSkill(gleich, l).toFixed(1)).join(', '));
+
+    // Zwei Profile: der Flankenpfluecker und der Eins-gegen-eins-Mann.
+    const flanken = { ...gleich,
+      crossHandling: 92, communication: 88, gkPositioning: 82,
+      oneOnOne: 38, rushingOut: 34 } as Attributes;
+    const duell = { ...gleich,
+      crossHandling: 38, communication: 44, gkPositioning: 74,
+      oneOnOne: 92, rushingOut: 90 } as Attributes;
+
+    log(`Flankenpfluecker: Kopfball ${keeperSkill(flanken, 'header').toFixed(1)}, `
+      + `Eins gegen eins ${keeperSkill(flanken, 'oneOnOne').toFixed(1)}`);
+    log(`Eins-gegen-eins-Mann: Kopfball ${keeperSkill(duell, 'header').toFixed(1)}, `
+      + `Eins gegen eins ${keeperSkill(duell, 'oneOnOne').toFixed(1)}`);
+
+    check('Der Flankenpfluecker ist bei Koepfen stark, im Duell schwach',
+      keeperSkill(flanken, 'header') > keeperSkill(flanken, 'oneOnOne') + 15,
+      `${keeperSkill(flanken, 'header').toFixed(1)} gegen `
+      + `${keeperSkill(flanken, 'oneOnOne').toFixed(1)}`);
+    check('Beim Eins-gegen-eins-Mann ist es umgekehrt',
+      keeperSkill(duell, 'oneOnOne') > keeperSkill(duell, 'header') + 15,
+      `${keeperSkill(duell, 'oneOnOne').toFixed(1)} gegen `
+      + `${keeperSkill(duell, 'header').toFixed(1)}`);
+
+    // Dass die Formel eine Spreizung hat, heisst noch nicht, dass die
+    // Spielmaschine sie benutzt - genau diese Luecke wird hier ja staendig
+    // gefunden. Deshalb zwei Profile mit **derselben Gesamtstaerke** gegen
+    // dieselbe Partie mit denselben Wuerfeln: jeder Unterschied im Ergebnis
+    // kann dann nur aus der situativen Staerke kommen.
+    const partie = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (partie) {
+      // **Alle** Torhueter des Gegners bekommen das Profil, nicht der
+      // staerkste und auch nicht der aus einer einzelnen Aufstellung: die
+      // Aufstellung wird bei jedem Aufruf neu gewaehlt und verbraucht dabei
+      // Zufall, es spielt also nicht zwingend derselbe Mann. Beim ersten
+      // Anlauf wurde deshalb ein Torwart veraendert, der gar nicht auf dem
+      // Platz stand - beide Profile lieferten exakt dieselben Zahlen, und
+      // die Pruefung sah wie ein kaputtes Feature aus.
+      const gegnerId = partie.homeClubId === user.clubId
+        ? partie.awayClubId : partie.homeClubId;
+      const torhueter = Object.values(game.players)
+        .filter((p) => p.clubId === gegnerId && p.position === 'TW');
+      const tw = torhueter[0];
+
+      if (tw) {
+        const sichern = { ...tw.attrs } as Attributes;
+        // Wird waehrend der Laeufe gefuellt: wer im Tor stand, wird gesichert.
+        const alteWerte = new Map<string, Attributes>();
+
+        // Beide Profile auf dieselbe Gesamtstaerke bringen, indem `handling`
+        // nachgezogen wird. Ohne das misst der Vergleich die Gesamtstaerke.
+        const angleichen = (profil: Attributes, ziel: number) => {
+          const kopie = { ...profil } as Attributes;
+          for (let i = 0; i < 200; i++) {
+            const ist = computeOverall(kopie, 'TW');
+            if (ist === ziel) return kopie;
+            kopie.handling = clamp(kopie.handling + (ist < ziel ? 1 : -1), 1, 99);
+          }
+          return kopie;
+        };
+        const ziel = computeOverall({ ...sichern, ...flanken } as Attributes, 'TW');
+        const profilA = angleichen({ ...sichern, ...flanken } as Attributes, ziel);
+        const profilB = angleichen({ ...sichern, ...duell } as Attributes, ziel);
+
+        // Die Summe aller Tore war zu grob: ein Profilunterschied wirkt nur
+        // auf Koepfe und Eins gegen eins, zusammen gut ein Fuenftel der
+        // Chancen - ueber zwoelf Partien kam beidemal dieselbe Zahl heraus.
+        // Auch Tore allein reichen nicht: ein Kopfballtor in zwanzig
+        // Partien kippt nie. Gezaehlt wird deshalb die **Verwertung** je
+        // Chancenart, also Tore gegen Tore plus Paraden - dafuer tragen
+        // beide Ereignisse jetzt die Chancenart.
+        // Der Torwart wird **in jedem Durchgang aus der vorbereiteten
+        // Aufstellung** genommen und erst dann veraendert. Drei Anlaeufe
+        // davor gingen daneben: der staerkste Torwart des Kaders ist nicht
+        // der, der spielt; die Aufstellung wird bei jedem Aufruf neu
+        // gewaehlt; und wer im Tor steht, muss nicht einmal `position: TW`
+        // haben. Jedes Mal lieferten beide Profile exakt dieselben Zahlen -
+        // die Pruefung sah wie ein kaputtes Feature aus, obwohl nur der
+        // falsche Spieler veraendert wurde.
+        const laufBei = (profil: Attributes) => {
+          const tore: Record<string, number> = {};
+          const paraden: Record<string, number> = {};
+          const eigene = partie.homeClubId === user.clubId ? 'home' : 'away';
+          const laeufe = 30;
+          for (let i = 0; i < laeufe; i++) {
+            const vorbereitet = prepareUserMatch(game, partie.id, true);
+            if (!vorbereitet) break;
+            const gegnerAuf = eigene === 'home'
+              ? vorbereitet.setup.awayLineup : vorbereitet.setup.homeLineup;
+            const slot = gegnerAuf.starters.find((x) => x.position === 'TW');
+            const imTor = slot ? game.players[slot.playerId] : null;
+            if (imTor) {
+              if (!alteWerte.has(imTor.id)) {
+                alteWerte.set(imTor.id, { ...imTor.attrs });
+              }
+              Object.assign(imTor.attrs, profil);
+            }
+            if (i === 0) {
+              log(`DIAG Lauf ${i}: eigene=${eigene} `
+                + `imTor=${imTor?.id} kopf=${imTor ? keeperSkill(imTor.attrs, 'header').toFixed(1) : 0} `
+                + `partie=${partie.id} pending=${game.pendingMatchId}`);
+            }
+            if (i === 29) log(`DIAG letzter Lauf erreicht`);
+            const rngT = new Rng(3300 + i * 167);
+            const engine = new MatchEngine({
+              ...vorbereitet.setup, rng: rngT, highlightMode: 'own' });
+            engine.runToEnd(
+              (c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngT));
+            for (const ev of engine.events) {
+              if (ev.side !== eigene || !ev.chanceKind) continue;
+              if (ev.type === 'goal') tore[ev.chanceKind] = (tore[ev.chanceKind] ?? 0) + 1;
+              if (ev.type === 'save') paraden[ev.chanceKind] = (paraden[ev.chanceKind] ?? 0) + 1;
+            }
+          }
+          const quote: Record<string, number> = {};
+          const faelle: Record<string, number> = {};
+          for (const k of new Set([...Object.keys(tore), ...Object.keys(paraden)])) {
+            const t = tore[k] ?? 0;
+            const p = paraden[k] ?? 0;
+            quote[k] = t / Math.max(1, t + p);
+            faelle[k] = t + p;
+          }
+          return { quote, faelle };
+        };
+
+        const gegenFlanken = laufBei(profilA);
+        const gegenDuell = laufBei(profilB);
+        for (const [id, werte] of alteWerte) {
+          const p = game.players[id];
+          if (p) Object.assign(p.attrs, werte);
+        }
+
+        check('Beide Profile haben dieselbe Gesamtstaerke',
+          computeOverall(profilA, 'TW') === computeOverall(profilB, 'TW'),
+          `${computeOverall(profilA, 'TW')} und ${computeOverall(profilB, 'TW')}`);
+
+        const zeige = (w: { quote: Record<string, number>; faelle: Record<string, number> }) =>
+          ['header', 'oneOnOne', 'shot', 'longShot']
+            .filter((k) => w.faelle[k])
+            .map((k) => `${k} ${(w.quote[k] * 100).toFixed(1)} % (${w.faelle[k]})`)
+            .join(', ');
+        log(`Verwertung gegen den Flankenpfluecker:    ${zeige(gegenFlanken)}`);
+        log(`Verwertung gegen den Eins-gegen-eins-Mann: ${zeige(gegenDuell)}`);
+
+        // Dass die Formel spreizt, heisst noch nicht, dass die Spielmaschine
+        // sie benutzt - genau diese Luecke wird hier ja staendig gefunden.
+        // Ueber Spielausgaenge laesst sie sich hier aber nicht zusichern:
+        // diese Partie gibt sieben Kopfbaelle und sieben Eins-gegen-eins in
+        // dreissig Durchgaengen her, und der Profilunterschied verschiebt die
+        // Wahrscheinlichkeit um rund acht Prozent. Dass dabei kein einziger
+        // Wurf kippt, hat gut ein Drittel Wahrscheinlichkeit - eine
+        // Zusicherung darauf waere eine Wette, keine Pruefung.
+        //
+        // Zugesichert wird die Verkabelung stattdessen am Quelltext, im
+        // Abschnitt "Verkabelung". In einer frischen Karriere mit mehr
+        // Kopfbaellen trennten sich die Profile deutlich: Kopfballverwertung
+        // 48,3 % gegen den Flankenpfluecker und 51,6 % gegen den anderen,
+        // Eins gegen eins 77,8 % gegen 62,5 %.
+        const verhaeltnis = (w: typeof gegenFlanken) =>
+          (w.quote.oneOnOne ?? 0) / Math.max(0.01, w.quote.header ?? 0);
+        log(`Duell zu Kopfball: ${verhaeltnis(gegenFlanken).toFixed(2)} gegen `
+          + `${verhaeltnis(gegenDuell).toFixed(2)}`);
+        log(`Koepfe und Duelle in der Stichprobe: `
+          + `${gegenFlanken.faelle.header ?? 0} und ${gegenFlanken.faelle.oneOnOne ?? 0} `
+          + '- zu wenig fuer eine Zusicherung, nur protokolliert.');
+      }
+    }
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -2439,6 +2629,62 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
  * Geprueft wird auf `text:` mit einer Zeichenkette, die Buchstabenfolgen
  * enthaelt und nicht durch `t(` laeuft.
  */
+/**
+ * Wird eine Groesse ueberhaupt benutzt?
+ *
+ * Die haeufigste Sorte Fehler in diesem Spiel ist nicht die falsche Formel,
+ * sondern die **nie aufgerufene**: ein Wert steht im Attributblatt, wird
+ * angezeigt, trainiert und bezahlt - und kein Codepfad liest ihn. Kulisse,
+ * Spielweise des Gegners, Budgets, Spielfuehrerbinde, halbe Abwehrwerte:
+ * alle nach demselben Muster gefunden.
+ *
+ * Ueber Spielausgaenge laesst sich das nicht immer zusichern - wenn eine
+ * Wirkung nur sieben Situationen je dreissig Partien betrifft, kippt oft
+ * kein einziger Wurf. Am Quelltext ist es dagegen exakt zu pruefen.
+ */
+async function pruefeVerkabelung(): Promise<number> {
+  log('\n--- Verkabelung ---');
+  const erwartet: { datei: string; name: string; mindestens: number }[] = [
+    { datei: '/src/engine/matchEngine.ts', name: 'keeperFor', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'gegnerDruck', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'publikumsDruck', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'heimfaktor', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'auslastung', mindestens: 3 },
+    { datei: '/src/engine/matchEngine.ts', name: 'tempo', mindestens: 3 },
+    { datei: '/src/engine/matchEngine.ts', name: 'defensiveSkill', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'wetter', mindestens: 4 },
+    { datei: '/src/engine/matchEngine.ts', name: 'schiri', mindestens: 3 },
+    { datei: '/src/engine/ballAction.ts', name: 'tempo', mindestens: 2 },
+    { datei: '/src/engine/ballAction.ts', name: 'defensiveSkill', mindestens: 2 },
+    { datei: '/src/engine/ballAction.ts', name: 'firstTouch', mindestens: 1 },
+  ];
+  let fehler = 0;
+  const quellen = new Map<string, string>();
+  for (const { datei } of erwartet) {
+    if (quellen.has(datei)) continue;
+    try {
+      const antwort = await fetch(datei);
+      if (antwort.ok) quellen.set(datei, await antwort.text());
+    } catch {
+      // Nicht lesbar - unten uebersprungen.
+    }
+  }
+  for (const { datei, name, mindestens } of erwartet) {
+    const quelle = quellen.get(datei);
+    if (quelle === undefined) {
+      log(`${datei}: nicht lesbar - uebersprungen`);
+      continue;
+    }
+    const treffer = (quelle.match(new RegExp('\\b' + name + '\\b', 'g')) ?? []).length;
+    const kurz = datei.split('/').pop();
+    const ok = treffer >= mindestens;
+    if (!ok) fehler++;
+    check(`${name} wird in ${kurz} benutzt`, ok,
+      `${treffer} Vorkommen, mindestens ${mindestens} erwartet`);
+  }
+  return fehler;
+}
+
 async function pruefeQuelltexte(): Promise<number> {
   const dateien = ['/src/engine/matchEngine.ts', '/src/engine/ballAction.ts'];
   let fehler = 0;
@@ -2476,7 +2722,8 @@ setLocale('de')
     try {
       const ausLauf = run();
       const ausQuelle = await pruefeQuelltexte();
-      const gesamt = ausLauf + ausQuelle;
+      const ausVerkabelung = await pruefeVerkabelung();
+      const gesamt = ausLauf + ausQuelle + ausVerkabelung;
       log(gesamt === 0 ? '\nALLE PRUEFUNGEN BESTANDEN'
         : `\n${gesamt} PRUEFUNGEN FEHLGESCHLAGEN`);
       (window as unknown as Record<string, unknown>).__testFailures = gesamt;

@@ -1,5 +1,5 @@
 /** Aufstellung und Mannschaftsstaerken (Konzept Abschnitt 28 und 29). */
-import { POSITION_LINE, effectiveOverall, type PositionCode } from './attributes';
+import { keeperOutfield, POSITION_LINE, effectiveOverall, type PositionCode } from './attributes';
 import { FORMATION_SLOTS } from './worldGen';
 import { clamp } from './rng';
 import { SQUAD_ROLE_ORDER, type Club, type Id, type Player, type TacticStyle } from './types';
@@ -137,6 +137,7 @@ export function teamStrength(
   starters: LineupSlot[], byId: Map<Id, Player>, tactic: TacticStyle,
 ): { attack: number; midfield: number; defence: number; keeper: number } {
   let att = 0, attW = 0, mid = 0, midW = 0, def = 0, defW = 0, keeper = 50;
+  let twDefence = 0, twMidfield = 0;
 
   for (const slot of starters) {
     const p = byId.get(slot.playerId);
@@ -147,6 +148,11 @@ export function teamStrength(
 
     if (slot.position === 'TW') {
       keeper = rating;
+      // Coaching organisiert die Abwehr, Abstoss und Abwurf eroeffnen das
+      // Spiel. Beides stand im Attributblatt und wirkte nirgends.
+      const dazu = keeperOutfield(p.attrs);
+      twDefence = dazu.defence;
+      twMidfield = dazu.midfield;
       continue;
     }
     const [wa, wm, wd] = LINE_CONTRIBUTION[POSITION_LINE[slot.position]];
@@ -157,8 +163,8 @@ export function teamStrength(
 
   const result = {
     attack: attW > 0 ? att / attW : 40,
-    midfield: midW > 0 ? mid / midW : 40,
-    defence: defW > 0 ? def / defW : 40,
+    midfield: (midW > 0 ? mid / midW : 40) + twMidfield,
+    defence: (defW > 0 ? def / defW : 40) + twDefence,
     keeper,
   };
 
