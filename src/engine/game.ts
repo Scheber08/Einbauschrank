@@ -20,7 +20,7 @@ import {
 import { checkLoanReturn, generateLoanOffers } from './loan';
 import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
-import { t, tDecimal } from '../i18n';
+import { t, tDecimal, tVariant } from '../i18n';
 import { remindContractExpiry } from './contract';
 import { checkMatchMilestones } from './milestones';
 import { gameCountryOfNation } from './nations';
@@ -1069,7 +1069,7 @@ function handleUserMatchAftermath(
       user.morale = clamp(user.morale + 7 * weight, 0, 100);
       addNews(state, 'match',
         t('derby.won.title', { label: importance.label ?? '' }),
-        t('derby.won.body', { score: scoreText, opponent: opponent.name }), true);
+        tVariant('derby.won.body', rng.next(), { score: scoreText, opponent: opponent.name }), true);
       // Ein eigenes Tor im Derby ist ein Karrieremoment - aber kein Titel.
       // Als `title` verbucht landete es in derselben Reihe wie eine
       // Meisterschaft, und das mehrfach pro Laufbahn.
@@ -1092,7 +1092,7 @@ function handleUserMatchAftermath(
       user.morale = clamp(user.morale - 6 * weight, 0, 100);
       addNews(state, 'match',
         t('derby.lost.title', { label: importance.label ?? '' }),
-        t('derby.lost.body', { score: scoreText, opponent: opponent.name }), true);
+        tVariant('derby.lost.body', rng.next(), { score: scoreText, opponent: opponent.name }), true);
     }
   }
 

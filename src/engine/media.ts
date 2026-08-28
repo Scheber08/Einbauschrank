@@ -4,7 +4,7 @@
  * Antwort verschiebt Moral, Trainerbeziehung, Fanbeliebtheit, oeffentliches
  * Image und Reputation.
  */
-import { t } from '../i18n';
+import { t, tVariant } from '../i18n';
 import { addNews } from './ids';
 import { Rng } from './rng';
 import { clamp } from './rng';
@@ -81,8 +81,11 @@ export function buildPostMatchInterview(
   const chance = notable ? 0.9 : 0.3;
   if (!rng.chance(chance)) return null;
 
-  const question = buildQuestion(sit, user.lastName);
-  const options = buildOptions(sit);
+  // Ein Wurf je Interview: Frage und Reaktionen kommen aus demselben
+  // Zufall, bleiben also innerhalb eines Interviews stimmig.
+  const wurf = rng.next();
+  const question = buildQuestion(sit, user.lastName, wurf);
+  const options = buildOptions(sit, rng.next());
 
   return {
     id: `iv-${match.id}`,
@@ -92,18 +95,18 @@ export function buildPostMatchInterview(
   };
 }
 
-function buildQuestion(sit: Situation, lastName: string): string {
-  if (sit.hattrick) return t('iv.q.hattrick', { last: lastName });
-  if (sit.motm && sit.won) return t('iv.q.motmWin');
-  if (sit.scored && sit.won) return t('iv.q.scoredWin', { opponent: sit.opponentName });
-  if (sit.lost) return t('iv.q.lost', { opponent: sit.opponentName });
-  if (sit.poor) return t('iv.q.poor');
-  if (sit.drew) return t('iv.q.draw');
-  return t('iv.q.default');
+function buildQuestion(sit: Situation, lastName: string, wurf: number): string {
+  if (sit.hattrick) return tVariant('iv.q.hattrick', wurf, { last: lastName });
+  if (sit.motm && sit.won) return tVariant('iv.q.motmWin', wurf);
+  if (sit.scored && sit.won) return tVariant('iv.q.scoredWin', wurf, { opponent: sit.opponentName });
+  if (sit.lost) return tVariant('iv.q.lost', wurf, { opponent: sit.opponentName });
+  if (sit.poor) return tVariant('iv.q.poor', wurf);
+  if (sit.drew) return tVariant('iv.q.draw', wurf);
+  return tVariant('iv.q.default', wurf);
 }
 
 /** Drei Tonlagen: bescheiden, selbstbewusst, provokant. */
-function buildOptions(sit: Situation): InterviewOption[] {
+function buildOptions(sit: Situation, wurf: number): InterviewOption[] {
   const humble: InterviewOption = {
     id: 'humble',
     label: t(sit.lost ? 'iv.humble.lost' : 'iv.humble.other'),
@@ -111,7 +114,7 @@ function buildOptions(sit: Situation): InterviewOption[] {
     effect: sit.lost
       ? { coach: 3, morale: 1, image: 2 }
       : { coach: 4, morale: 2, fans: 1, image: 3 },
-    reaction: t('iv.humble.reaction'),
+    reaction: tVariant('iv.humble.reaction', wurf),
   };
 
   const confident: InterviewOption = {
@@ -121,7 +124,7 @@ function buildOptions(sit: Situation): InterviewOption[] {
     effect: sit.lost
       ? { fans: 1, reputation: 1, coach: -3, image: -2, morale: 1 }
       : { fans: 4, reputation: 3, image: -1, coach: -1, morale: 2 },
-    reaction: t(sit.lost ? 'iv.confident.reactionLost' : 'iv.confident.reaction'),
+    reaction: sit.lost ? t('iv.confident.reactionLost') : tVariant('iv.confident.reaction', wurf),
   };
 
   const provocative: InterviewOption = {
@@ -134,7 +137,7 @@ function buildOptions(sit: Situation): InterviewOption[] {
       : sit.lost
         ? { fans: 2, reputation: 1, image: -5, coach: -6, morale: -1 }
         : { fans: 2, image: -3, coach: -3 },
-    reaction: t('iv.provocative.reaction'),
+    reaction: tVariant('iv.provocative.reaction', wurf),
   };
 
   return [humble, confident, provocative];

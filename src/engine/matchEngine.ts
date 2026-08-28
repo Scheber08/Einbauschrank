@@ -13,7 +13,7 @@ import {
 import type {
   Challenge, ChallengeResult, ChallengeTarget, LiveEvent, StepResult,
 } from './matchTypes';
-import { t } from '../i18n';
+import { t, tVariant } from '../i18n';
 import type { MatchImportance } from './rivalry';
 import { Rng, clamp } from './rng';
 import {
@@ -415,7 +415,7 @@ export class MatchEngine {
     if (this.minute === 0) {
       this.emit(evts, {
         minute: 0, type: 'kickoff', side: null,
-        text: t('live.kickoff', { home: this.setup.homeClub.name, away: this.setup.awayClub.name }),
+        text: tVariant('live.kickoff', this.rng.next(), { home: this.setup.homeClub.name, away: this.setup.awayClub.name }),
       });
     }
 
@@ -425,7 +425,7 @@ export class MatchEngine {
     if (this.minute === 46) {
       this.emit(evts, {
         minute: 45, type: 'halftime', side: null,
-        text: t('live.halftime', { score: `${this.homeScore}:${this.awayScore}` }),
+        text: tVariant('live.halftime', this.rng.next(), { score: `${this.homeScore}:${this.awayScore}` }),
       });
       // Bei einem interaktiven Spiel entscheidet der Spieler in der Pause.
       if (this.setup.interactive && this.userSide && !this.halftimeDone) {
@@ -503,16 +503,16 @@ export class MatchEngine {
 
     if (diff > 0) {
       coachMessage = diff >= 2
-        ? t('me.ht.leadBig')
-        : t('me.ht.leadNarrow');
+        ? tVariant('me.ht.leadBig', this.rng.next())
+        : tVariant('me.ht.leadNarrow', this.rng.next());
       options = [holdOption, balancedOption, pushOption, rallyOption];
     } else if (diff < 0) {
       coachMessage = diff <= -2
-        ? t('me.ht.behindBig')
-        : t('me.ht.behindNarrow');
+        ? tVariant('me.ht.behindBig', this.rng.next())
+        : tVariant('me.ht.behindNarrow', this.rng.next());
       options = [pushOption, rallyOption, balancedOption, holdOption];
     } else {
-      coachMessage = t('me.ht.level');
+      coachMessage = tVariant('me.ht.level', this.rng.next());
       options = [balancedOption, pushOption, holdOption, rallyOption];
     }
 
@@ -574,7 +574,7 @@ export class MatchEngine {
     }
     this.emit(evts, {
       minute: this.minute, type: 'fulltime', side: null,
-      text: t('live.fulltime', { home: this.setup.homeClub.name, away: this.setup.awayClub.name, score: `${this.homeScore}:${this.awayScore}` }),
+      text: tVariant('live.fulltime', this.rng.next(), { home: this.setup.homeClub.name, away: this.setup.awayClub.name, score: `${this.homeScore}:${this.awayScore}` }),
     });
     this.finished = true;
   }
@@ -857,8 +857,8 @@ export class MatchEngine {
         minute: this.minute, type: 'miss', side,
         playerId: shooter.player.id,
         text: blocked
-          ? t('live.shotBlockedLate', { player: this.name(shooter.player.id) })
-          : t('live.shotWide', { player: this.name(shooter.player.id) }),
+          ? tVariant('live.shotBlockedLate', this.rng.next(), { player: this.name(shooter.player.id) })
+          : tVariant('live.shotWide', this.rng.next(), { player: this.name(shooter.player.id) }),
       });
       return;
     }
@@ -907,7 +907,7 @@ export class MatchEngine {
       this.emit(evts, {
         minute: this.minute, type: 'save', side,
         playerId: shooter.player.id,
-        text: t('live.keeperSave', { player: this.name(shooter.player.id) }),
+        text: tVariant('live.keeperSave', this.rng.next(), { player: this.name(shooter.player.id) }),
       });
     }
   }
@@ -935,7 +935,7 @@ export class MatchEngine {
       playerId: shooter.player.id,
       assistId: creator?.player.id,
       user: shooter.player.id === this.setup.userPlayerId,
-      text: t('live.goal', { club: this.clubName(side), scorer: this.name(shooter.player.id), assist: assistText }),
+      text: tVariant('live.goal', this.rng.next(), { club: this.clubName(side), scorer: this.name(shooter.player.id), assist: assistText }),
     });
   }
 
@@ -949,7 +949,7 @@ export class MatchEngine {
 
     this.emit(evts, {
       minute: this.minute, type: 'penaltyAwarded', side,
-      text: t('live.penalty', { club: this.clubName(side) }),
+      text: tVariant('live.penalty', this.rng.next(), { club: this.clubName(side) }),
     });
 
     const userId = this.setup.userPlayerId;
@@ -990,7 +990,7 @@ export class MatchEngine {
       this.emit(evts, {
         minute: this.minute, type: 'penaltyMiss', side,
         playerId: taker.player.id,
-        text: t('live.penaltyMissed', { player: this.name(taker.player.id) }),
+        text: tVariant('live.penaltyMissed', this.rng.next(), { player: this.name(taker.player.id) }),
       });
     }
   }
@@ -1060,7 +1060,7 @@ export class MatchEngine {
 
     this.emit(evts, {
       minute: this.minute, type: 'note', side,
-      text: t('live.freeKick', { club: this.clubName(side), m: Math.round(distance) }),
+      text: tVariant('live.freeKick', this.rng.next(), { club: this.clubName(side), m: Math.round(distance) }),
     });
 
     const userId = this.setup.userPlayerId;
@@ -1107,12 +1107,12 @@ export class MatchEngine {
       if (gk) this.statOf(gk.player.id, this.other(side), 'TW').saves++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side, playerId: taker.player.id,
-        text: t('live.freeKickForcesSave', { player: this.name(taker.player.id) }),
+        text: tVariant('live.freeKickForcesSave', this.rng.next(), { player: this.name(taker.player.id) }),
       });
     } else {
       this.emit(evts, {
         minute: this.minute, type: 'miss', side, playerId: taker.player.id,
-        text: t('live.freeKickMissed', { player: this.name(taker.player.id) }),
+        text: tVariant('live.freeKickMissed', this.rng.next(), { player: this.name(taker.player.id) }),
       });
     }
   }
@@ -1462,14 +1462,14 @@ export class MatchEngine {
         if (gk) this.statOf(gk.player.id, defSide, 'TW').saves++;
         this.emit(evts, {
           minute: this.minute, type: 'save', side, playerId: user.player.id, user: true,
-          text: t('live.userForcesSave', { player: this.name(user.player.id) }),
+          text: tVariant('live.userForcesSave', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       case 'post':
         st.shotsOnTarget++;
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: t('live.woodwork', { player: this.name(user.player.id) }),
+          text: tVariant('live.woodwork', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       case 'blocked': {
@@ -1480,14 +1480,14 @@ export class MatchEngine {
         }
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: t('live.shotBlocked', { player: this.name(user.player.id) }),
+          text: tVariant('live.shotBlocked', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       }
       default:
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: t('live.userWide', { player: this.name(user.player.id) }),
+          text: tVariant('live.userWide', this.rng.next(), { player: this.name(user.player.id) }),
         });
     }
   }
@@ -1506,7 +1506,7 @@ export class MatchEngine {
       if (result.outcome === 'saved') st.shotsOnTarget++;
       this.emit(evts, {
         minute: this.minute, type: 'penaltyMiss', side, playerId: user.player.id, user: true,
-        text: t('live.userPenaltyMissed', { player: this.name(user.player.id) }),
+        text: tVariant('live.userPenaltyMissed', this.rng.next(), { player: this.name(user.player.id) }),
       });
     }
   }
@@ -1525,7 +1525,7 @@ export class MatchEngine {
         this.scoreGoal(side, user, null, evts, ctx.xg >= 0.27);
         this.emit(evts, {
           minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-          text: t('live.freeKickGoal', { player: this.name(user.player.id) }),
+          text: tVariant('live.freeKickGoal', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       case 'saved': {
@@ -1534,27 +1534,27 @@ export class MatchEngine {
         if (gk) this.statOf(gk.player.id, defSide, 'TW').saves++;
         this.emit(evts, {
           minute: this.minute, type: 'save', side, playerId: user.player.id, user: true,
-          text: t('live.freeKickSaved', { player: this.name(user.player.id) }),
+          text: tVariant('live.freeKickSaved', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       }
       case 'blocked':
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: t('live.freeKickWall', { player: this.name(user.player.id) }),
+          text: tVariant('live.freeKickWall', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       case 'post':
         st.shotsOnTarget++;
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: t('live.freeKickPost', { player: this.name(user.player.id) }),
+          text: tVariant('live.freeKickPost', this.rng.next(), { player: this.name(user.player.id) }),
         });
         break;
       default:
         this.emit(evts, {
           minute: this.minute, type: 'miss', side, playerId: user.player.id, user: true,
-          text: t('live.freeKickWide', { player: this.name(user.player.id) }),
+          text: tVariant('live.freeKickWide', this.rng.next(), { player: this.name(user.player.id) }),
         });
     }
   }
@@ -1572,7 +1572,7 @@ export class MatchEngine {
       st.duelsWon++;
       this.emit(evts, {
         minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-        text: t('live.dribblePast', { player: this.name(user.player.id) }),
+        text: tVariant('live.dribblePast', this.rng.next(), { player: this.name(user.player.id) }),
       });
       // Nach dem gewonnenen Dribbling entsteht eine bessere Situation.
       this.continueAttack(side, evts, {
@@ -1593,7 +1593,7 @@ export class MatchEngine {
       }
       this.emit(evts, {
         minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-        text: t('live.fouledDribbling', { player: this.name(user.player.id) }),
+        text: tVariant('live.fouledDribbling', this.rng.next(), { player: this.name(user.player.id) }),
       });
       // Aus dem Foul kann ein gefaehrlicher Freistoss entstehen.
       if (ctx.distance < 30 && this.rng.chance(0.45)) this.awardFreeKick(side, evts);
@@ -1603,7 +1603,7 @@ export class MatchEngine {
     st.possessionLost++;
     this.emit(evts, {
       minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-      text: t('live.dribbleLost', { player: this.name(user.player.id) }),
+      text: tVariant('live.dribbleLost', this.rng.next(), { player: this.name(user.player.id) }),
     });
   }
 
@@ -1620,7 +1620,7 @@ export class MatchEngine {
       st.blocks++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side: defSide, playerId: user.player.id, user: true,
-        text: t('live.blockClear', { player: this.name(user.player.id) }),
+        text: tVariant('live.blockClear', this.rng.next(), { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1633,7 +1633,7 @@ export class MatchEngine {
       } else {
         this.emit(evts, {
           minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-          text: t('live.lateFoul', { player: this.name(user.player.id) }),
+          text: tVariant('live.lateFoul', this.rng.next(), { player: this.name(user.player.id) }),
         });
       }
       return;
@@ -1642,7 +1642,7 @@ export class MatchEngine {
     // Block misslungen: der Schuss laeuft ganz normal weiter.
     this.emit(evts, {
       minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-      text: t('live.slipPast', { player: this.name(user.player.id) }),
+      text: tVariant('live.slipPast', this.rng.next(), { player: this.name(user.player.id) }),
     });
     if (shooter) {
       const creator = ctx.assistId
@@ -1666,7 +1666,7 @@ export class MatchEngine {
       st.possessionLost++;
       this.emit(evts, {
         minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
-        text: t('live.lostInBuildup', { player: this.name(user.player.id) }),
+        text: tVariant('live.lostInBuildup', this.rng.next(), { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1693,7 +1693,7 @@ export class MatchEngine {
       // Kein Tor: der Schluesselpass zaehlt trotzdem.
       this.emit(evts, {
         minute: this.minute, type: 'chance', side, playerId: user.player.id, user: true,
-        text: t('live.assistWasted', { player: this.name(user.player.id) }),
+        text: tVariant('live.assistWasted', this.rng.next(), { player: this.name(user.player.id) }),
       });
     }
   }
@@ -1710,7 +1710,7 @@ export class MatchEngine {
       st.tackles++;
       this.emit(evts, {
         minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-        text: t('live.strongClear', { player: this.name(user.player.id) }),
+        text: tVariant('live.strongClear', this.rng.next(), { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1723,7 +1723,7 @@ export class MatchEngine {
       } else {
         this.emit(evts, {
           minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-          text: t('live.stopsWithFoul', { player: this.name(user.player.id) }),
+          text: tVariant('live.stopsWithFoul', this.rng.next(), { player: this.name(user.player.id) }),
         });
       }
       return;
@@ -1732,7 +1732,7 @@ export class MatchEngine {
     // Zweikampf verloren - der Angriff laeuft weiter.
     this.emit(evts, {
       minute: this.minute, type: 'note', side: defSide, playerId: user.player.id, user: true,
-      text: t('live.beaten', { player: this.name(user.player.id) }),
+      text: tVariant('live.beaten', this.rng.next(), { player: this.name(user.player.id) }),
     });
     this.continueAttack(ctx.attackingSide, evts);
   }
@@ -1762,7 +1762,7 @@ export class MatchEngine {
       if (shooterStats) shooterStats.penaltiesMissed++;
       this.emit(evts, {
         minute: this.minute, type: 'save', side: defSide, playerId: user.player.id, user: true,
-        text: t('live.penaltySaved', { player: this.name(user.player.id) }),
+        text: tVariant('live.penaltySaved', this.rng.next(), { player: this.name(user.player.id) }),
       });
       return;
     }
@@ -1799,7 +1799,7 @@ export class MatchEngine {
       this.sendOff(playerId, side);
       this.emit(evts, {
         minute: this.minute, type: 'red', side, playerId, user: isUser,
-        text: t('live.red', { player: this.name(playerId) }),
+        text: tVariant('live.red', this.rng.next(), { player: this.name(playerId) }),
       });
       return;
     }
@@ -1812,13 +1812,13 @@ export class MatchEngine {
       this.sendOff(playerId, side);
       this.emit(evts, {
         minute: this.minute, type: 'secondYellow', side, playerId, user: isUser,
-        text: t('live.secondYellow', { player: this.name(playerId) }),
+        text: tVariant('live.secondYellow', this.rng.next(), { player: this.name(playerId) }),
       });
     } else {
       st.yellowCards++;
       this.emit(evts, {
         minute: this.minute, type: 'yellow', side, playerId, user: isUser,
-        text: t('live.yellow', { player: this.name(playerId) }),
+        text: tVariant('live.yellow', this.rng.next(), { player: this.name(playerId) }),
       });
     }
   }
@@ -1849,7 +1849,7 @@ export class MatchEngine {
           };
           this.emit(evts, {
             minute: this.minute, type: 'injury', side, playerId: p.id, user: true,
-            text: t('live.knockDown', { player: this.name(p.id) }),
+            text: tVariant('live.knockDown', this.rng.next(), { player: this.name(p.id) }),
           });
           return;
         }
@@ -1858,7 +1858,7 @@ export class MatchEngine {
         this.emit(evts, {
           minute: this.minute, type: 'injury', side, playerId: p.id,
           user: false,
-          text: t('live.needsTreatment', { player: this.name(p.id) }),
+          text: tVariant('live.needsTreatment', this.rng.next(), { player: this.name(p.id) }),
         });
         this.substitute(side, o, evts, true);
         return;
@@ -1879,7 +1879,7 @@ export class MatchEngine {
       this.injuries.push({ playerId: this.setup.userPlayerId!, days: decision.estimatedDays });
       this.emit(evts, {
         minute: this.minute, type: 'injury', side, playerId: this.setup.userPlayerId!, user: true,
-        text: t('live.cannotContinue', { player: this.name(this.setup.userPlayerId!) }),
+        text: tVariant('live.cannotContinue', this.rng.next(), { player: this.name(this.setup.userPlayerId!) }),
       });
       if (user) this.substitute(side, user, evts, true);
       this.events.push(...evts);
@@ -1896,7 +1896,7 @@ export class MatchEngine {
       : decision.severity === 'mittel' ? 0.008 : 0.004;
     this.emit(evts, {
       minute: this.minute, type: 'note', side, playerId: this.setup.userPlayerId!, user: true,
-      text: t('live.playsOn', { player: this.name(this.setup.userPlayerId!) }),
+      text: tVariant('live.playsOn', this.rng.next(), { player: this.name(this.setup.userPlayerId!) }),
     });
     this.events.push(...evts);
     return evts;
@@ -1915,7 +1915,7 @@ export class MatchEngine {
     this.aggravationRisk = 0;
     this.emit(evts, {
       minute: this.minute, type: 'injury', side: this.userSide!, playerId: user.player.id, user: true,
-      text: t('live.injuryWorse', { player: this.name(user.player.id) }),
+      text: tVariant('live.injuryWorse', this.rng.next(), { player: this.name(user.player.id) }),
     });
     this.substitute(this.userSide!, user, evts, true);
   }
@@ -2040,7 +2040,7 @@ export class MatchEngine {
       minute: this.minute, type: 'sub', side,
       playerId: incoming.id,
       user: incoming.id === this.setup.userPlayerId || out.player.id === this.setup.userPlayerId,
-      text: t('live.substitution', { club: this.clubName(side), on: this.name(incoming.id), off: this.name(out.player.id) }),
+      text: tVariant('live.substitution', this.rng.next(), { club: this.clubName(side), on: this.name(incoming.id), off: this.name(out.player.id) }),
     });
   }
 

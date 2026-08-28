@@ -250,6 +250,131 @@ const EVENT_POOL: EventTemplate[] = [
       },
     ],
   },
+  {
+    key: 'maskottchen',
+    options: [
+      {
+        id: 'race',
+        effect: {fans:6,morale:3,fitness:-3},
+        hasNews: true,
+      },
+      {
+        id: 'letWin',
+        effect: {fans:4,morale:2},
+      },
+      {
+        id: 'decline',
+        effect: {fitness:1,fans:-2},
+      },
+    ],
+  },
+  {
+    key: 'schafe',
+    options: [
+      {
+        id: 'help',
+        effect: {morale:4,fans:3,fitness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'film',
+        effect: {image:4,fans:2,coach:-2},
+        hasNews: true,
+      },
+      {
+        id: 'wait',
+        effect: {sharpness:1},
+      },
+    ],
+  },
+  {
+    key: 'talkshow',
+    options: [
+      {
+        id: 'go',
+        effect: {image:6,fans:3,sharpness:-3,coach:-2},
+        hasNews: true,
+      },
+      {
+        id: 'decline',
+        effect: {coach:3,image:-2},
+      },
+    ],
+  },
+  {
+    key: 'trikotpanne',
+    options: [
+      {
+        id: 'humour',
+        effect: {fans:5,image:3,morale:2},
+        hasNews: true,
+      },
+      {
+        id: 'annoyed',
+        effect: {morale:-2,image:-1,coach:1},
+      },
+    ],
+  },
+  {
+    key: 'kochduell',
+    options: [
+      {
+        id: 'cook',
+        effect: {morale:5,fans:2,fitness:-1},
+        hasNews: true,
+      },
+      {
+        id: 'judge',
+        effect: {morale:2,coach:1},
+      },
+      {
+        id: 'skip',
+        effect: {sharpness:2,morale:-2},
+      },
+    ],
+  },
+  {
+    key: 'moewe',
+    options: [
+      {
+        id: 'laugh',
+        effect: {morale:3,fans:4,image:2},
+        hasNews: true,
+      },
+      {
+        id: 'complain',
+        effect: {morale:-1,image:-2,coach:1},
+      },
+    ],
+  },
+  {
+    key: 'doppelgaenger',
+    options: [
+      {
+        id: 'meet',
+        effect: {image:5,fans:4,sharpness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'ignore',
+        effect: {sharpness:1,image:-1},
+      },
+    ],
+  },
+  {
+    key: 'busfahrer',
+    options: [
+      {
+        id: 'stay',
+        effect: {morale:4,coach:2,fitness:-2},
+        hasNews: true,
+      },
+      {
+        id: 'taxi',
+        effect: {fitness:2,morale:-2,coach:-2},
+      },
+    ],
+  },
 ];
 
 /** Baut ein zufaelliges Ereignis mit eindeutiger ID. */

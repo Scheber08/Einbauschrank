@@ -12,7 +12,7 @@ import type { Challenge, ChallengeResult } from '../../engine/matchTypes';
 import { Rng, clamp } from '../../engine/rng';
 import type { DifficultySettings, Player } from '../../engine/types';
 import { KeeperFigure, drawHumanKeeper, drawHumanPlayer } from './figures';
-import { t as tr , tDecimal } from '../../i18n';
+import { t as tr, tDecimal, tVariant } from '../../i18n';
 import { useLocale } from '../../i18n/useLocale';
 
 const VIEW_W = 880;
@@ -422,6 +422,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     : [tr('scene.direction'), isHeader ? tr('scene.force') : tr('scene.power'), tr('scene.contact'), '', ''];
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [step, setStep] = useState<BallStep>(passLike && !goodShotPosition ? 'target' : 'aim');
   const [targetId, setTargetId] = useState<string | null>(challenge.targets?.[0]?.id ?? null);
   const [aim, setAim] = useState<{ x: number; y: number } | null>(null);
@@ -768,31 +769,31 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         targetId: resolution.targetId,
       };
       setResultText(resolution.outcome === 'passCompleted'
-        ? tr('scene.result.passOk')
-        : resolution.reason === 'tooHard' ? tr('scene.result.tooHard')
-        : resolution.reason === 'tooShort' ? tr('scene.result.tooShort')
-        : resolution.reason === 'pastTeammate' ? tr('scene.result.pastTeammate')
-        : tr('scene.result.intercepted'));
+        ? trv(seed, 'scene.result.passOk')
+        : resolution.reason === 'tooHard' ? trv(seed, 'scene.result.tooHard')
+        : resolution.reason === 'tooShort' ? trv(seed, 'scene.result.tooShort')
+        : resolution.reason === 'pastTeammate' ? trv(seed, 'scene.result.pastTeammate')
+        : trv(seed, 'scene.result.intercepted'));
       setReason(resolution.outcome === 'passCompleted'
-        ? tr('scene.result.deviation', { m: tDecimal(resolution.error, 1) })
+        ? trv(seed, 'scene.result.deviation', { m: tDecimal(resolution.error, 1) })
         : resolution.reason === 'tooHard'
-          ? tr('scene.result.uncontrollable')
+          ? trv(seed, 'scene.result.uncontrollable')
         : resolution.reason === 'tooShort'
-          ? tr('scene.result.tooWeak')
+          ? trv(seed, 'scene.result.tooWeak')
         : resolution.reason === 'pastTeammate'
-          ? tr('scene.result.missedBy', { m: tDecimal(resolution.error, 1) })
-          : tr('scene.result.passBlocked'));
+          ? trv(seed, 'scene.result.missedBy', { m: tDecimal(resolution.error, 1) })
+          : trv(seed, 'scene.result.passBlocked'));
     } else {
       const resolution = resolveShot(input, challenge, player, difficulty, rng);
       shotRef.current = resolution;
       flightRef.current = { flight: resolution.flight, index: 0 };
       finalRef.current = { outcome: resolution.outcome, quality: resolution.quality };
       setResultText({
-        goal: 'TOR!',
-        saved: tr('scene.result.saved'),
-        offTarget: tr('scene.result.wide'),
-        blocked: tr('scene.result.blocked'),
-        post: tr('scene.result.woodwork'),
+        goal: trv(seed, 'scene.result.goal'),
+        saved: trv(seed, 'scene.result.saved'),
+        offTarget: trv(seed, 'scene.result.wide'),
+        blocked: trv(seed, 'scene.result.blocked'),
+        post: trv(seed, 'scene.result.woodwork'),
       }[resolution.outcome as string] ?? tr('scene.finish'));
       setReason(describeShot(resolution, input, challenge.distance));
     }
@@ -959,6 +960,18 @@ function offsetPoint(t: Transform, p: { x: number; y: number; z: number }): [num
 }
 
 /** Nahansicht des Balls zur Wahl des Kontaktpunkts (Konzept Abschnitt 22.4). */
+/**
+ * Eine von mehreren Fassungen eines Ergebnistextes.
+ *
+ * Der Wurf kommt aus dem Startwert der Szene: Damit ist die Auswahl
+ * reproduzierbar und verschiebt keinen Zufallsstrom der Spielsimulation.
+ * Schluessel ohne Fassungen - etwa die Hinweise zur Mechanik - fallen in
+ * `tVariant` auf ihre Einzelfassung zurueck und bleiben damit bewusst
+ * immer gleich: Eine Erklaerung soll bei jeder Wiederholung gleich klingen.
+ */
+function trv(seed: number, key: string, params?: Record<string, string | number>): string {
+  return tVariant(key, ((seed >>> 7) % 997) / 997, params);
+}
 function ContactPicker(
   { onPick, onHover }:
   { onPick: (x: number, y: number) => void; onHover: (p: { x: number; y: number }) => void },
@@ -1138,12 +1151,12 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
       : resolveDuel({ offset: offsetSeconds }, challenge, player, difficulty, rng);
     finalRef.current = result;
     setResultText({
-      duelWon: tr('scene.result.ballWon'),
-      duelLost: tr('scene.result.opponentThrough'),
-      foulCommitted: tr('scene.result.fouled'),
-      dribbleWon: tr('scene.result.beatenMan'),
-      dribbleLost: tr('scene.result.ballLost'),
-      foulSuffered: tr('scene.result.foulWon'),
+      duelWon: trv(seed, 'scene.result.ballWon'),
+      duelLost: trv(seed, 'scene.result.opponentThrough'),
+      foulCommitted: trv(seed, 'scene.result.fouled'),
+      dribbleWon: trv(seed, 'scene.result.beatenMan'),
+      dribbleLost: trv(seed, 'scene.result.ballLost'),
+      foulSuffered: trv(seed, 'scene.result.foulWon'),
     }[result.outcome as string] ?? tr('scene.duel'));
     setPhase('result');
   }, [phase, isDribble, challenge, player, difficulty, seed, activeMove]);
@@ -1416,9 +1429,9 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     crossingRef.current = resolution.crossing;
     finalRef.current = { outcome: resolution.outcome, quality: resolution.quality };
     setResultText({
-      saveMade: tr('scene.result.parried'),
-      caught: tr('scene.result.caught'),
-      goalConceded: tr('scene.result.goal'),
+      saveMade: trv(seed, 'scene.result.parried'),
+      caught: trv(seed, 'scene.result.caught'),
+      goalConceded: trv(seed, 'scene.result.goal'),
     }[resolution.outcome as string] ?? tr('scene.finish'));
     setStep('result');
   }, [step, dive, seed, challenge, player, difficulty]);

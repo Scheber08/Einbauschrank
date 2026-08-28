@@ -20,6 +20,8 @@ const MENTAL_GROWTH: AttrKey[] = [
 ];
 
 export interface PlayerGenOptions {
+  /** Schon vergebene Vollnamen - verhindert zwei gleiche Spieler in einer Welt. */
+  vergebeneNamen?: Set<string>;
   ability: number;
   position: PositionCode;
   age: number;
@@ -115,6 +117,33 @@ function physique(rng: Rng, position: PositionCode): { height: number; weight: n
   return { height, weight: Math.round((bmi * height * height) / 10000) };
 }
 
+/**
+ * Zieht einen Namen, der noch nicht vergeben ist.
+ *
+ * Groessere Namenstoepfe allein reichen nicht: Bei 1.500 Spielern je Topf
+ * treffen sich zwei Ziehungen nach dem Geburtstagsparadoxon trotzdem
+ * regelmaessig. Gemessen nach der Poolvergroesserung: 8 Prozent doppelte
+ * Vollnamen, und **jede** der 15 Ligen enthielt mindestens einen.
+ *
+ * Nach ein paar Versuchen wird aufgegeben - eine Dopplung ist besser als
+ * eine Endlosschleife, falls ein Topf einmal wirklich erschoepft ist.
+ */
+function ziehName(
+  rng: Rng, pool: { firstNames: string[]; lastNames: string[] },
+  vergeben?: Set<string>,
+): { firstName: string; lastName: string } {
+  for (let versuch = 0; versuch < 8; versuch++) {
+    const firstName = rng.pick(pool.firstNames);
+    const lastName = rng.pick(pool.lastNames);
+    const voll = `${firstName} ${lastName}`;
+    if (!vergeben || !vergeben.has(voll)) {
+      vergeben?.add(voll);
+      return { firstName, lastName };
+    }
+  }
+  return { firstName: rng.pick(pool.firstNames), lastName: rng.pick(pool.lastNames) };
+}
+
 export function createPlayer(rng: Rng, id: string, opts: PlayerGenOptions): Player {
   // countryId ist die Herkunftsnation. Namen und Laender-Eigenheiten haengen
   // am zugeordneten Pool - so bekommt ein Brasilianer iberische Namen, ohne
@@ -150,8 +179,7 @@ export function createPlayer(rng: Rng, id: string, opts: PlayerGenOptions): Play
   return {
     id,
     clubId: opts.clubId,
-    firstName: rng.pick(pool.firstNames),
-    lastName: rng.pick(pool.lastNames),
+    ...ziehName(rng, pool, opts.vergebeneNamen),
     nationality: opts.countryId,
     birthDate,
     position: opts.position,

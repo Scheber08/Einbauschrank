@@ -107,6 +107,8 @@ function generateSquad(
   rng: Rng, club: Club, level: number, country: CountryDef,
   currentDate: GameDate, makeId: (p: string) => Id,
   realSquad?: RealClub['squad'],
+  /** Ueber die ganze Welt mitgefuehrt, damit kein Name zweimal faellt. */
+  vergebeneNamen?: Set<string>,
 ): Player[] {
   const avgAbility = abilityForReputation(club.reputation);
   const players: Player[] = [];
@@ -154,6 +156,7 @@ function generateSquad(
     usedNumbers.add(shirtNumber);
 
     const player = createPlayer(rng, makeId('p'), {
+      vergebeneNamen,
       ability,
       position,
       age,
@@ -224,6 +227,10 @@ function setzeBudgets(club: Club, kader: Player[], rng: Rng) {
 }
 
 export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
+  // Ein Gedaechtnis fuer die ganze Welt: Gemessen an einer frischen Welt
+  // teilten sich vorher 35 Prozent aller Spieler ihren vollen Namen mit
+  // jemandem, und jede der 15 Ligen enthielt mindestens eine Dopplung.
+  const vergebeneNamen = new Set<string>();
   const countries: Record<Id, Country> = {};
   const competitions: Record<Id, Competition> = {};
   const clubs: Record<Id, Club> = {};
@@ -315,6 +322,7 @@ export function generateWorld(rng: Rng, opts: WorldGenOptions): WorldGenResult {
 
         const kader = generateSquad(
           rng, club, level, country, opts.currentDate, opts.makeId, real?.squad,
+          vergebeneNamen,
         );
         for (const p of kader) players[p.id] = p;
         setzeBudgets(club, kader, rng);

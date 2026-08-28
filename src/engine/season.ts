@@ -11,7 +11,7 @@ import { addDays, ageOn, makeDate, seasonLabel } from './date';
 import { developAiPlayer } from './development';
 import { buildLeagueSchedule, cupDates, leagueMatchDates } from './fixtures';
 import { addCareerEvent, addMatch, addNews, makeId } from './ids';
-import { t, tDecimal, tNumber } from '../i18n';
+import { t, tDecimal, tNumber, tVariant } from '../i18n';
 import { expireUserContract } from './contract';
 import { runManagerChanges } from './manager';
 import { resolveObjectives } from './objectives';
@@ -351,8 +351,12 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
 function announceChampion(state: GameState, league: Competition, clubId: Id, points: number) {
   const club = state.clubs[clubId];
   if (!club) return;
+  // Kein Zufallsgeber in dieser Funktion - der Wurf kommt aus Saison und
+  // Vereinskennung. Reproduzierbar und je Meisterschaft verschieden.
+  const wurf = ((state.season * 31 + clubId.length * 7 + clubId.charCodeAt(clubId.length - 1))
+    % 997) / 997;
   addNews(state, 'season',
-    t('se.champion.news', { club: club.name, league: league.name }),
+    tVariant('se.champion.news', wurf, { club: club.name, league: league.name }),
     t('se.champion.newsBody', {
       points, club: club.name, season: seasonLabel(state.season),
     }),
@@ -367,6 +371,9 @@ function announceChampion(state: GameState, league: Competition, clubId: Id, poi
 }
 
 function applyPromotionRelegation(state: GameState, countryId: Id, report: SeasonReport) {
+  // Kein Zufallsgeber in dieser Funktion. Der Wurf fuer die Formulierung
+  // kommt aus Saison und Land - reproduzierbar und je Saison verschieden.
+  const wurf = ((state.season * 17 + countryId.length * 5) % 997) / 997;
   const leagues = leaguesOfCountry(state, countryId);
   const winners = relegationWinners(state, countryId);
   const moves: { clubId: Id; toLeague: Id; fromLevel: number; up: boolean }[] = [];
@@ -428,7 +435,8 @@ function applyPromotionRelegation(state: GameState, countryId: Id, report: Seaso
     else report.relegated.push({ clubId: club.id, fromLevel: move.fromLevel });
 
     addNews(state, 'season',
-      t(move.up ? 'se.promoted.news' : 'se.relegated.news', { club: club.name }),
+      tVariant(move.up ? 'se.promoted.news' : 'se.relegated.news', wurf,
+        { club: club.name }),
       t('se.move.body', { club: club.name, league: league.name }),
       state.players[state.userPlayerId]?.clubId === club.id);
 
@@ -696,7 +704,13 @@ function ageAndDevelop(state: GameState, rng: Rng) {
 
 function refillSquads(state: GameState, rng: Rng) {
   const byClub = new Map<Id, Player[]>();
+  // Die schon vergebenen Namen der ganzen Welt. Ohne dieses Gedaechtnis
+  // sammelte der jaehrliche Nachwuchs wieder Dopplungen an: Die Welterzeugung
+  // vermied sie, aber jede neue Saison zog blind nach - gemessen nach drei
+  // Saisons 221 doppelte Vollnamen und 14 von 15 betroffenen Ligen.
+  const vergebeneNamen = new Set<string>();
   for (const p of Object.values(state.players)) {
+    vergebeneNamen.add(`${p.firstName} ${p.lastName}`);
     if (!p.clubId) continue;
     if (!byClub.has(p.clubId)) byClub.set(p.clubId, []);
     byClub.get(p.clubId)!.push(p);
@@ -714,6 +728,7 @@ function refillSquads(state: GameState, rng: Rng) {
       const ability = clamp(29 + club.reputation * 0.545 + rng.normal(-6, 5), 20, 82);
       const position = rng.pick(['TW', 'IV', 'LV', 'RV', 'DM', 'ZM', 'OM', 'LA', 'RA', 'ST'] as const);
       const player = createPlayer(rng, makeId(state, 'p'), {
+        vergebeneNamen,
         ability,
         position,
         age: rng.int(17, 21),

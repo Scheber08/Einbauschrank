@@ -109,6 +109,8 @@ export async function restoreLocale(): Promise<void> {
   const ziel = gewaehlt ?? 'de';
   aktuell = ziel;
   katalog = await LADER[ziel]();
+  // Die gemerkten Anzahlen gehoeren zum geladenen Katalog.
+  fassungen.clear();
   wendeAufSeiteAn(ziel);
 }
 
@@ -128,6 +130,36 @@ export function t(key: string, params?: Record<string, string | number>): string
     const wert = params[name];
     return wert === undefined ? treffer : String(wert);
   });
+}
+
+/** Gemerkte Anzahl der Fassungen je Schluessel, pro Sprache. */
+const fassungen = new Map<string, number>();
+
+/**
+ * Waehlt eine von mehreren Fassungen desselben Textes.
+ *
+ * Die Fassungen heissen `<key>.1`, `<key>.2` und so weiter. Wie viele es
+ * gibt, probiert die Funktion einmal aus und merkt es sich - so kann keine
+ * fest eingetragene Anzahl mit dem Katalog auseinanderlaufen, wenn spaeter
+ * eine Fassung dazukommt oder wegfaellt.
+ *
+ * `wurf` ist eine Zahl zwischen 0 und 1. Die Auswahl gehoert damit dem
+ * Aufrufer, der einen bestimmten Zufallsstrom hat - so bleibt ein
+ * Spielverlauf bei gleichem Startwert reproduzierbar.
+ */
+export function tVariant(
+  key: string, wurf: number, params?: Record<string, string | number>,
+): string {
+  const merkschluessel = `${aktuell}:${key}`;
+  let anzahl = fassungen.get(merkschluessel);
+  if (anzahl === undefined) {
+    anzahl = 0;
+    while (katalog[`${key}.${anzahl + 1}`] !== undefined) anzahl++;
+    fassungen.set(merkschluessel, anzahl);
+  }
+  if (anzahl === 0) return t(key, params);
+  const i = Math.min(anzahl, Math.floor(wurf * anzahl) + 1);
+  return t(`${key}.${i}`, params);
 }
 
 /**

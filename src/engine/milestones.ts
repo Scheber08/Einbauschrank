@@ -10,7 +10,7 @@
  * Die Abstaende wachsen bewusst mit: Am Anfang faellt oft etwas, spaeter wird
  * jede Marke seltener und dadurch schwerer.
  */
-import { t } from '../i18n';
+import { t, tVariant } from '../i18n';
 import { addCareerEvent, addNews } from './ids';
 import { socialMilestone } from './social';
 import type { Rng } from './rng';
@@ -76,17 +76,22 @@ export function checkMatchMilestones(
     [crossed(ASSIST_MARKS, before.assists, after.assists), 'ms.assists', 'assists', 'match'],
   ];
 
+  // Ein Wurf je Marke fuer die Formulierung der Meldung. Ohne einen
+  // Zufallsgeber (die Marke kann auch ohne kommen) bleibt es bei der
+  // ersten Fassung - besser als gar keine Meldung.
+  const wurf = rng ? rng.next() : 0;
   for (const [n, key, schwelle, kategorie] of marken) {
     if (n === null) continue;
     addCareerEvent(state, 'milestone',
       t(`${key}.title`, { n }), t(`${key}.body`, { n, club }), extra);
     addNews(state, kategorie,
-      t(`${key}.news`, { n, last }), t(`${key}.newsBody`, { n, name }),
+      tVariant(`${key}.news`, wurf, { n, last }),
+      t(`${key}.newsBody`, { n, name }),
       n >= GROSS[schwelle]);
     // Eine Marke ist Reichweite. Ohne diesen Anschluss meldete der Feed jedes
     // beliebige Spiel, aber nicht das 50. Tor - und die Followerzahl wuchs an
     // der Laufbahn vorbei.
-    if (rng) socialMilestone(state, t(`${key}.news`, { n, last }), rng);
+    if (rng) socialMilestone(state, tVariant(`${key}.news`, wurf, { n, last }), rng);
   }
 }
 

@@ -7,7 +7,7 @@
  */
 import { clamp, Rng } from './rng';
 import type { GameState, Id, PlayerMatchStats, SocialPost, SocialDraft } from './types';
-import { t, tDecimal } from '../i18n';
+import { t, tDecimal, tVariant } from '../i18n';
 
 /** Wie viele Beitraege im Verlauf behalten werden. */
 const FEED_LIMIT = 60;
@@ -145,7 +145,7 @@ function buildDraft(kind: DraftKind, opponent: string, score: string, rng: Rng):
           gemeinsam,
           { id: 'confident', label: t('soc.opt.confident'), tone: t('soc.tone.confident'),
             effect: { image: -1, fans: 5, reputation: 1, teamMood: -1 },
-            text: t('soc.text.confident') },
+            text: tVariant('soc.text.confident', rng.next()) },
           { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
@@ -156,7 +156,7 @@ function buildDraft(kind: DraftKind, opponent: string, score: string, rng: Rng):
           gemeinsam,
           { id: 'fans', label: t('soc.opt.fans'), tone: t('soc.tone.close'),
             effect: { fans: 6, image: 2 },
-            text: t('soc.text.fans') },
+            text: tVariant('soc.text.fans', rng.next()) },
           { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
@@ -166,10 +166,10 @@ function buildDraft(kind: DraftKind, opponent: string, score: string, rng: Rng):
         options: [
           { id: 'owning', label: t('soc.opt.owning'), tone: t('soc.tone.selfCritical'),
             effect: { image: 5, fans: 3, teamMood: 2 },
-            text: t('soc.text.owning') },
+            text: tVariant('soc.text.owning', rng.next()) },
           { id: 'defiant', label: t('soc.opt.defiant'), tone: t('soc.tone.defiant'),
             effect: { image: -6, fans: -4, teamMood: -2 },
-            text: t('soc.text.defiant') },
+            text: tVariant('soc.text.defiant', rng.next()) },
           { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
@@ -182,7 +182,7 @@ function buildDraft(kind: DraftKind, opponent: string, score: string, rng: Rng):
             text: t(rng.pick(['soc.rally.1', 'soc.rally.2', 'soc.rally.3'])) },
           { id: 'blame', label: t('soc.opt.blame'), tone: t('soc.tone.sharp'),
             effect: { teamMood: -9, image: -5, fans: -2 },
-            text: t('soc.text.blame') },
+            text: tVariant('soc.text.blame', rng.next()) },
           { id: 'silent', label: t('soc.opt.silent'), tone: t('soc.tone.quiet'), effect: {}, text: '' },
         ],
       };
