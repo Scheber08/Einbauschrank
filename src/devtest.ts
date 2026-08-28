@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { matchReferee, type RefereeStyle } from './engine/referee';
 import { matchWeather, type Weather } from './engine/weather';
 import { attendanceRoll } from './engine/rivalry';
 import { autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
@@ -1433,6 +1434,125 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         check('Das Wetter entscheidet die Partie nicht', schnee > sonne * 0.7,
           `Faktor ${(schnee / sonne).toFixed(2)}`);
       }
+    }
+  }
+  // --- Der Schiedsrichter (Abschnitt 31) -------------------------------
+  //
+  // Er kam nur in Textbausteinen vor ("Der Schiedsrichter zeigt Gelb") - als
+  // Figur gab es ihn nicht. Jede Partie wurde nach demselben Massstab
+  // gepfiffen, wer pfiff machte keinen Unterschied. Dabei ist er eine der
+  // wenigen Groessen, ueber die ein Spieler vor dem Anpfiff nachdenkt.
+  //
+  // Nebenbei kam eine Modellschwaeche heraus: Vergehen und Karte waren
+  // dieselbe Entscheidung, im Spielbericht standen also immer gleich viele
+  // Fouls wie Karten.
+  log('\n--- Der Schiedsrichter ---');
+  {
+    const partien = Object.values(game.matches).slice(0, 500);
+    const stile: Record<string, number> = {};
+    const namen = new Set<string>();
+    for (const m of partien) {
+      const land = game.clubs[m.homeClubId]?.countryId ?? 'falkenland';
+      const r = matchReferee(m.id, land);
+      stile[r.style] = (stile[r.style] ?? 0) + 1;
+      namen.add(r.name);
+    }
+    log(`Spielarten: ${Object.entries(stile).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+    check('Alle fuenf Spielarten kommen vor', Object.keys(stile).length === 5,
+      `${Object.keys(stile).length}`);
+    check('Der unauffaellige Schiedsrichter bleibt der Normalfall',
+      (stile.balanced ?? 0) > partien.length * 0.35,
+      `${stile.balanced ?? 0} von ${partien.length}`);
+    check('Es gibt viele verschiedene Namen', namen.size > 40, `${namen.size}`);
+    check('Dieselbe Partie bekommt immer denselben Mann',
+      partien.slice(0, 50).every((m) =>
+        matchReferee(m.id, 'falkenland').name === matchReferee(m.id, 'falkenland').name));
+
+    // Dieselbe Partie, dieselben Wuerfel, nur der Mann an der Pfeife ist ein
+    // anderer. Gemessen wird bei vollem Haus, damit auch die Neigung zur
+    // Heimmannschaft sichtbar wird - sie haengt an der Kulisse.
+    const partie = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (partie) {
+      const platz = game.clubs[partie.homeClubId]?.stadiumCapacity ?? 0;
+      const laufBei = (stil: RefereeStyle) => {
+        let fouls = 0, gelb = 0, rot = 0, gegenGaeste = 0;
+        const laeufe = 10;
+        for (let i = 0; i < laeufe; i++) {
+          const vorbereitet = prepareUserMatch(game, partie.id, true);
+          if (!vorbereitet) break;
+          const rngS = new Rng(6100 + i * 157);
+          const engine = new MatchEngine({
+            ...vorbereitet.setup, rng: rngS, highlightMode: 'own',
+            refereeStyle: stil, attendance: platz,
+          });
+          engine.runToEnd(
+            (c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngS));
+          const t = engine.teamStats;
+          fouls += t.home.fouls + t.away.fouls;
+          gegenGaeste += t.away.fouls;
+          for (const ev of engine.events) {
+            if (ev.type === 'yellow') gelb++;
+            if (ev.type === 'red' || ev.type === 'secondYellow') rot++;
+          }
+        }
+        return {
+          fouls: fouls / laeufe, gelb: gelb / laeufe, rot: rot / laeufe,
+          anteil: fouls > 0 ? gegenGaeste / fouls : 0,
+        };
+      };
+
+      const normal = laufBei('balanced');
+      const streng = laufBei('strict');
+      const milde = laufBei('lenient');
+      const nah = laufBei('homer');
+
+      for (const [name, w] of [
+        ['unauffaellig', normal], ['kleinlich', streng],
+        ['laesst laufen', milde], ['publikumsnah', nah],
+      ] as [string, typeof normal][]) {
+        log(`${name.padEnd(14)} ${w.fouls.toFixed(1)} Fouls, `
+          + `${w.gelb.toFixed(1)} Gelb, ${w.rot.toFixed(2)} Rot, `
+          + `${(w.anteil * 100).toFixed(0)} % gegen die Gaeste`);
+      }
+
+      check('Der Kleinliche pfeift mehr als der Milde',
+        streng.fouls > milde.fouls,
+        `${streng.fouls.toFixed(1)} gegen ${milde.fouls.toFixed(1)}`);
+      check('Der Kleinliche verwarnt mehr als der Milde',
+        streng.gelb > milde.gelb,
+        `${streng.gelb.toFixed(1)} gegen ${milde.gelb.toFixed(1)}`);
+      check('Der Unauffaellige liegt dazwischen',
+        normal.gelb > milde.gelb && normal.gelb < streng.gelb,
+        `${normal.gelb.toFixed(1)}`);
+      check('Der Publikumsnahe pfeift eher gegen die Gaeste',
+        nah.anteil > normal.anteil + 0.08,
+        `${(nah.anteil * 100).toFixed(0)} % gegen ${(normal.anteil * 100).toFixed(0)} %`);
+      check('Auch er bleibt unter drei Vierteln', nah.anteil < 0.78,
+        `${(nah.anteil * 100).toFixed(0)} %`);
+
+      // Vergehen und Karte sind zwei Entscheidungen. Vorher gab jedes
+      // gepfiffene Vergehen eine Karte - im Spielbericht standen also immer
+      // gleich viele Fouls wie Karten, was es im Fussball nicht gibt.
+      check('Es gibt mehr Fouls als Karten', normal.fouls > normal.gelb * 1.5,
+        `${normal.fouls.toFixed(1)} Fouls, ${normal.gelb.toFixed(1)} Gelb`);
+
+      // Ein verwarnter Spieler geht vorsichtiger rein. Ohne das ging bei
+      // einem kartenfreudigen Schiedsrichter in fast jeder Partie jemand
+      // mit Gelb-Rot vom Platz.
+      //
+      // Zugesichert wird die Richtung und ein grober Rahmen ueber alle vier
+      // Spielarten, nicht der Wert einer einzelnen. Zehn Partien sind fuer
+      // ein so seltenes Ereignis wie einen Platzverweis zu wenig - dieselbe
+      // Lehre wie bei der Punkteausbeute und beim Modusvergleich.
+      const rotSchnitt = (normal.rot + streng.rot + milde.rot + nah.rot) / 4;
+      log(`Platzverweise je Spiel: ${rotSchnitt.toFixed(2)} im Mittel ueber `
+        + `alle vier Spielarten`);
+      check('Der Milde stellt seltener vom Platz als der Kleinliche',
+        milde.rot < streng.rot,
+        `${milde.rot.toFixed(2)} gegen ${streng.rot.toFixed(2)}`);
+      check('Platzverweise bleiben die Ausnahme', rotSchnitt < 1.1,
+        `${rotSchnitt.toFixed(2)} je Spiel`);
     }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------

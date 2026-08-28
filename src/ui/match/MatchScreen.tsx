@@ -13,6 +13,7 @@ import {
 } from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { attendanceRoll, expectedAttendance, matchImportance } from '../../engine/rivalry';
+import { matchReferee, refereeLabelKey } from '../../engine/referee';
 import { matchWeather, weatherLabelKey } from '../../engine/weather';
 import { Rng } from '../../engine/rng';
 import { TACTIC_LABELS, DIFFICULTY_SETTINGS } from '../../engine/types';
@@ -264,6 +265,8 @@ export default function MatchScreen() {
   const fuelle = auslastung >= 0.85 ? 'Full' : auslastung >= 0.5 ? 'Mid' : 'Thin';
   const heimseite = user?.clubId === homeClub?.id ? 'home' : 'away';
   const wetter = match ? matchWeather(match.id, match.date) : null;
+  const schiri = match && homeClub
+    ? matchReferee(match.id, homeClub.countryId) : null;
   const kulisse = match
     ? tVariant(match.neutralVenue ? 'ms.crowd.neutral' : 'ms.crowd.' + heimseite + fuelle,
       attendanceRoll(match.id))
@@ -337,6 +340,21 @@ export default function MatchScreen() {
             <span>{kulisse}</span>
             <span className="tiny dim">
               {t('ms.crowd.fill', { p: Math.round(auslastung * 100) })}
+            </span>
+          </div>
+        </Panel>
+      )}
+
+      {phase === 'setup' && schiri && (
+        <Panel title={t('ms.referee')}>
+          <div className="row between">
+            <span>
+              <strong>{schiri.name}</strong>
+              {' - '}
+              {t(refereeLabelKey(schiri.style))}
+            </span>
+            <span className="tiny dim">
+              {tVariant('ms.ref.' + schiri.style, attendanceRoll(match!.id))}
             </span>
           </div>
         </Panel>

@@ -2,6 +2,7 @@
  * Gemeinsame Simulationsbausteine und die Hintergrundsimulation
  * (Konzept Abschnitt 27 und 56).
  */
+import { refereeEffect, type RefereeStyle } from './referee';
 import { weatherEffect, type Weather } from './weather';
 import { POSITION_LINE, effectiveOverall, type PositionCode, computeOverall } from './attributes';
 import { isAvailable, quickTeamRating } from './lineup';
@@ -187,7 +188,7 @@ function pickLightLineup(squad: Player[], formation: keyof typeof FORMATION_SLOT
 export function simulateLight(
   rng: Rng, matchId: Id, homeClub: Club, awayClub: Club,
   homeSquad: Player[], awaySquad: Player[], neutral = false,
-  weather?: Weather,
+  weather?: Weather, refereeStyle?: RefereeStyle,
 ): LightResult {
   const home = pickLightLineup(homeSquad, homeClub.formation);
   const away = pickLightLineup(awaySquad, awayClub.formation);
@@ -320,12 +321,14 @@ export function simulateLight(
     st.possessionLost = rng.int(1, 14);
   }
 
-  // Karten
-  const cardCount = rng.poisson(3.4);
+  // Karten. Wie oft der Mann in die Tasche greift, haengt an seiner
+  // Spielart - dieselben Faktoren wie in der ausgespielten Partie.
+  const ref = refereeEffect(refereeStyle);
+  const cardCount = rng.poisson(3.4 * ref.fouls * ref.cards);
   for (let i = 0; i < cardCount; i++) {
     const o = rng.weighted(all, (x) => 1 + (100 - x.player.attrs.discipline) / 25 + x.player.attrs.tackling / 40);
     const st = statById.get(o.player.id)!;
-    if (rng.chance(0.045)) {
+    if (rng.chance(0.045 * ref.red)) {
       st.redCards++;
       cards.push({ playerId: o.player.id, card: 'R', minute: rng.int(20, 92) });
     } else {

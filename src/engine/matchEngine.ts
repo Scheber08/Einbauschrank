@@ -3,6 +3,7 @@
  * Simuliert Minute fuer Minute und haelt an, sobald der eigene Spieler
  * eine Schluesselsituation hat, die selbst gespielt werden kann.
  */
+import { CARD_SHARE, refereeEffect, type RefereeStyle } from './referee';
 import { weatherEffect, type Weather } from './weather';
 import { POSITION_LINE, effectiveOverall } from './attributes';
 import { GOAL_HALF_WIDTH } from './ballAction';
@@ -55,6 +56,8 @@ export interface MatchEngineSetup {
   attendance?: number;
   /** Wetter am Spieltag. Faerbt Zielgenauigkeit, Fernschuesse und Kraft. */
   weather?: Weather;
+  /** Spielart des Schiedsrichters: Pfiffe, Karten, Naehe zum Publikum. */
+  refereeStyle?: RefereeStyle;
 }
 
 export interface MatchOutcome {
@@ -453,9 +456,11 @@ export class MatchEngine {
     }
     this.rollAggravation(evts);
 
-    // Elfmeter sind selten und werden gesondert behandelt.
+    // Elfmeter sind selten und werden gesondert behandelt. Die 0.55 waren
+    // schon immer eine stille Heimneigung - jetzt haengt sie am Mann und an
+    // der Kulisse statt fest im Code zu stehen.
     if (this.rng.chance(0.0026)) {
-      const side: Side = this.rng.chance(0.55) ? 'home' : 'away';
+      const side: Side = this.rng.chance(0.55 + this.heimNeigung()) ? 'home' : 'away';
       this.awardPenalty(side, evts);
       if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
     } else if (this.rng.chance(0.016)) {
@@ -1231,6 +1236,23 @@ export class MatchEngine {
     return weatherEffect(this.setup.weather);
   }
 
+  /** Wie der Mann heute pfeift. Aendert sich waehrend eines Spiels ebenso wenig. */
+  private get schiri() {
+    return refereeEffect(this.setup.refereeStyle);
+  }
+
+  /**
+   * Wie stark der Schiedsrichter zur Heimmannschaft neigt, 0 bis 0.5.
+   *
+   * Ein publikumsnaher Unparteiischer wird von einem vollen Haus getragen,
+   * in einem halbleeren Rund bleibt davon wenig uebrig. Deshalb haengt die
+   * Neigung an der Auslastung - und auf neutralem Platz ist sie weg.
+   */
+  private heimNeigung(): number {
+    if (this.setup.neutral) return 0;
+    return this.schiri.homeBias * this.auslastung() * 0.28;
+  }
+
   private withImportance(base: number): number {
     return clamp(
       base + (this.setup.importance?.pressure ?? 0) + this.gegnerDruck()
@@ -1803,7 +1825,8 @@ export class MatchEngine {
 
     if (result.outcome === 'foulCommitted') {
       st.fouls++;
-      const cardRisk = clamp(0.32 - result.quality * 0.25, 0.05, 0.42);
+      const cardRisk = clamp(
+        (0.32 - result.quality * 0.25) * this.schiri.cards, 0.05, 0.6);
       if (this.rng.chance(cardRisk)) {
         this.giveCard(user.player.id, defSide, evts, false);
       } else {
@@ -1855,22 +1878,46 @@ export class MatchEngine {
     this.emit(evts, {
       minute: this.minute, type: 'save', side: defSide, playerId: user.player.id, user: true,
       text: result.outcome === 'caught'
-        ? `${this.name(user.player.id)} faengt den Ball sicher.`
-        : `Starke Parade von ${this.name(user.player.id)}!`,
+        ? tVariant('live.keeperCaught', this.rng.next(), { player: this.name(user.player.id) })
+        : tVariant('live.keeperParade', this.rng.next(), { player: this.name(user.player.id) }),
     });
   }
 
   // --- Karten, Verletzungen, Wechsel -------------------------------------
 
+  /**
+   * Vergehen und Karte sind zwei Entscheidungen, nicht eine.
+   *
+   * Vorher gab jedes gepfiffene Vergehen eine Karte - Fouls und Karten
+   * waren im Spielbericht dieselbe Zahl. Getrennt bleibt das Produkt fuer
+   * den unauffaelligen Schiedsrichter gleich (0.11 mal 0.5 sind die alten
+   * 0.055), und wer pfeift, macht endlich einen Unterschied.
+   */
   private rollDiscipline(evts: LiveEvent[]) {
-    if (!this.rng.chance(0.055)) return;
-    const side: Side = this.rng.chance(0.5) ? 'home' : 'away';
+    const ref = this.schiri;
+    if (!this.rng.chance((0.055 / CARD_SHARE) * ref.fouls)) return;
+
+    // Ein publikumsnaher Schiedsrichter pfeift eher gegen die Gaeste.
+    const side: Side = this.rng.chance(0.5 + this.heimNeigung()) ? 'away' : 'home';
     const squad = this.onPitch[side].filter((o) => o.slot !== 'TW');
     if (squad.length === 0) return;
-    const o = this.rng.weighted(squad, (x) =>
-      1 + (100 - x.player.attrs.discipline) / 22 + x.player.attrs.tackling / 45);
+    const o = this.rng.weighted(squad, (x) => {
+      const basis = 1 + (100 - x.player.attrs.discipline) / 22
+        + x.player.attrs.tackling / 45;
+      // Wer schon Gelb gesehen hat, geht vorsichtiger rein - und je
+      // disziplinierter er ist, desto mehr. Vorher fehlte das ganz: ein
+      // verwarnter Spieler foulte genauso oft weiter wie jeder andere,
+      // weshalb bei einem kartenfreudigen Schiedsrichter in fast jeder
+      // Partie jemand mit Gelb-Rot vom Platz ging.
+      const gewarnt = (this.yellows.get(x.player.id) ?? 0) > 0;
+      return gewarnt
+        ? basis * clamp(0.42 - x.player.attrs.discipline / 500, 0.15, 0.42)
+        : basis;
+    });
     this.statOf(o.player.id, side, o.slot).fouls++;
-    const straightRed = this.rng.chance(0.03);
+
+    if (!this.rng.chance(clamp(CARD_SHARE * ref.cards, 0.05, 0.95))) return;
+    const straightRed = this.rng.chance(0.03 * ref.red);
     this.giveCard(o.player.id, side, evts, straightRed);
   }
 
