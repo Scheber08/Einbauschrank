@@ -5,6 +5,9 @@
 import {
   REVIEW_ALLE, TALENT_PROFILE, reviewPotential, type TalentProfile,
 } from './potential';
+import {
+  neueStaerken, traitEffect, traitLabelKey,
+} from './traits';
 import { LIFESTYLE, extraSessionEffect } from './choices';
 import { matchFormation } from './formation';
 import { formatKickoff, matchKickoff } from './kickoff';
@@ -54,7 +57,7 @@ import {
   postSeasonFinished, relegationCompetitionId, scheduleRelegation, sortedTable,
   startSeason, tableKey, type SeasonReport,
 } from './season';
-import { accumulate, averageRating, statsKey } from './stats';
+import { careerTotals, accumulate, averageRating, statsKey } from './stats';
 import { emptyRow } from './table';
 import {
   DIFFICULTY_SETTINGS, type Appearance, type BackgroundKey, type Difficulty,
@@ -940,6 +943,7 @@ export function prepareUserMatch(
       })(),
       refereeStyle: matchReferee(match.id, homeClub.countryId).style,
       setPieceClaim: state.setPieceClaim,
+      traits: traitEffect(state),
       ownInjuryRisk: LIFESTYLE[state.lifestyle ?? 'balanced'].injury
         * extraSessionEffect(state.extraSessions ?? 0).injury,
     },
@@ -999,6 +1003,30 @@ export function simulateUserMatch(state: GameState, matchId: Id): MatchOutcome |
  * staendig in Bewegung und ein schwacher Nachmittag wuerde eine Laufbahn
  * umschreiben.
  */
+/**
+ * Prueft, ob sich der Spieler eine neue Staerke erarbeitet hat.
+ *
+ * Ein Spieler bestand aus 54 Zahlen und sonst nichts - zwei Stuermer mit
+ * derselben Gesamtstaerke waren nicht zu unterscheiden, egal wie
+ * verschieden ihre Laufbahnen verlaufen waren.
+ */
+function pruefeStaerken(state: GameState) {
+  const user = state.players[state.userPlayerId];
+  if (!user) return;
+  const neu = neueStaerken(state, user, careerTotals(state));
+  if (neu.length === 0) return;
+
+  state.traits = [...(state.traits ?? []), ...neu];
+  for (const k of neu) {
+    addNews(state, 'media',
+      t('news.trait.title', { trait: t(traitLabelKey(k)) }),
+      t(`trait.${k}.earned`, { last: user.lastName }), true);
+    addCareerEvent(state, 'award',
+      t('news.trait.title', { trait: t(traitLabelKey(k)) }),
+      t(`trait.${k}.desc`));
+  }
+}
+
 function pruefePotenzial(state: GameState, rng: Rng) {
   const user = state.players[state.userPlayerId];
   if (!user || state.retirement) return;
@@ -1122,6 +1150,7 @@ function commitMatch(
     state.potentialMinutes = (state.potentialMinutes ?? 0) + eigene.minutes;
   }
   pruefePotenzial(state, rng);
+  pruefeStaerken(state);
 
   // Zuschauerzahl aus Stadion, Zugkraft des Gegners und Bedeutung der Partie.
   match.attendance = expectedAttendance(state, match, attendanceRoll(match.id));

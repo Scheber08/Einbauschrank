@@ -1,4 +1,5 @@
 /** Zentrale Datentypen des Spielstands (Konzept Abschnitt 55). */
+import type { TraitKey } from './traits';
 import type {
   Lifestyle, SetPieceClaim, TransferWish,
 } from './choices';
@@ -565,6 +566,13 @@ export interface GameState {
    * aeltere Spielstaende gueltig.
    */
   talentProfile?: TalentProfile;
+  /**
+   * Erworbene Spielerstaerken.
+   *
+   * Werden nicht gewaehlt, sondern verdient, und gehen nie wieder
+   * verloren - ein Ruf haelt laenger als die Form.
+   */
+  traits?: TraitKey[];
   /**
    * Wie der Spieler abseits des Platzes lebt.
    *

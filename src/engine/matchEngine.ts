@@ -7,6 +7,7 @@ import { CARD_SHARE, refereeEffect, type RefereeStyle } from './referee';
 import {
   claimsFreeKicks, claimsPenalties, type SetPieceClaim,
 } from './choices';
+import type { TraitEffect } from './traits';
 import { Schwung } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import {
@@ -82,6 +83,13 @@ export interface MatchEngineSetup {
    * bleibt. Weit darunter kostet es die Kabine.
    */
   setPieceClaim?: SetPieceClaim;
+  /**
+   * Wirkung der erworbenen Staerken des eigenen Spielers.
+   *
+   * Klein gehalten: eine Staerke soll ihn an einer Stelle erkennbar
+   * machen, nicht die Physik aushebeln.
+   */
+  traits?: TraitEffect;
 }
 
 export interface MatchOutcome {
@@ -1026,8 +1034,12 @@ export class MatchEngine {
       }
     }
 
+    // Die Staerken des eigenen Spielers wirken nur auf seine eigenen
+    // Abschluesse - ein Kopfballungeheuer macht nicht die ganze Mannschaft
+    // kopfballstark.
     const goalProb = clamp(
       chance.xg * finishingModifier(shooter.player) * keeperModifier(keeperRating) * inputBonus
+      * this.staerkeFuer(shooter, chance.kind, chance.distance)
       / Math.max(0.25, 0.55),
       0.02, 0.94,
     );
@@ -1130,6 +1142,24 @@ export class MatchEngine {
     if (!user || user.slot === 'TW') return standard;
     if (user.player.id === standard.player.id) return standard;
     return wert(user.player) >= wert(standard.player) - toleranz ? user : standard;
+  }
+
+  /**
+   * Zuschlag aus den Staerken des eigenen Spielers fuer diesen Abschluss.
+   *
+   * Greift nur, wenn er selbst schiesst - sonst wuerde seine Handschrift
+   * auf die ganze Mannschaft abfaerben.
+   */
+  private staerkeFuer(
+    shooter: OnPitchPlayer, kind: string, distance: number,
+  ): number {
+    if (shooter.player.id !== this.setup.userPlayerId) return 1;
+    const s = this.setup.traits;
+    if (!s) return 1;
+    if (kind === 'header') return s.header;
+    if (kind === 'longShot' || distance >= 24) return s.longShot;
+    if (distance <= 10) return s.finish;
+    return 1;
   }
 
   private awardPenalty(side: Side, evts: LiveEvent[]) {
@@ -1423,7 +1453,7 @@ export class MatchEngine {
   private withImportance(base: number): number {
     return clamp(
       base + (this.setup.importance?.pressure ?? 0) + this.gegnerDruck()
-        + this.publikumsDruck(),
+        + this.publikumsDruck() + (this.setup.traits?.pressure ?? 0),
       0.1, 0.97);
   }
 
@@ -2139,7 +2169,8 @@ export class MatchEngine {
           * this.setup.difficulty.injuryFactor
           // Lebensweise und Zusatzeinheiten des eigenen Spielers.
           * (o.player.id === this.setup.userPlayerId
-            ? (this.setup.ownInjuryRisk ?? 1) : 1);
+            ? (this.setup.ownInjuryRisk ?? 1) * (this.setup.traits?.injury ?? 1)
+            : 1);
         if (!this.rng.chance(risk)) continue;
 
         const days = Math.max(3, Math.round(this.rng.normal(18, 16)));

@@ -3,6 +3,9 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import {
+  TRAITS, neueStaerken, traitEffect, traitLabelKey,
+} from './engine/traits';
 import { entpackeFuerTest, packeFuerTest } from './engine/save';
 import { leagueLayout } from './engine/realData';
 import { COUNTRIES } from './engine/countries';
@@ -49,7 +52,7 @@ import { applyLifeChoice, buildLifeEvent } from './engine/events';
 import { clamp, Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
-import { type GameState, type Player, DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
+import { emptySeasonStats, type GameState, type Player, DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
 import { FORMATION_SLOTS } from './engine/worldGen';
 import { place } from './ui/FormationPitch';
 import { EVENT_KEYS } from './ui/tabs/ChronicleTab';
@@ -2535,6 +2538,76 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     check('Kein Ereignis zeigt einen rohen Schluessel', fehlend === 0,
       `${fehlend} Stellen`);
   }
+  // --- Spielerstaerken (Abschnitt 41) -----------------------------------
+  //
+  // Ein Spieler bestand aus 54 Zahlen und sonst nichts. Zwei Stuermer mit
+  // derselben Gesamtstaerke waren nicht zu unterscheiden, egal wie
+  // verschieden ihre Laufbahnen verlaufen waren.
+  //
+  // Staerken werden nicht gewaehlt, sondern verdient: Anlage **und**
+  // Nachweis muessen zusammenkommen. Genau das wird hier geprueft - und
+  // dass die Wirkung nicht nur in einer Tabelle steht.
+  log('\n--- Spielerstaerken ---');
+  {
+    const kopie = { ...user, attrs: { ...user.attrs } } as Player;
+    const leer = { ...emptySeasonStats(user.id, 0, '', '') };
+
+    // Ohne Anlage nuetzt der Nachweis nichts.
+    kopie.attrs.freeKicks = 40;
+    const vieleSpiele = { ...leer, goals: 60, appearances: 200, shots: 300, motm: 30 };
+    const probeState = { ...game, traits: [] } as GameState;
+    check('Ohne Anlage keine Staerke',
+      !neueStaerken(probeState, kopie, vieleSpiele).includes('freeKickSpecialist'));
+
+    // Und ohne Nachweis nuetzt die Anlage nichts.
+    kopie.attrs.freeKicks = 85;
+    check('Ohne Nachweis auch nicht',
+      !neueStaerken(probeState, kopie, leer).includes('freeKickSpecialist'));
+
+    // Beides zusammen: dann schon.
+    const verdient = neueStaerken(probeState, kopie, vieleSpiele);
+    log(`Mit Anlage und Nachweis verdient: ${verdient.length} Staerken`);
+    check('Anlage und Nachweis zusammen ergeben eine Staerke',
+      verdient.includes('freeKickSpecialist'), verdient.join(', '));
+
+    // Eine erworbene Staerke kommt nicht ein zweites Mal.
+    const schon = { ...game, traits: ['freeKickSpecialist'] } as GameState;
+    check('Eine Staerke wird nur einmal vergeben',
+      !neueStaerken(schon, kopie, vieleSpiele).includes('freeKickSpecialist'));
+
+    // Die Wirkung darf nicht nur in einer Tabelle stehen.
+    const ohne = traitEffect({ ...game, traits: [] } as GameState);
+    const mit = traitEffect({
+      ...game,
+      traits: ['headerThreat', 'longRange', 'poacher', 'ironMan', 'bigGameNerve'],
+    } as GameState);
+    log(`Wirkung: Kopfball ${mit.header.toFixed(2)}, Fernschuss `
+      + `${mit.longShot.toFixed(2)}, Abschluss ${mit.finish.toFixed(2)}, `
+      + `Verletzungsrisiko ${mit.injury.toFixed(2)}, Druck ${mit.pressure.toFixed(2)}`);
+    check('Staerken verbessern, was sie versprechen',
+      mit.header > ohne.header && mit.longShot > ohne.longShot
+      && mit.finish > ohne.finish);
+    check('Unverwuestlich senkt das Verletzungsrisiko', mit.injury < ohne.injury,
+      `${mit.injury.toFixed(2)}`);
+    check('Nervenstark nimmt Druck', mit.pressure < ohne.pressure,
+      `${mit.pressure.toFixed(2)}`);
+    check('Der Ausschlag bleibt klein',
+      mit.header < 1.3 && mit.longShot < 1.3 && mit.injury > 0.7,
+      `${mit.header.toFixed(2)} / ${mit.longShot.toFixed(2)} / ${mit.injury.toFixed(2)}`);
+
+    // Jede Staerke braucht ihre Texte, sonst steht der rohe Schluessel da.
+    let ohneText = 0;
+    for (const def of TRAITS) {
+      const name = t(traitLabelKey(def.key));
+      const beschreibung = t(`trait.${def.key}.desc`);
+      const meldung = t(`trait.${def.key}.earned`);
+      if (name.startsWith('trait.')) ohneText++;
+      if (beschreibung.startsWith('trait.')) ohneText++;
+      if (meldung.startsWith('trait.')) ohneText++;
+    }
+    check('Alle Staerken haben ihre Texte', ohneText === 0,
+      `${TRAITS.length} Staerken, ${ohneText} fehlende Stellen`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -3407,6 +3480,9 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/setpieces.ts', name: 'claimsPenalties', mindestens: 2 },
     { datei: '/src/engine/agent.ts', name: 'wunsch', mindestens: 3 },
     { datei: '/src/engine/manager.ts', name: 'neueSpielweise', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'neueStaerken', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'traitEffect', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'staerkeFuer', mindestens: 2 },
     { datei: '/src/ui/tabs/TrainingTab.tsx', name: 'setLifestyle', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },

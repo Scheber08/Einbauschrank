@@ -10,6 +10,7 @@ import { t, tNumber } from '../../i18n';
 import { useLocale } from '../../i18n/useLocale';
 import { ageOn, formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
+import { traitLabelKey } from '../../engine/traits';
 import { renewContract } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import AttributeRadar from '../AttributeRadar';
@@ -128,6 +129,26 @@ export default function PlayerTab() {
             </div>
           </div>
         </div>
+      </Panel>
+
+      {/* Die Handschrift des Spielers. Ein Spieler bestand aus 54 Zahlen
+          und sonst nichts - zwei Stuermer mit derselben Gesamtstaerke
+          waren nicht zu unterscheiden. */}
+      <Panel title={t('player.traits')}>
+        {(game.traits ?? []).length === 0 ? (
+          <p className="small muted">{t('player.traitsEmpty')}</p>
+        ) : (
+          <div>
+            {(game.traits ?? []).map((k) => (
+              <div key={k} className="row between" style={{ marginBottom: '0.35rem' }}>
+                <strong>{t(traitLabelKey(k))}</strong>
+                <span className="tiny dim" style={{ textAlign: 'right', maxWidth: '62%' }}>
+                  {t(`trait.${k}.desc`)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </Panel>
 
       <Panel title={t('player.attributes')} action={
