@@ -248,6 +248,65 @@ export function keeperOutfield(attrs: Attributes): { defence: number; midfield: 
   };
 }
 
+/**
+ * Sechs Werte statt vierundfuenfzig.
+ *
+ * Die Spielerakte listet alle 54 Attribute einzeln - richtig fuer den, der
+ * an einem Wert arbeitet, unbrauchbar fuer die Frage "was fuer ein Spieler
+ * ist das eigentlich?". Diese sechs Werte beantworten sie auf einen Blick.
+ *
+ * Torhueter bekommen eine eigene Reihe: bei ihnen sagen Abschluss und
+ * Dribbling nichts, Reflexe und Herauslaufen dagegen alles.
+ */
+export type SummaryKey = 'pace' | 'shooting' | 'passing' | 'dribbling'
+  | 'defending' | 'physical'
+  | 'diving' | 'handling' | 'kicking' | 'reflexes' | 'speed' | 'positioning';
+
+export interface SummaryValue {
+  key: SummaryKey;
+  value: number;
+}
+
+/** Gewichteter Mittelwert, auf 1 bis 99 begrenzt. */
+function mittel(attrs: Attributes, teile: Partial<Record<AttrKey, number>>): number {
+  let summe = 0;
+  let gewicht = 0;
+  for (const k in teile) {
+    const w = teile[k as AttrKey] ?? 0;
+    summe += attrs[k as AttrKey] * w;
+    gewicht += w;
+  }
+  return clamp(Math.round(gewicht > 0 ? summe / gewicht : 50), 1, 99);
+}
+
+export function summaryValues(
+  attrs: Attributes, position: PositionCode,
+): SummaryValue[] {
+  if (position === 'TW') {
+    return [
+      { key: 'diving', value: mittel(attrs, { reflexes: 3, agility: 1, jumping: 1 }) },
+      { key: 'handling', value: mittel(attrs, { handling: 3, crossHandling: 2, deflecting: 1 }) },
+      { key: 'kicking', value: mittel(attrs, { goalKicks: 3, throwing: 2, longPass: 1 }) },
+      { key: 'reflexes', value: mittel(attrs, { reflexes: 3, reactions: 2, oneOnOne: 1 }) },
+      { key: 'speed', value: mittel(attrs, { acceleration: 2, pace: 1, rushingOut: 2 }) },
+      { key: 'positioning', value: mittel(attrs, { gkPositioning: 3, anticipation: 2, communication: 1 }) },
+    ];
+  }
+  return [
+    { key: 'pace', value: mittel(attrs, { acceleration: 3, pace: 2 }) },
+    { key: 'shooting', value: mittel(attrs, { finishing: 3, shotPower: 2, longShots: 2, volleys: 1, penalties: 1 }) },
+    { key: 'passing', value: mittel(attrs, { shortPass: 3, longPass: 2, vision: 2, crossing: 2, curve: 1, freeKicks: 1 }) },
+    { key: 'dribbling', value: mittel(attrs, { dribbling: 3, ballControl: 3, agility: 2, balance: 2, firstTouch: 2 }) },
+    { key: 'defending', value: mittel(attrs, { defPositioning: 3, marking: 2, tackling: 2, interception: 2, defHeading: 1, slideTackle: 1 }) },
+    { key: 'physical', value: mittel(attrs, { strength: 3, stamina: 2, jumping: 2, robustness: 1, bravery: 1 }) },
+  ];
+}
+
+/** Katalogschluessel fuer die Kurzbezeichnung. */
+export function summaryLabelKey(k: SummaryKey): string {
+  return `summary.${k}`;
+}
+
 /** Gesamtstaerke eines Spielers auf einer bestimmten Position (1-100). */
 export function computeOverall(attrs: Attributes, position: PositionCode): number {
   const weights = POSITION_WEIGHTS[position];

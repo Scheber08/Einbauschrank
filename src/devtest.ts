@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { summaryLabelKey, summaryValues } from './engine/attributes';
 import {
   TRAITS, neueStaerken, traitEffect, traitLabelKey,
 } from './engine/traits';
@@ -2697,6 +2698,47 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         `${(abseits / partien).toFixed(2)} / ${(aluminium / partien).toFixed(2)}`);
     }
   }
+  // --- Spielerkarte (Abschnitt 43) --------------------------------------
+  //
+  // Die Spielerakte listet 54 Attribute einzeln. Richtig fuer den, der an
+  // einem Wert arbeitet - unbrauchbar fuer die Frage, die man sich nach
+  // einem Wechsel zuerst stellt: was fuer ein Spieler ist das eigentlich?
+  log('\n--- Spielerkarte ---');
+  {
+    const feld = summaryValues(user.attrs, user.position);
+    log(`Sechs Werte: ${feld.map((w) => `${t(summaryLabelKey(w.key))} ${w.value}`)
+      .join(', ')}`);
+    check('Die Karte zeigt sechs Werte', feld.length === 6, `${feld.length}`);
+    check('Alle liegen im gueltigen Bereich',
+      feld.every((w) => w.value >= 1 && w.value <= 99),
+      feld.map((w) => w.value).join(', '));
+
+    // Torhueter bekommen eine eigene Reihe: bei ihnen sagen Abschluss und
+    // Dribbling nichts, Reflexe und Herauslaufen dagegen alles.
+    const keeper = { ...user, position: 'TW' } as Player;
+    const keeperFeld = summaryValues(keeper.attrs, 'TW');
+    check('Torhueter bekommen eine eigene Reihe',
+      keeperFeld.length === 6
+      && keeperFeld.every((w) => !feld.some((f) => f.key === w.key)),
+      keeperFeld.map((w) => w.key).join(', '));
+
+    // Die Werte muessen den Attributen folgen, sonst waere die Karte Deko.
+    const schnell = { ...user.attrs, acceleration: 95, pace: 95 } as Attributes;
+    const langsam = { ...user.attrs, acceleration: 25, pace: 25 } as Attributes;
+    const tempoHoch = summaryValues(schnell, user.position)[0].value;
+    const tempoTief = summaryValues(langsam, user.position)[0].value;
+    log(`Tempo bei 95 gegen 25: ${tempoHoch} gegen ${tempoTief}`);
+    check('Die Werte folgen den Attributen', tempoHoch > tempoTief + 40,
+      `${tempoHoch} gegen ${tempoTief}`);
+
+    // Und jedes Kuerzel braucht seinen Text, sonst steht der rohe
+    // Schluessel auf der Karte.
+    const alleSchluessel = [...feld, ...keeperFeld].map((w) => w.key);
+    const ohneText = alleSchluessel.filter(
+      (k) => t(summaryLabelKey(k)).startsWith('summary.'));
+    check('Alle Kuerzel haben ihren Text', ohneText.length === 0,
+      ohneText.join(', ') || `${alleSchluessel.length} geprueft`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -3575,6 +3617,8 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchEngine.ts', name: 'rollEcke', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'lageFuerEreignis', mindestens: 2 },
     { datei: '/src/engine/events.ts', name: 'passt', mindestens: 8 },
+    { datei: '/src/ui/PlayerCard.tsx', name: 'summaryValues', mindestens: 2 },
+    { datei: '/src/ui/tabs/PlayerTab.tsx', name: 'PlayerCard', mindestens: 2 },
     { datei: '/src/ui/tabs/TrainingTab.tsx', name: 'setLifestyle', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },

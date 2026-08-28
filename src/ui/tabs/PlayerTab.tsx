@@ -11,6 +11,7 @@ import { useLocale } from '../../i18n/useLocale';
 import { ageOn, formatShort } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { traitLabelKey } from '../../engine/traits';
+import PlayerCard from '../PlayerCard';
 import { renewContract } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import AttributeRadar from '../AttributeRadar';
@@ -130,6 +131,13 @@ export default function PlayerTab() {
           </div>
         </div>
       </Panel>
+
+      {/* Die Karte zuerst: sechs Werte, eine Zahl, ein Gesicht. Die Akte
+          darunter listet weiter alle 54 Attribute - fuer den, der an
+          einem einzelnen arbeitet. */}
+      <div className="row" style={{ justifyContent: 'center', margin: '0 0 0.75rem' }}>
+        <PlayerCard player={user} club={club ?? null} traits={game.traits ?? []} />
+      </div>
 
       {/* Die Handschrift des Spielers. Ein Spieler bestand aus 54 Zahlen
           und sonst nichts - zwei Stuermer mit derselben Gesamtstaerke
