@@ -4,6 +4,9 @@
  * eine Schluesselsituation hat, die selbst gespielt werden kann.
  */
 import { CARD_SHARE, refereeEffect, type RefereeStyle } from './referee';
+import {
+  claimsFreeKicks, claimsPenalties, type SetPieceClaim,
+} from './choices';
 import { Schwung } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import {
@@ -64,6 +67,21 @@ export interface MatchEngineSetup {
   kickoff?: { text: string; flutlicht: boolean };
   /** Spielart des Schiedsrichters: Pfiffe, Karten, Naehe zum Publikum. */
   refereeStyle?: RefereeStyle;
+  /**
+   * Verletzungsrisiko des eigenen Spielers aus seinen Entscheidungen.
+   *
+   * Lebensweise und Zusatzeinheiten wirken auch auf dem Platz - sonst
+   * waere "auch mal aus" im Spiel folgenlos.
+   */
+  ownInjuryRisk?: number;
+  /**
+   * Welche Standards der eigene Spieler fuer sich beansprucht.
+   *
+   * Wer sie einfordert, tritt auch dann an, wenn er nicht der beste
+   * Schuetze ist - der Trainer laesst ihn, solange der Abstand ertraeglich
+   * bleibt. Weit darunter kostet es die Kabine.
+   */
+  setPieceClaim?: SetPieceClaim;
 }
 
 export interface MatchOutcome {
@@ -1095,11 +1113,35 @@ export class MatchEngine {
 
   // --- Elfmeter ----------------------------------------------------------
 
+  /**
+   * Gibt den Ball dem eigenen Spieler, wenn er den Standard beansprucht.
+   *
+   * Der Trainer laesst ihn schiessen, solange er nicht weiter als
+   * `toleranz` hinter dem eigentlichen Schuetzen liegt. Weiter darunter
+   * setzt sich niemand durch - und genau deshalb ist die Forderung eine
+   * Entscheidung und kein Schalter.
+   */
+  private beansprucht(
+    side: Side, standard: OnPitchPlayer, wert: (p: Player) => number,
+    fordert: boolean, toleranz: number,
+  ): OnPitchPlayer {
+    if (!fordert || this.userSide !== side) return standard;
+    const user = this.userOnPitch;
+    if (!user || user.slot === 'TW') return standard;
+    if (user.player.id === standard.player.id) return standard;
+    return wert(user.player) >= wert(standard.player) - toleranz ? user : standard;
+  }
+
   private awardPenalty(side: Side, evts: LiveEvent[]) {
     const squad = this.onPitch[side];
     if (squad.length === 0) return;
-    const taker = squad.reduce((best, o) =>
+    let taker = squad.reduce((best, o) =>
       o.player.attrs.penalties > best.player.attrs.penalties ? o : best, squad[0]);
+    // Wer den Ball einfordert, bekommt ihn - solange er nicht weit unter
+    // dem besten Schuetzen liegt. Vorher trat immer der Beste an, und der
+    // Wunsch des Spielers kam nirgends vor.
+    taker = this.beansprucht(side, taker, (p) => p.attrs.penalties,
+      claimsPenalties(this.setup.setPieceClaim), 12);
 
     this.emit(evts, {
       minute: this.minute, type: 'penaltyAwarded', side,
@@ -1219,7 +1261,8 @@ export class MatchEngine {
     // Die beiden besten Schuetzen der Mannschaft teilen sich die Standards.
     const ranked = squad.slice().sort(
       (a, b) => b.player.attrs.freeKicks - a.player.attrs.freeKicks);
-    const taker = ranked[0];
+    const taker = this.beansprucht(side, ranked[0], (p) => p.attrs.freeKicks,
+      claimsFreeKicks(this.setup.setPieceClaim), 8);
 
     this.emit(evts, {
       minute: this.minute, type: 'note', side,
@@ -2093,7 +2136,10 @@ export class MatchEngine {
         const p = o.player;
         const fit = this.liveFitness.get(p.id) ?? 90;
         const risk = 0.00028 * (0.5 + p.injuryProneness / 80) * (1.5 - fit / 130)
-          * this.setup.difficulty.injuryFactor;
+          * this.setup.difficulty.injuryFactor
+          // Lebensweise und Zusatzeinheiten des eigenen Spielers.
+          * (o.player.id === this.setup.userPlayerId
+            ? (this.setup.ownInjuryRisk ?? 1) : 1);
         if (!this.rng.chance(risk)) continue;
 
         const days = Math.max(3, Math.round(this.rng.normal(18, 16)));

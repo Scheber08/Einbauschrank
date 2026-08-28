@@ -5,6 +5,7 @@
 import {
   REVIEW_ALLE, TALENT_PROFILE, reviewPotential, type TalentProfile,
 } from './potential';
+import { LIFESTYLE, extraSessionEffect } from './choices';
 import { matchFormation } from './formation';
 import { formatKickoff, matchKickoff } from './kickoff';
 import { matchReferee } from './referee';
@@ -512,6 +513,21 @@ export function involvesUserClub(state: GameState, match: Match): boolean {
  * Bearbeitet einen Kalendertag. Steht ein Spiel des eigenen Vereins an,
  * wird angehalten, damit der Spieler entscheiden kann.
  */
+/**
+ * Woechentliche Wirkung der Lebensweise auf Bild und Laune.
+ *
+ * Klein gehalten: ueber eine Saison summiert sich das auf gut zwanzig
+ * Punkte, ueber eine Laufbahn auf einen sichtbaren Unterschied - aber
+ * kein einzelner Monat entscheidet etwas.
+ */
+function lebensweiseWirkt(state: GameState) {
+  if (weekday(state.date) !== 1) return;
+  const user = state.players[state.userPlayerId];
+  if (!user) return;
+  const stil = LIFESTYLE[state.lifestyle ?? 'balanced'];
+  state.publicImage = clamp(state.publicImage + stil.image, 0, 100);
+  user.morale = clamp(user.morale + stil.morale, 0, 100);
+}
 export function advanceDay(state: GameState): DayResult {
   const rng = new Rng(state.rngState);
   const result: DayResult = {
@@ -542,6 +558,12 @@ export function advanceDay(state: GameState): DayResult {
     }
   }
 
+  // Die Lebensweise wirkt woechentlich auf Bild und Laune - der Profi
+  // gewinnt auf dem Platz und verliert daneben, beim Nachtleben ist es
+  // umgekehrt. Ohne diesen Teil waere "professionell" ohne Gegenleistung
+  // und die Wahl keine.
+  lebensweiseWirkt(state);
+
   // Training: einmal pro Woche am Freitag (Abschlusstraining)
   const user = state.players[state.userPlayerId];
   if (user && weekday(state.date) === 5 && !user.injury) {
@@ -550,6 +572,12 @@ export function advanceDay(state: GameState): DayResult {
       rng, user, state.training.focus, state.training.intensity,
       club?.training ?? 50, state.date, DIFFICULTY_SETTINGS[state.difficulty], user.sharpness,
       state.training.individualGoal, mentorInfluence(state),
+      // Was der Spieler selbst gewaehlt hat: Lebensweise mal
+      // Zusatzeinheiten. Beides ist ein Tausch, kein Geschenk.
+      LIFESTYLE[state.lifestyle ?? 'balanced'].growth
+        * extraSessionEffect(state.extraSessions ?? 0).growth,
+      LIFESTYLE[state.lifestyle ?? 'balanced'].injury
+        * extraSessionEffect(state.extraSessions ?? 0).injury,
     );
     if (result.training.injured) {
       addNews(state, 'injury', t('gm.trainInjury.title'),
@@ -594,7 +622,15 @@ export function advanceDay(state: GameState): DayResult {
   const playedClubs = new Set<Id>();
   for (const m of today) { playedClubs.add(m.homeClubId); playedClubs.add(m.awayClubId); }
   for (const player of Object.values(state.players)) {
-    advancePlayerDay(rng, player, player.clubId ? playedClubs.has(player.clubId) : false);
+    // Lebensweise und Zusatzeinheiten gelten nur fuer den eigenen Spieler -
+    // die anderen leben weiter, wie sie immer gelebt haben.
+    const eigener = player.id === state.userPlayerId;
+    const stil = LIFESTYLE[state.lifestyle ?? 'balanced'];
+    const zusatz = extraSessionEffect(state.extraSessions ?? 0);
+    advancePlayerDay(
+      rng, player, player.clubId ? playedClubs.has(player.clubId) : false,
+      eigener ? stil.recovery : 1,
+      eigener ? zusatz.fatigue : 0);
     if (weekday(state.date) === 1) driftForm(player);
   }
   // Montags wirkt das Beziehungsumfeld leicht auf die Moral des Spielers.
@@ -903,6 +939,9 @@ export function prepareUserMatch(
         return { text: formatKickoff(k), flutlicht: k.flutlicht };
       })(),
       refereeStyle: matchReferee(match.id, homeClub.countryId).style,
+      setPieceClaim: state.setPieceClaim,
+      ownInjuryRisk: LIFESTYLE[state.lifestyle ?? 'balanced'].injury
+        * extraSessionEffect(state.extraSessions ?? 0).injury,
     },
     homeLineup, awayLineup, userInLineup, userOnBench,
   };

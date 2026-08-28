@@ -98,6 +98,10 @@ export function applyTraining(
   clubTraining: number, currentDate: GameDate, difficulty: DifficultySettings,
   matchSharpness: number, individualGoal: TrainingFocus | null = null,
   mentorInfluence = 0,
+  /** Wachstumsfaktor aus Lebensweise und Zusatzeinheiten. */
+  eigeneWahl = 1,
+  /** Risikofaktor aus denselben Entscheidungen. */
+  eigenesRisiko = 1,
 ): TrainingOutcome {
   const before = computeOverall(player.attrs, player.position);
   const age = ageOn(player.birthDate, currentDate);
@@ -112,6 +116,8 @@ export function applyTraining(
   // Ein Mentor im Kader zeigt Dinge, die kein Trainingsplan lehrt.
   rate *= 1 + mentorInfluence;
   rate *= 0.6 + player.attrs.professionalism / 200;
+  // Was der Spieler selbst gewaehlt hat: Lebensweise und Zusatzeinheiten.
+  rate *= eigeneWahl;
   // Ehrgeiz war bislang nur eine Zahl in der Spielerakte, die kein Rechenweg
   // las - obwohl ein Hintergrund sie ausdruecklich vergibt. Wer mehr will,
   // haengt eine Einheit dran. Der Ausschlag bleibt kleiner als der der
@@ -195,9 +201,13 @@ export function applyTraining(
   player.morale = clamp(player.morale + factors.morale + rng.float(-0.5, 0.5), 0, 100);
 
   let injured: Injury | null = null;
+  // `eigenesRisiko` kommt aus Lebensweise und Zusatzeinheiten: wer feiert
+  // und zusaetzlich trainiert, ist haeufiger weg. Ohne diesen Faktor waere
+  // die Wahl einseitig - mehr Entwicklung ohne Gegenleistung.
   const injuryRisk = 0.011 * factors.injury * difficulty.injuryFactor
     * (0.5 + player.injuryProneness / 90)
-    * (1.5 - player.fitness / 140);
+    * (1.5 - player.fitness / 140)
+    * eigenesRisiko;
   if (rng.chance(injuryRisk)) {
     injured = rollInjury(rng, player, 'Training');
   }
@@ -297,6 +307,12 @@ export function injuryForDays(rng: Rng, player: Player, days: number): Injury {
 }
 
 /** Zufaellige Verletzung samt eigener Dauer - fuer das Training. */
+/**
+ * Zieht eine Verletzung.
+ *
+ * `risiko` kommt aus Lebensweise und Zusatzeinheiten - wer feiert und
+ * zusaetzlich trainiert, ist haeufiger weg.
+ */
 export function rollInjury(rng: Rng, player: Player, _context: string): Injury {
   const def = rng.weighted(INJURY_TABLE, (d) => d.weight);
   return baueVerletzung(player, def, rng.int(def.minDays, def.maxDays));
@@ -332,7 +348,17 @@ export function applyPermanentDamage(player: Player, injury: Injury) {
 }
 
 /** Taegliche Fortschreibung: Heilung, Regeneration, Formentwicklung. */
-export function advancePlayerDay(rng: Rng, player: Player, hadMatch: boolean) {
+/**
+ * Ein Tag im Leben des Spielers.
+ *
+ * `lebensstil` ist der Erholungsfaktor aus der gewaehlten Lebensweise, und
+ * `zusatzMuede` die Muedigkeit aus Zusatzeinheiten. Beides ist optional,
+ * damit aeltere Aufrufe gueltig bleiben.
+ */
+export function advancePlayerDay(
+  rng: Rng, player: Player, hadMatch: boolean,
+  lebensstil = 1, zusatzMuede = 0,
+) {
   if (player.injury) {
     player.injury.daysOut--;
     if (player.injury.daysOut <= 0) {
@@ -346,8 +372,13 @@ export function advancePlayerDay(rng: Rng, player: Player, hadMatch: boolean) {
   }
 
   if (!hadMatch) {
-    const recovery = 3.2 + player.attrs.stamina / 40 + player.attrs.robustness / 60;
+    const recovery = (3.2 + player.attrs.stamina / 40 + player.attrs.robustness / 60)
+      * lebensstil;
     player.fitness = clamp(player.fitness + recovery * rng.float(0.7, 1.2), 5, 100);
+    // Zusatzeinheiten kosten Substanz - verteilt ueber die Woche.
+    if (zusatzMuede > 0) {
+      player.fitness = clamp(player.fitness - zusatzMuede / 7, 5, 100);
+    }
   }
   // Spielpraxis geht ohne Einsaetze langsam zurueck.
   player.sharpness = clamp(player.sharpness - 0.35, 0, 100);

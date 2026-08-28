@@ -20,6 +20,10 @@ import { retireUser } from '../engine/retirement';
 import { publishDraft } from '../engine/social';
 import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '../engine/save';
 import type { SeasonReport } from '../engine/season';
+import {
+  MAX_EXTRA_SESSIONS,
+  type Lifestyle, type SetPieceClaim, type TransferWish,
+} from '../engine/choices';
 import { computeOverall } from '../engine/attributes';
 import type { AgentTaskKind, TrainingFocus, TrainingIntensity } from '../engine/types';
 import {
@@ -334,6 +338,53 @@ export function applyLifeEvent(event: LifeEvent, optionId: string) {
 }
 
 // --- Training ----------------------------------------------------------
+
+/**
+ * Die Lebensweise abseits des Platzes.
+ *
+ * Bis hierher gab es genau drei Stellschrauben - Trainingsschwerpunkt,
+ * individuelles Ziel und Berateraufträge. Alles andere passierte mit einem.
+ */
+export function setLifestyle(lifestyle: Lifestyle) {
+  const game = getState().game;
+  if (!game) return;
+  game.lifestyle = lifestyle;
+  commit();
+  void saveCurrent(true);
+}
+
+/** Zusatzeinheiten je Woche. Mehr Entwicklung, mehr Muedigkeit, mehr Risiko. */
+export function setExtraSessions(sessions: number) {
+  const game = getState().game;
+  if (!game) return;
+  game.extraSessions = Math.max(0, Math.min(MAX_EXTRA_SESSIONS, Math.round(sessions)));
+  commit();
+  void saveCurrent(true);
+}
+
+/** Welche Standards der Spieler fuer sich beansprucht. */
+export function setSetPieceClaim(claim: SetPieceClaim) {
+  const game = getState().game;
+  if (!game) return;
+  game.setPieceClaim = claim;
+  commit();
+  void saveCurrent(true);
+}
+
+/**
+ * Der Wechselwunsch mit Zielvorgabe.
+ *
+ * Der Berater konnte schon immer einen Verein suchen - er wusste nur nicht,
+ * wonach. Wer in die erste Liga will, wollte das schon immer und konnte es
+ * niemandem sagen.
+ */
+export function setTransferWish(wish: TransferWish | null) {
+  const game = getState().game;
+  if (!game) return;
+  game.transferWish = wish ?? undefined;
+  commit();
+  void saveCurrent(true);
+}
 
 export function setTraining(focus: TrainingFocus, intensity: TrainingIntensity) {
   const game = getState().game;

@@ -4,7 +4,14 @@ import { INTENSITY_FACTORS, TRAINING_EFFECTS, TRAINING_LABELS } from '../../engi
 import { userClub } from '../../engine/game';
 import { mentorInfluence } from '../../engine/relationships';
 import { freeKickStanding, penaltyStanding } from '../../engine/setpieces';
-import { setIndividualGoal, setTraining } from '../../state/actions';
+import {
+  setExtraSessions, setIndividualGoal, setLifestyle, setSetPieceClaim,
+  setTraining, setTransferWish,
+} from '../../state/actions';
+import {
+  extraSessionEffect, lifestyleLabelKey,
+  type Lifestyle, type SetPieceClaim,
+} from '../../engine/choices';
 import { useAppState } from '../../state/store';
 import type { TrainingFocus, TrainingIntensity } from '../../engine/types';
 import { Meter, Panel, Pill } from '../components';
@@ -181,6 +188,81 @@ export default function TrainingTab() {
           </div>
         </Panel>
       </div>
+
+      {/* Vier Entscheidungen mit Preis. Bis hierher gab es genau drei
+          Stellschrauben - Schwerpunkt, Ziel und Berateraufträge; alles
+          andere passierte mit einem. Keine dieser Optionen ist gratis. */}
+      <Panel title={t('choices.lifestyle')}>
+        <p className="small muted">{t('choices.lifestyleHint')}</p>
+        <div className="grid two">
+          {(['professional', 'balanced', 'nightlife'] as Lifestyle[]).map((key) => (
+            <button key={key}
+              className={(game.lifestyle ?? 'balanced') === key ? 'primary' : ''}
+              style={{ textAlign: 'left', padding: '0.6rem 0.8rem' }}
+              onClick={() => setLifestyle(key)}>
+              <div style={{ fontWeight: 680 }}>{t(lifestyleLabelKey(key))}</div>
+              <div className="tiny" style={{ opacity: 0.85 }}>
+                {t(`lifestyle.${key}.desc`)}
+              </div>
+            </button>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title={t('choices.extra')}>
+        <p className="small muted">{t('choices.extraHint')}</p>
+        <div className="chip-row">
+          {[0, 1, 2].map((n) => (
+            <span key={n}
+              className={`chip ${(game.extraSessions ?? 0) === n ? 'active' : ''}`}
+              onClick={() => setExtraSessions(n)}>
+              {t(`choices.extra.${n}`)}
+            </span>
+          ))}
+        </div>
+        <p className="tiny dim" style={{ marginTop: '0.45rem' }}>
+          {t('choices.extraCost', {
+            growth: Math.round((extraSessionEffect(game.extraSessions ?? 0).growth - 1) * 100),
+            risk: Math.round((extraSessionEffect(game.extraSessions ?? 0).injury - 1) * 100),
+          })}
+        </p>
+      </Panel>
+
+      <Panel title={t('choices.setPieces')}>
+        <p className="small muted">{t('choices.setPiecesHint')}</p>
+        <div className="chip-row">
+          {(['none', 'penalties', 'freeKicks', 'both'] as SetPieceClaim[]).map((c) => (
+            <span key={c}
+              className={`chip ${(game.setPieceClaim ?? 'none') === c ? 'active' : ''}`}
+              onClick={() => setSetPieceClaim(c)}>
+              {t(`choices.claim.${c}`)}
+            </span>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title={t('choices.transfer')}>
+        <p className="small muted">{t('choices.transferHint')}</p>
+        <div className="chip-row">
+          <span className={`chip ${!game.transferWish?.active ? 'active' : ''}`}
+            onClick={() => setTransferWish(null)}>
+            {t('choices.transfer.stay')}
+          </span>
+          {[1, 2, 3].map((lvl) => (
+            <span key={lvl}
+              className={`chip ${game.transferWish?.active
+                && game.transferWish.level === lvl ? 'active' : ''}`}
+              onClick={() => setTransferWish({ active: true, level: lvl })}>
+              {t(`create.startLevel.${lvl}`)}
+            </span>
+          ))}
+          <span className={`chip ${game.transferWish?.active
+            && game.transferWish.level === undefined ? 'active' : ''}`}
+            onClick={() => setTransferWish({ active: true })}>
+            {t('choices.transfer.any')}
+          </span>
+        </div>
+      </Panel>
 
       <Panel title={t('training.longGoal')}>
         <p className="small muted">{t('training.longGoalHint')}</p>

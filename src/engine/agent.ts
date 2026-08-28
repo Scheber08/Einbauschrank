@@ -135,11 +135,19 @@ function resolveFindClub(
   const gehaelter = buildWageIndex(state);
   const nutzer = state.players[state.userPlayerId];
   const abloese = nutzer?.marketValue ?? 0;
+  // Der Wunsch des Spielers lenkt die Suche. Vorher konnte der Berater
+  // einen Verein suchen, aber nicht wissen, wonach - wer in die erste Liga
+  // wollte, konnte das niemandem sagen.
+  const wunsch = state.transferWish;
   const reachable = Object.values(state.clubs).filter((c) => {
     if (c.id === current?.id) return false;
     const level = state.competitions[c.leagueId]?.level ?? 3;
     if (level < currentLevel - (agent.quality >= 55 ? 1 : 0)) return false;
     if (level > currentLevel + 1) return false;
+    // Eine gewuenschte Stufe schliesst die anderen aus - der Berater sucht
+    // dann gezielt und findet entsprechend seltener etwas.
+    if (wunsch?.active && wunsch.level !== undefined && level !== wunsch.level) return false;
+    if (wunsch?.active && wunsch.country && c.countryId !== wunsch.country) return false;
     if (!(c.reputation >= ability * 0.5 && c.reputation <= ability * 1.35 + 18)) return false;
     const country = COUNTRY_BY_ID[c.countryId];
     const gehalt = calcSalary(ability, age, level, c.reputation, country?.wealth ?? 1);

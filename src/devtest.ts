@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { LIFESTYLE, extraSessionEffect } from './engine/choices';
 import { TALENT_PROFILE, reviewPotential } from './engine/potential';
 import { DEFENSIVER_TEST, matchFormation } from './engine/formation';
 import {
@@ -32,7 +33,7 @@ import { checkCaptaincy, dropCaptaincyOnTransfer, growLeadership } from './engin
 import { learnAltPosition } from './engine/versatility';
 import { freeKickStanding, penaltyStanding } from './engine/setpieces';
 import { START_POINTS, type NewGameOptions } from './engine/game';
-import { createObjectives } from './engine/game';
+import { createObjectives, simulateUserMatch } from './engine/game';
 import { advanceAgent, ensureAgent, startAgentTask } from './engine/agent';
 import {
   applyTraining, injuryForDays, updateFormAfterMatch,
@@ -44,7 +45,7 @@ import { applyLifeChoice, buildLifeEvent } from './engine/events';
 import { clamp, Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
-import { type Player, DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
+import { type GameState, type Player, DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
 import { FORMATION_SLOTS } from './engine/worldGen';
 import { place } from './ui/FormationPitch';
 import { EVENT_KEYS } from './ui/tabs/ChronicleTab';
@@ -1420,9 +1421,13 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const partie = Object.values(game.matches).find(
       (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
     if (partie) {
+      // Acht Partien reichten nicht: der Unterschied liegt bei zwoelf
+      // Prozent, der Schaetzfehler bei acht Laeufen in derselben
+      // Groessenordnung. Die Pruefung hat lange gewonnen und kippte, als
+      // eine Aenderung an ganz anderer Stelle die Karriere leicht verschob.
       const quoteBei = (w: Weather) => {
         let schuesse = 0, aufsTor = 0;
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 30; i++) {
           const vorbereitet = prepareUserMatch(game, partie.id, true);
           if (!vorbereitet) break;
           const rngW = new Rng(8800 + i * 191);
@@ -2332,6 +2337,118 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       ueberzogen.staerke <= genauDeckel.staerke + 6,
       `${ueberzogen.staerke} gegen ${genauDeckel.staerke}`);
   }
+  // --- Eigene Entscheidungen (Abschnitt 39) -----------------------------
+  //
+  // Es gab genau drei Stellschrauben: Trainingsschwerpunkt, individuelles
+  // Ziel und Berateraufträge. Alles andere passierte mit einem - die
+  // Standards, der Verein, sogar wie man abseits des Platzes lebt.
+  //
+  // Geprueft wird vor allem, dass **keine dieser Optionen gratis ist**. Eine
+  // Wahl ohne Preis ist keine Wahl, sondern ein Schalter, den jeder gleich
+  // stellt.
+  log('\n--- Eigene Entscheidungen ---');
+  {
+    // Die Faktoren selbst - exakt pruefbar, ohne eine Karriere zu spielen.
+    check('Der Profi entwickelt sich schneller als der Nachtschwaermer',
+      LIFESTYLE.professional.growth > LIFESTYLE.nightlife.growth,
+      `${LIFESTYLE.professional.growth} gegen ${LIFESTYLE.nightlife.growth}`);
+    check('Dafuer kommt er oeffentlich weniger vor',
+      LIFESTYLE.professional.image < LIFESTYLE.nightlife.image,
+      `${LIFESTYLE.professional.image} gegen ${LIFESTYLE.nightlife.image}`);
+    check('Und er erholt sich besser',
+      LIFESTYLE.professional.recovery > LIFESTYLE.nightlife.recovery);
+    check('Das Nachtleben ist verletzungsanfaelliger',
+      LIFESTYLE.nightlife.injury > LIFESTYLE.professional.injury);
+
+    // Zusatzeinheiten: der Gewinn waechst langsamer als der Preis, sonst
+    // waere die Antwort immer "so viele wie moeglich".
+    const eine = extraSessionEffect(1);
+    const zwei = extraSessionEffect(2);
+    check('Zusatzeinheiten bringen Entwicklung', eine.growth > 1 && zwei.growth > eine.growth,
+      `${eine.growth} und ${zwei.growth}`);
+    check('Die zweite Einheit bringt weniger als die erste',
+      zwei.growth - eine.growth < eine.growth - 1,
+      `+${(eine.growth - 1).toFixed(2)} dann +${(zwei.growth - eine.growth).toFixed(2)}`);
+    check('Und sie kostet mehr', zwei.injury - eine.injury > eine.injury - 1,
+      `+${(eine.injury - 1).toFixed(2)} dann +${(zwei.injury - eine.injury).toFixed(2)}`);
+    check('Der Deckel haelt',
+      extraSessionEffect(99).growth === zwei.growth);
+
+    // Und jetzt gespielt: zwei Karrieren, gleiche Wuerfel, nur die Wahl
+    // unterscheidet sich. Gemessen wird die Attributsumme statt der
+    // gerundeten Gesamtstaerke - die ist zu grob, um einen Unterschied von
+    // zehn Prozent ueber eine Saison zu zeigen.
+    const summe = (p: Player) => ALL_ATTRS.reduce((a, k) => a + p.attrs[k], 0);
+    const lauf = (wahl: Partial<GameState>, tage: number) => {
+      const g = createNewGame({
+        saveName: 'Wahlprobe', seed: 777, difficulty: 'normal',
+        firstName: 'Wahl', lastName: 'Probe', age: 17, nationality: 'de',
+        position: 'ST', altPositions: ['OM'], foot: 'rechts',
+        height: 182, weight: 76, shirtNumber: 9,
+        appearance: {
+          skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0,
+          eyeColor: '#4a3120', boots: '#fff',
+        },
+        background: 'academy',
+      });
+      Object.assign(g, wahl);
+      const p = g.players[g.userPlayerId];
+      const start = summe(p);
+      let fitSumme = 0;
+      for (let i = 0; i < tage; i++) {
+        advanceDay(g);
+        if (g.pendingMatchId) {
+          simulateUserMatch(g, g.pendingMatchId);
+          g.pendingMatchId = null;
+        }
+        fitSumme += p.fitness;
+      }
+      return {
+        plus: summe(p) - start,
+        fitness: fitSumme / tage,
+        image: g.publicImage,
+      };
+    };
+
+    const tage = 400;
+    const profi = lauf({ lifestyle: 'professional' }, tage);
+    const mitte = lauf({ lifestyle: 'balanced' }, tage);
+    const nacht = lauf({ lifestyle: 'nightlife' }, tage);
+    const zusatz = lauf({ lifestyle: 'balanced', extraSessions: 2 }, tage);
+
+    log(`Ueber ${tage} Tage - Attributplus: Profi ${profi.plus}, `
+      + `ausgewogen ${mitte.plus}, Nachtleben ${nacht.plus}, `
+      + `mit zwei Zusatzeinheiten ${zusatz.plus}`);
+    log(`Oeffentliches Bild: ${Math.round(profi.image)} / `
+      + `${Math.round(mitte.image)} / ${Math.round(nacht.image)}`);
+    log(`Fitness im Mittel ohne und mit Zusatzeinheiten: `
+      + `${mitte.fitness.toFixed(1)} gegen ${zusatz.fitness.toFixed(1)}`);
+
+    check('Der Profi entwickelt sich in der Praxis am meisten',
+      profi.plus > nacht.plus, `${profi.plus} gegen ${nacht.plus}`);
+    check('Sein oeffentliches Bild bleibt dafuer zurueck',
+      profi.image < nacht.image,
+      `${Math.round(profi.image)} gegen ${Math.round(nacht.image)}`);
+    check('Zusatzeinheiten bringen mehr Entwicklung',
+      zusatz.plus > mitte.plus, `${zusatz.plus} gegen ${mitte.plus}`);
+    check('Und sie machen sichtbar mueder',
+      zusatz.fitness < mitte.fitness - 5,
+      `${zusatz.fitness.toFixed(1)} gegen ${mitte.fitness.toFixed(1)}`);
+
+    // Standards: die Forderung verschiebt den Massstab, sie schenkt nichts.
+    game.setPieceClaim = 'none';
+    const ohne = penaltyStanding(game, user.clubId);
+    game.setPieceClaim = 'both';
+    const mit = penaltyStanding(game, user.clubId);
+    game.setPieceClaim = undefined;
+    if (ohne && mit) {
+      log(`Elfmeterstand: ohne Forderung fehlen ${ohne.gap}, mit Forderung `
+        + `${mit.gap}`);
+      check('Die Forderung bringt den Spieler naeher an den Ball',
+        mit.gap <= ohne.gap && (mit.takes || mit.gap < ohne.gap),
+        `${ohne.gap} auf ${mit.gap}`);
+    }
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -3137,6 +3254,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
  * Ueber Spielausgaenge laesst sich das nicht immer zusichern - wenn eine
  * Wirkung nur sieben Situationen je dreissig Partien betrifft, kippt oft
  * kein einziger Wurf. Am Quelltext ist es dagegen exakt zu pruefen.
+ *
+ * **Achtung:** geholt wird die **ausgelieferte** Datei, nicht die auf der
+ * Platte. TypeScript-Typen sind darin weg - ein Feld, das nur in einem
+ * `interface` steht, kommt null mal vor, egal wie oft es im Quelltext
+ * auftaucht. Gezaehlt wird also ausschliesslich Laufzeitcode, und die
+ * Erwartung muss sich danach richten.
  */
 async function pruefeVerkabelung(): Promise<number> {
   log('\n--- Verkabelung ---');
@@ -3159,6 +3282,15 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/state/actions.ts', name: 'advanceSeason', mindestens: 1 },
     { datei: '/src/state/actions.ts', name: 'ereignisseUeberspringen', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceSeason', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'LIFESTYLE', mindestens: 4 },
+    { datei: '/src/engine/game.ts', name: 'extraSessionEffect', mindestens: 4 },
+    { datei: '/src/engine/development.ts', name: 'eigenesRisiko', mindestens: 2 },
+    { datei: '/src/engine/development.ts', name: 'eigeneWahl', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'ownInjuryRisk', mindestens: 1 },
+    { datei: '/src/engine/matchEngine.ts', name: 'beansprucht', mindestens: 3 },
+    { datei: '/src/engine/setpieces.ts', name: 'claimsPenalties', mindestens: 2 },
+    { datei: '/src/engine/agent.ts', name: 'wunsch', mindestens: 3 },
+    { datei: '/src/ui/tabs/TrainingTab.tsx', name: 'setLifestyle', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },
     { datei: '/src/engine/matchEngine.ts', name: 'schwung', mindestens: 5 },

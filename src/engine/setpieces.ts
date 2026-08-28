@@ -15,6 +15,7 @@
  * Kader statt mit der Startelf - vor dem Spiel steht die noch nicht fest, und
  * für die Frage "bin ich Schütze?" ist der Kader die ehrlichere Auskunft.
  */
+import { claimsFreeKicks, claimsPenalties } from './choices';
 import type { GameState, Id, Player } from './types';
 import { squadOf } from './worldGen';
 
@@ -49,12 +50,19 @@ function standing(
 export function penaltyStanding(state: GameState, clubId: Id | null): SetPieceStanding | null {
   const user = state.players[state.userPlayerId];
   if (!user || !clubId) return null;
-  return standing(user, squadOf(state.players, clubId), (p) => p.attrs.penalties, 4, 1);
+  // Wer den Ball einfordert, bekommt eine deutlich groessere Toleranz -
+  // und die Anzeige muss davon wissen, sonst steht hier "du trittst nicht
+  // an", waehrend er auf dem Platz antritt.
+  const toleranz = claimsPenalties(state.setPieceClaim) ? 12 : 4;
+  return standing(user, squadOf(state.players, clubId), (p) => p.attrs.penalties,
+    toleranz, 1);
 }
 
 /** Stand bei Freistössen: die beiden besten teilen sie sich. */
 export function freeKickStanding(state: GameState, clubId: Id | null): SetPieceStanding | null {
   const user = state.players[state.userPlayerId];
   if (!user || !clubId) return null;
-  return standing(user, squadOf(state.players, clubId), (p) => p.attrs.freeKicks, 0, 2);
+  const toleranz = claimsFreeKicks(state.setPieceClaim) ? 8 : 0;
+  return standing(user, squadOf(state.players, clubId), (p) => p.attrs.freeKicks,
+    toleranz, 2);
 }

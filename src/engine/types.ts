@@ -1,4 +1,7 @@
 /** Zentrale Datentypen des Spielstands (Konzept Abschnitt 55). */
+import type {
+  Lifestyle, SetPieceClaim, TransferWish,
+} from './choices';
 import type { TalentProfile } from './potential';
 import type { Attributes, PositionCode } from './attributes';
 import type { GameDate } from './date';
@@ -562,6 +565,19 @@ export interface GameState {
    * aeltere Spielstaende gueltig.
    */
   talentProfile?: TalentProfile;
+  /**
+   * Wie der Spieler abseits des Platzes lebt.
+   *
+   * Fehlt die Angabe, lebt er ausgewogen - so bleiben aeltere
+   * Spielstaende gueltig.
+   */
+  lifestyle?: Lifestyle;
+  /** Zusatzeinheiten je Woche, 0 bis 2. */
+  extraSessions?: number;
+  /** Welche Standards der Spieler fuer sich beansprucht. */
+  setPieceClaim?: SetPieceClaim;
+  /** Wechselwunsch mit Zielvorgabe. */
+  transferWish?: TransferWish;
   /**
    * Pflichtspiele seit der letzten Potenzialbewertung.
    *
