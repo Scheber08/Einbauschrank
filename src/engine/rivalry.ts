@@ -92,6 +92,22 @@ export function matchImportance(state: GameState, match: Match): MatchImportance
  * Zuschauerzahl einer Partie. Beruecksichtigt Stadion, Zugkraft des Gegners,
  * Bedeutung und Ligastufe - statt einer reinen Zufallszahl.
  */
+/**
+ * Streuwert der Zuschauerzahl, aus der Partiekennung gezogen.
+ *
+ * Vor dem Anpfiff gibt es keinen Zufallsgeber, nach dem Spiel schon -
+ * beide Stellen nannten deshalb verschiedene Zahlen. Aus der Kennung
+ * bleibt der Wurf ueber die ganze Partie derselbe und ist trotzdem je
+ * Spiel ein anderer.
+ */
+export function attendanceRoll(matchId: string): number {
+  let h = 7;
+  for (let i = 0; i < matchId.length; i++) {
+    h = (h * 31 + matchId.charCodeAt(i)) % 100003;
+  }
+  return (h % 997) / 997;
+}
+
 export function expectedAttendance(
   state: GameState, match: Match, randomFactor: number,
 ): number {

@@ -12,7 +12,7 @@ import {
   type TeamStatTotals,
 } from '../../engine/matchEngine';
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
-import { expectedAttendance, matchImportance } from '../../engine/rivalry';
+import { attendanceRoll, expectedAttendance, matchImportance } from '../../engine/rivalry';
 import { Rng } from '../../engine/rng';
 import { TACTIC_LABELS, DIFFICULTY_SETTINGS } from '../../engine/types';
 import { advanceCalendar, saveCurrent } from '../../state/actions';
@@ -22,7 +22,7 @@ import FormationPitch from '../FormationPitch';
 import MatchTimeline from './MatchTimeline';
 import { Empty, Meter, Panel, Pill, rating, ratingColor, shortName } from '../components';
 import HighlightScene from './HighlightScene';
-import { t, tNumber } from '../../i18n';
+import { t, tNumber, tVariant } from '../../i18n';
 import { useLocale } from '../../i18n/useLocale';
 
 type Mode = 'simulate' | 'ownHighlights' | 'allHighlights';
@@ -94,7 +94,7 @@ export default function MatchScreen() {
   const importance = match ? matchImportance(game, match)
     : { derby: null, label: null, pressure: 0, crowd: 1 };
   const attendance = match
-    ? (match.attendance || expectedAttendance(game, match, 0.5)) : 0;
+    ? (match.attendance || expectedAttendance(game, match, attendanceRoll(match.id))) : 0;
 
   const finalise = useCallback(() => {
     const engine = engineRef.current;
@@ -257,6 +257,15 @@ export default function MatchScreen() {
   const gegner = user?.clubId && homeClub && awayClub
     ? (user.clubId === homeClub.id ? awayClub : user.clubId === awayClub.id ? homeClub : null)
     : null;
+  // Wie voll das Rund ist, und welche Zeile dazu passt. Der Wurf haengt an
+  // der Partiekennung, damit die Zeile beim erneuten Oeffnen dieselbe ist.
+  const auslastung = Math.min(1, attendance / (homeClub?.stadiumCapacity || 1));
+  const fuelle = auslastung >= 0.85 ? 'Full' : auslastung >= 0.5 ? 'Mid' : 'Thin';
+  const heimseite = user?.clubId === homeClub?.id ? 'home' : 'away';
+  const kulisse = match
+    ? tVariant(match.neutralVenue ? 'ms.crowd.neutral' : 'ms.crowd.' + heimseite + fuelle,
+      attendanceRoll(match.id))
+    : '';
   const userStats = engine?.userStats;
 
   return (
@@ -315,6 +324,21 @@ export default function MatchScreen() {
       {/* Was fuer ein Gegner das ist. Die Spielweise setzt den eigenen
           Szenen mehr oder weniger Druck entgegen - ohne diese Zeile waere
           das eine Mechanik, die niemand sieht. */}
+      {/* Wie voll es ist und was das fuer den eigenen Spieler bedeutet.
+          Ein ausverkauftes Auswaertsspiel setzt die Szenen unter Druck,
+          das eigene volle Haus nimmt ihn - ohne diese Zeile bliebe das
+          eine Zahl auf einem Pill. */}
+      {phase === 'setup' && kulisse && (
+        <Panel title={t('ms.atmosphere')}>
+          <div className="row between">
+            <span>{kulisse}</span>
+            <span className="tiny dim">
+              {t('ms.crowd.fill', { p: Math.round(auslastung * 100) })}
+            </span>
+          </div>
+        </Panel>
+      )}
+
       {phase === 'setup' && gegner && (
         <Panel title={t('ms.opponentStyle')}>
           <div className="row between">

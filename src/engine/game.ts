@@ -35,7 +35,7 @@ import { simulateLight } from './matchSim';
 import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
 import { socialAfterMatch } from './social';
-import { expectedAttendance, matchImportance } from './rivalry';
+import { attendanceRoll, expectedAttendance, matchImportance } from './rivalry';
 import { Rng, clamp, randomSeed } from './rng';
 import {
   advanceCup, cupOfCountry, endSeason, leaguesFinished, leaguesOfCountry,
@@ -795,7 +795,7 @@ export function prepareUserMatch(
       knockout: isKnockout(state, match),
       relationships: state.relationships,
       importance: matchImportance(state, match),
-      attendance: expectedAttendance(state, match, 0.5),
+      attendance: expectedAttendance(state, match, attendanceRoll(match.id)),
     },
     homeLineup, awayLineup, userInLineup, userOnBench,
   };
@@ -884,7 +884,7 @@ function commitMatch(
   match.events = input.events;
 
   // Zuschauerzahl aus Stadion, Zugkraft des Gegners und Bedeutung der Partie.
-  match.attendance = expectedAttendance(state, match, rng.next());
+  match.attendance = expectedAttendance(state, match, attendanceRoll(match.id));
 
   const comp = state.competitions[match.competitionId];
   const isLeague = comp?.type === 'league';

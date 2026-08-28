@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { attendanceRoll } from './engine/rivalry';
 import { autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
 import { computeOverall } from './engine/attributes';
 import { seasonLabel } from './engine/date';
@@ -1286,6 +1287,77 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       } else {
         log('Keine Szenen mit Druckwert - uebersprungen.');
       }
+    }
+  }
+  // --- Die Kulisse (Abschnitt 29) --------------------------------------
+  //
+  // `attendance` stand im Setup der Spielmaschine, mit dem Kommentar "fuer
+  // die Atmosphaere in den Szenen" - und wurde nie gelesen. Ein
+  // ausverkauftes Rund und eine halbleere Huette spielten sich identisch.
+  // Dazu kam ein fester Heimbonus von 1.08, der auch auf neutralem Platz
+  // griff: im Pokalfinale hatte die formal als Heimteam gefuehrte
+  // Mannschaft einen Vorteil, den es dort gar nicht gibt.
+  log('\n--- Die Kulisse ---');
+  {
+    // Bewusst eine Auswaertspartie: dort ist der Effekt am groessten und
+    // seine Richtung eindeutig. Daheim nimmt das Publikum Druck weg, das
+    // ist der kleinere Ausschlag und in einer Stichprobe schwer zu fassen.
+    const auswaerts = Object.values(game.matches).find(
+      (m) => !m.played && m.awayClubId === user.clubId);
+    if (auswaerts) {
+      const heimVerein = game.clubs[auswaerts.homeClubId];
+      const platz = heimVerein?.stadiumCapacity ?? 0;
+
+      // Dieselbe Partie mit denselben Wuerfeln, nur die Raenge sind anders
+      // voll - so misst der Vergleich das Publikum und nicht den Zufall.
+      const druckBei = (zuschauer: number, neutral: boolean) => {
+        let summe = 0, n = 0;
+        for (let i = 0; i < 6; i++) {
+          const vorbereitet = prepareUserMatch(game, auswaerts.id, true);
+          if (!vorbereitet) break;
+          const rngK = new Rng(7700 + i * 173);
+          const engine = new MatchEngine({
+            ...vorbereitet.setup, rng: rngK, highlightMode: 'own',
+            attendance: zuschauer, neutral,
+          });
+          engine.runToEnd((c) => {
+            if (typeof c.pressure === 'number') { summe += c.pressure; n++; }
+            return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngK);
+          });
+        }
+        return n > 0 ? summe / n : 0;
+      };
+
+      const leer = druckBei(0, false);
+      const voll = druckBei(platz, false);
+      const neutral = druckBei(platz, true);
+
+      log(`Szenendruck auswaerts: leeres Rund ${leer.toFixed(3)}, `
+        + `ausverkauft ${voll.toFixed(3)}, neutraler Platz ${neutral.toFixed(3)}`);
+      if (leer > 0 && voll > 0) {
+        check('Volles Auswaertsrund macht mehr Druck', voll > leer,
+          `${voll.toFixed(3)} gegen ${leer.toFixed(3)}`);
+        check('Der Zuschlag bleibt im Rahmen', voll - leer < 0.2,
+          `+${(voll - leer).toFixed(3)}`);
+        check('Auf neutralem Platz traegt niemand ein Publikum',
+          Math.abs(neutral - leer) < 0.05,
+          `${neutral.toFixed(3)} gegen ${leer.toFixed(3)}`);
+      } else {
+        log('Keine Szenen mit Druckwert - uebersprungen.');
+      }
+
+      // Die Zuschauerzahl darf vor und nach dem Spiel nicht auseinanderlaufen.
+      // Vorher rechnete die Vorbereitung mit dem festen Streuwert 0.5, nachher
+      // zog die Abrechnung einen echten Wurf - zwei verschiedene Zahlen fuer
+      // dieselbe Partie. Jetzt haengt der Wurf an der Partiekennung.
+      const wurf = attendanceRoll(auswaerts.id);
+      check('Der Zuschauerwurf haengt an der Partie und wiederholt sich',
+        wurf === attendanceRoll(auswaerts.id) && wurf >= 0 && wurf < 1,
+        wurf.toFixed(3));
+      const andere = Object.values(game.matches)
+        .slice(0, 200).map((m) => attendanceRoll(m.id));
+      check('Verschiedene Partien bekommen verschiedene Wuerfe',
+        new Set(andere).size > 60, `${new Set(andere).size} von ${andere.length}`);
     }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------

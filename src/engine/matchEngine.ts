@@ -598,10 +598,35 @@ export class MatchEngine {
     }
   }
 
+  /**
+   * Wie voll das Stadion ist, 0 bis 1.
+   *
+   * Ohne Angabe eine mittelgut besuchte Partie - so bleibt der Wert auch
+   * dann brauchbar, wenn die Partie ohne Zuschauerzahl aufgesetzt wurde.
+   */
+  private auslastung(): number {
+    const platz = this.setup.homeClub.stadiumCapacity;
+    if (this.setup.attendance == null || !platz) return 0.6;
+    return clamp(this.setup.attendance / platz, 0, 1);
+  }
+
+  /**
+   * Heimvorteil im Ballbesitz.
+   *
+   * Vorher ein fester Faktor 1.08, der auch auf neutralem Platz griff. Jetzt
+   * traegt ihn das Publikum: leeres Rund 1.03, ausverkauft 1.15. Ein
+   * Pokalfinale auf neutralem Boden kennt keinen Heimvorteil mehr.
+   */
+  private heimfaktor(): number {
+    if (this.setup.neutral) return 1;
+    return 1.03 + this.auslastung() * 0.12;
+  }
+
   private pickAttackingSide(): Side {
     const h = this.strengthOf('home');
     const a = this.strengthOf('away');
-    const homeShare = (h.midfield * 1.08) / (h.midfield * 1.08 + a.midfield);
+    const heim = this.heimfaktor();
+    const homeShare = (h.midfield * heim) / (h.midfield * heim + a.midfield);
     return this.rng.chance(homeShare) ? 'home' : 'away';
   }
 
@@ -1187,8 +1212,21 @@ export class MatchEngine {
    */
   private withImportance(base: number): number {
     return clamp(
-      base + (this.setup.importance?.pressure ?? 0) + this.gegnerDruck(),
+      base + (this.setup.importance?.pressure ?? 0) + this.gegnerDruck()
+        + this.publikumsDruck(),
       0.1, 0.97);
+  }
+
+  /**
+   * Was die Raenge mit dem eigenen Spieler machen.
+   *
+   * Auswaerts vor vollem Haus wird es laut und eng, daheim traegt einen das
+   * Publikum ein Stueck. Auf neutralem Platz ist beides weg.
+   */
+  private publikumsDruck(): number {
+    if (!this.userSide || this.setup.neutral) return 0;
+    const voll = this.auslastung();
+    return this.userSide === 'home' ? -0.05 * voll : 0.10 * voll;
   }
 
   /** Druckzuschlag aus der Spielweise des gegnerischen Vereins. */
