@@ -40,10 +40,10 @@ function TopDownCell() {
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // ein paar Spieler mit unterschiedlichen Trikots und Blickrichtungen
-    drawHumanPlayer(ctx, 60, 70, '#3ecf8e', { label: '9', radius: 14, facing: 0 });
+    drawHumanPlayer(ctx, 60, 70, '#43d99a', { label: '9', radius: 14, facing: 0 });
     drawHumanPlayer(ctx, 130, 90, '#d84b5a', { label: '4', radius: 14, facing: 2.6 });
     drawHumanPlayer(ctx, 200, 70, '#2bb7ff', { label: '10', radius: 14, facing: 0.6 });
-    drawHumanPlayer(ctx, 270, 95, '#d9bd6a', { label: '1', radius: 14, facing: 3.14 });
+    drawHumanPlayer(ctx, 270, 95, '#e5cd7c', { label: '1', radius: 14, facing: 3.14 });
   };
   return (
     <div className="cell">

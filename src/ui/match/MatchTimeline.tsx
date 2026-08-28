@@ -31,7 +31,7 @@ function markColour(kind: string, user: boolean): string {
   if (user) return 'var(--gold)';
   switch (kind) {
     case 'goal': return 'var(--accent)';
-    case 'yellow': return '#d9bd6a';
+    case 'yellow': return '#e5cd7c';
     case 'red': return 'var(--bad)';
     case 'miss': return 'var(--warn)';
     default: return 'var(--dim)';

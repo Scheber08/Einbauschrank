@@ -105,7 +105,7 @@ function useAutoAdvance(active: boolean, good: boolean, run: () => void) {
 
 /** Balken, der den heranrueckenden Gegner sichtbar macht. */
 function PressureBar({ left }: { left: number }) {
-  const colour = left > 0.5 ? '#3ecf8e' : left > 0.22 ? '#d9bd6a' : '#ff6b7a';
+  const colour = left > 0.5 ? '#43d99a' : left > 0.22 ? '#e5cd7c' : '#ff6b7a';
   return (
     <div className="pressure-bar" title={tr('match.timeUntilPressure')}>
       <span style={{ width: `${left * 100}%`, background: colour }} />
@@ -243,10 +243,10 @@ function GoalView(
         {preview && (
           <g>
             <circle cx={preview.x} cy={-preview.z} r={0.3} fill="none"
-              stroke={inFrame(preview) ? '#3ecf8e' : '#ff8a95'}
+              stroke={inFrame(preview) ? '#43d99a' : '#ff8a95'}
               strokeWidth={0.07} strokeDasharray="0.18 0.14" />
             <circle cx={preview.x} cy={-preview.z} r={0.08}
-              fill={inFrame(preview) ? '#3ecf8e' : '#ff8a95'} />
+              fill={inFrame(preview) ? '#43d99a' : '#ff8a95'} />
           </g>
         )}
 
@@ -255,7 +255,7 @@ function GoalView(
           <g>
             {isGoal && t >= 1 && (
               <circle cx={crossing.x} cy={-crossing.z} r={0.5} fill="none"
-                stroke="#3ecf8e" strokeWidth={0.09} opacity={0.9} />
+                stroke="#43d99a" strokeWidth={0.09} opacity={0.9} />
             )}
             <circle cx={bx} cy={-bz} r={0.22 + 0.06 * ballT} fill="#ffffff"
               stroke="#20303f" strokeWidth={0.05} />
@@ -549,12 +549,12 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
     // Torwart bewegt sich leicht auf der Linie
     const kDrift = moving ? Math.sin(phaseRef.current * 0.9) * 0.5 : 0;
-    drawPlayer(ctx, t, keeperPos.x + kDrift, keeperPos.y, '#d9bd6a', 'TW');
+    drawPlayer(ctx, t, keeperPos.x + kDrift, keeperPos.y, '#e5cd7c', 'TW');
 
     if (isPass && challenge.targets) {
       for (const target of challenge.targets) {
         const selected = target.id === targetId;
-        drawPlayer(ctx, t, target.x, target.y, selected ? '#3ecf8e' : '#2bb7ff',
+        drawPlayer(ctx, t, target.x, target.y, selected ? '#43d99a' : '#2bb7ff',
           String(target.shirtNumber), selected ? 11 : 9);
         if (selected) {
           const [sx, sy] = t.toScreen(target.x, target.y);
@@ -596,7 +596,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     // Zielhilfe: Einschlagpunkt auf der Torlinie (gruen im Tor, rot daneben).
     if (aimGuide && (step === 'aim' || step === 'power')) {
       const onTarget = Math.abs(aimGuide.x) < GOAL_HALF_WIDTH && aimGuide.z < CROSSBAR;
-      const col = onTarget ? '#3ecf8e' : '#ff8a95';
+      const col = onTarget ? '#43d99a' : '#ff8a95';
       const [gl, gy0] = t.toScreen(-GOAL_HALF_WIDTH, 0);
       const gw = GOAL_HALF_WIDTH * 2 * t.scale;
       // Tormund einfaerben, je nachdem ob der Schuss aufs Tor geht.
@@ -632,7 +632,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     drawBall(ctx, t, ballPos.x, ballPos.y, ballPos.z);
 
     if (!flightRef.current) {
-      drawPlayer(ctx, t, challenge.offset - 0.9, challenge.distance + 1.1, '#3ecf8e',
+      drawPlayer(ctx, t, challenge.offset - 0.9, challenge.distance + 1.1, '#43d99a',
         String(player.shirtNumber), 11);
     }
 
@@ -905,7 +905,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
               {challenge.kind === 'freeKick' && (
                 <div className="tiny center" style={{
                   marginTop: 4, fontWeight: 650,
-                  color: wallBlocks ? '#ff8a95' : '#3ecf8e',
+                  color: wallBlocks ? '#ff8a95' : '#43d99a',
                 }}>
                   {wallBlocks
                     ? tr('scene.wallInTheWay')
@@ -933,7 +933,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         <div style={{ background: '#0a2a17', padding: '0.4rem 0.8rem 0.8rem' }}>
           <div className="center" style={{
             fontSize: '1.4rem', fontWeight: 760, padding: '0.3rem 0',
-            color: isGoal ? '#3ecf8e' : finalRef.current?.outcome === 'post' ? '#d9bd6a' : '#d8a657',
+            color: isGoal ? '#43d99a' : finalRef.current?.outcome === 'post' ? '#e5cd7c' : '#e8c46a',
           }}>
             {resultText}
           </div>
@@ -1018,8 +1018,8 @@ function ContactPicker(
         {point && (
           <>
             <circle cx={point.x} cy={-point.y} r={0.11} fill="none"
-              stroke="#3ecf8e" strokeWidth={0.05} />
-            <circle cx={point.x} cy={-point.y} r={0.035} fill="#3ecf8e" />
+              stroke="#43d99a" strokeWidth={0.05} />
+            <circle cx={point.x} cy={-point.y} r={0.035} fill="#43d99a" />
           </>
         )}
       </svg>
@@ -1111,11 +1111,11 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     if (isDribble) {
       streak(x, laneY, 1);
       drawHumanPlayer(ctx, endX + 40, laneY, '#d84b5a', { label: 'GS', radius: figR, facing: -Math.PI / 2 });
-      drawHumanPlayer(ctx, x, laneY, '#3ecf8e', { label: num, radius: figR, facing: Math.PI / 2 });
+      drawHumanPlayer(ctx, x, laneY, '#43d99a', { label: num, radius: figR, facing: Math.PI / 2 });
       miniBall(x + 24, laneY + 10);
     } else {
       streak(x, laneY, -1);
-      drawHumanPlayer(ctx, startX - 40, laneY, '#3ecf8e', { label: num, radius: figR, facing: Math.PI / 2 });
+      drawHumanPlayer(ctx, startX - 40, laneY, '#43d99a', { label: num, radius: figR, facing: Math.PI / 2 });
       drawHumanPlayer(ctx, x, laneY, '#d84b5a', { label: 'GS', radius: figR, facing: -Math.PI / 2 });
       miniBall(x - 24, laneY + 10);
     }
@@ -1255,7 +1255,7 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
         <div className="center" style={{
           padding: '0.6rem', fontSize: '1.25rem', fontWeight: 720,
           color: finalRef.current?.outcome === 'duelWon' || finalRef.current?.outcome === 'dribbleWon'
-            ? '#3ecf8e' : finalRef.current?.outcome === 'foulSuffered' ? '#d9bd6a' : '#d8a657',
+            ? '#43d99a' : finalRef.current?.outcome === 'foulSuffered' ? '#e5cd7c' : '#e8c46a',
         }}>{resultText}</div>
       )}
     </Frame>
@@ -1344,7 +1344,7 @@ function SaveChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     const point = dive ?? hover;
     if (point) {
       const [sx, sy] = toScreen(point.x, point.z);
-      ctx.strokeStyle = dive ? '#3ecf8e' : 'rgba(255,255,255,0.6)';
+      ctx.strokeStyle = dive ? '#43d99a' : 'rgba(255,255,255,0.6)';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(sx, sy, 34, 0, Math.PI * 2);

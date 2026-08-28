@@ -42,20 +42,22 @@ export function Bar({ value, max = 100, color }: { value: number; max?: number; 
 /**
  * Farbe eines Balkens nach seinem Fuellstand.
  *
- * Vorher lief die Reihe von Rot ueber Bernstein und Kupfer zu Gruen. Weil
- * die meisten Werte im mittleren Band liegen, war damit praktisch jeder
- * Balken der Oberflaeche orange - und weil es so viele davon gibt, das
- * ganze Bild.
+ * Zwei Fassungen liegen dahinter. Die erste lief von Rot ueber Bernstein
+ * und Kupfer zu Gruen - weil die meisten Werte im mittleren Band liegen,
+ * war damit praktisch jeder Balken orange. Die zweite ersetzte die Mitte
+ * durch ein neutrales Grau-Blau: das Orange war weg, aber die Oberflaeche
+ * auch farblos.
  *
- * Jetzt geht die Mitte durch ein kuehles Grau-Blau: unauffaellig, wo nichts
- * zu sagen ist, und die Farbe bleibt den Raendern vorbehalten, wo sie
- * tatsaechlich etwas bedeutet.
+ * Jetzt laeuft die Reihe ueber **fuenf kuehle Farben** - Rosé, Violett,
+ * Blau, Tuerkis, Gruen. Bunt genug, dass man Stufen auf einen Blick
+ * unterscheidet, und ohne einen einzigen warmen Ton.
  */
 export function barColor(pct: number): string {
-  if (pct < 30) return '#d05a5a';
-  if (pct < 70) return '#8fa3b8';
-  if (pct < 88) return '#4bb377';
-  return '#3ecf8e';
+  if (pct < 25) return '#e2697a';
+  if (pct < 45) return '#b98ae8';
+  if (pct < 65) return '#5fb2e8';
+  if (pct < 85) return '#45c9c0';
+  return '#43d99a';
 }
 
 export function Meter({ label, value, hint }: { label: string; value: number; hint?: string }) {
@@ -147,16 +149,16 @@ export function rating(value: number): string {
 /**
  * Farbe einer Spielnote.
  *
- * Dieselbe Ueberlegung wie beim Balken: eine Sechs ist der Normalfall und
- * bekommt deshalb keine Farbe, sondern ein ruhiges Grau-Blau. Auffaellig
- * wird es nur nach oben und nach unten.
+ * Dieselbe Reihe wie beim Balken, damit die Oberflaeche eine Sprache
+ * spricht: unter fuenf Rosé, darueber Violett, eine Sechs Blau, eine
+ * starke Note Tuerkis, eine herausragende Gruen.
  */
 export function ratingColor(value: number): string {
-  if (value >= 8) return '#d9bd6a';
-  if (value >= 7) return '#7fddb4';
-  if (value >= 6) return '#8fa3b8';
-  if (value >= 5) return '#c98f8f';
-  return '#d05a5a';
+  if (value >= 8) return '#43d99a';
+  if (value >= 7) return '#45c9c0';
+  if (value >= 6) return '#5fb2e8';
+  if (value >= 5) return '#b98ae8';
+  return '#e2697a';
 }
 
 export function initials(first: string, last: string): string {

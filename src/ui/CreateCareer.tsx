@@ -22,7 +22,7 @@ const DIFFICULTIES: Difficulty[] = ['einfach', 'normal', 'schwer', 'simulation']
 // Haut- und Haarfarben teilt sich die Erstellung mit dem Portraet, sonst
 // sieht der fertige Spieler anders aus als in der Vorschau.
 const EYE_COLORS = ['#4a3120', '#2f6b8f', '#3f7a4a', '#6b6b6b'];
-const BOOT_COLORS = ['#ffffff', '#111111', '#e0261f', '#1f6ee0', '#3ecf8e', '#d9bd6a'];
+const BOOT_COLORS = ['#ffffff', '#111111', '#e0261f', '#1f6ee0', '#43d99a', '#e5cd7c'];
 
 /** Reihenfolge der Attributgruppen in der Punkteverteilung. */
 const GRUPPEN_ORDNUNG: AttrGroup[] = [
@@ -374,7 +374,7 @@ function SwatchRow(
             aria-label={`${label} ${i + 1}`}
             style={{
               width: 28, height: 28, padding: 0, borderRadius: 6, background: c,
-              borderColor: selected === c ? '#3ecf8e' : 'var(--border)',
+              borderColor: selected === c ? '#43d99a' : 'var(--border)',
               borderWidth: selected === c ? 2 : 1,
             }} />
         ))}

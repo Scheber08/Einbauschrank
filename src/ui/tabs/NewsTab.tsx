@@ -53,7 +53,7 @@ export default function NewsTab() {
           <article className={`news-item ${n.read ? '' : 'unread'}`} key={n.id}
             onClick={() => { if (!n.read) { n.read = true; commit(); } }}>
             <div className="row between">
-              <span className="head" style={n.important ? { color: '#d9bd6a' } : undefined}>
+              <span className="head" style={n.important ? { color: '#e5cd7c' } : undefined}>
                 {n.headline}
               </span>
               <span className="tiny dim">{formatDate(n.date)}</span>
@@ -68,9 +68,9 @@ export default function NewsTab() {
 }
 
 const KIND_STYLE: Record<string, { label: string; color: string }> = {
-  own: { label: t('news.cat.own'), color: '#3ecf8e' },
+  own: { label: t('news.cat.own'), color: '#43d99a' },
   fan: { label: t('news.cat.fan'), color: '#2bb7ff' },
-  media: { label: t('news.cat.media'), color: '#d9bd6a' },
+  media: { label: t('news.cat.media'), color: '#e5cd7c' },
   critic: { label: t('news.cat.critic'), color: '#ff8a95' },
 };
 
