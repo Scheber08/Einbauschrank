@@ -27,7 +27,7 @@ import {
   advancePlayerDay, applyTraining, driftForm, injuryForDays, updateFormAfterMatch,
   type TrainingOutcome,
 } from './development';
-import { buildLifeEvent, type LifeEvent } from './events';
+import { type Lage, buildLifeEvent, type LifeEvent } from './events';
 import {
   CC_ID, CC_LEAGUE_ROUNDS, advanceChampionsCup, clearOldChampionsCup, startChampionsCup,
 } from './international';
@@ -531,6 +531,40 @@ function lebensweiseWirkt(state: GameState) {
   state.publicImage = clamp(state.publicImage + stil.image, 0, 100);
   user.morale = clamp(user.morale + stil.morale, 0, 100);
 }
+/**
+ * Die Lage, in der ein Ereignis gezogen wird.
+ *
+ * Vorher gab es diese Frage gar nicht - gezogen wurde gleichverteilt aus
+ * dem ganzen Vorrat, ohne einen Blick auf das, was gerade los war. Ein
+ * Kabinenstreit konnte direkt nach einem 5:0 kommen.
+ */
+function lageFuerEreignis(state: GameState, user: Player): Lage {
+  // Punkte aus den letzten fuenf Pflichtspielen des Vereins.
+  let punkte = 0;
+  if (user.clubId) {
+    const letzte = Object.values(state.matches)
+      .filter((m) => m.played
+        && (m.homeClubId === user.clubId || m.awayClubId === user.clubId))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+    for (const m of letzte) {
+      const eigen = m.homeClubId === user.clubId ? m.homeScore : m.awayScore;
+      const fremd = m.homeClubId === user.clubId ? m.awayScore : m.homeScore;
+      if (eigen == null || fremd == null) continue;
+      punkte += eigen > fremd ? 3 : eigen === fremd ? 1 : 0;
+    }
+  }
+  return {
+    verletzt: !!user.injury,
+    kapitaen: user.contract?.role === 'Mannschaftsfuehrer',
+    formPunkte: punkte,
+    image: state.publicImage,
+    trainer: state.coachRelation,
+    monat: month(state.date),
+    alter: ageOn(user.birthDate, state.date),
+  };
+}
+
 export function advanceDay(state: GameState): DayResult {
   const rng = new Rng(state.rngState);
   const result: DayResult = {
@@ -642,10 +676,15 @@ export function advanceDay(state: GameState): DayResult {
   }
 
   // Ereignis ausserhalb des Platzes (Konzept Abschnitt 31): unter der Woche,
-  // wenn kein Spiel ansteht und der Spieler fit ist. Haelt den Kalender an.
-  if (user && !user.injury && state.seasonPhase === 'inSeason'
-    && weekday(state.date) === 3 && rng.chance(0.3)) {
-    result.lifeEvent = buildLifeEvent(rng, state.nextId++);
+  // wenn kein Spiel ansteht. Haelt den Kalender an.
+  //
+  // Verletzte waren bisher ausgenommen - dabei ist gerade die Zeit auf der
+  // Liege voller Entscheidungen. Sie bekommen jetzt Ereignisse, die dazu
+  // passen, und weniger davon.
+  const ereignisChance = user?.injury ? 0.16 : 0.3;
+  if (user && state.seasonPhase === 'inSeason'
+    && weekday(state.date) === 3 && rng.chance(ereignisChance)) {
+    result.lifeEvent = buildLifeEvent(rng, state.nextId++, lageFuerEreignis(state, user));
   }
 
   // Pokalrunden nachziehen

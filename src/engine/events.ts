@@ -39,6 +39,34 @@ export interface LifeEvent {
 interface EventTemplate {
   key: string;
   options: { id: string; effect: LifeEffect; hasNews?: boolean }[];
+  /**
+   * Wann das Ereignis ueberhaupt passt.
+   *
+   * Ohne Angabe immer. Vorher gab es diese Frage gar nicht: gezogen wurde
+   * gleichverteilt aus dem ganzen Vorrat, ohne einen Blick auf die Lage.
+   * Ein Kabinenstreit konnte direkt nach einem 5:0 kommen und ein
+   * Sponsorentermin, waehrend der Spieler mit Kreuzbandriss auf der Liege
+   * lag. Alles konnte immer passieren, also passte nie etwas.
+   */
+  passt?: (lage: Lage) => boolean;
+}
+
+/** Die Lage, in der ein Ereignis gezogen wird. */
+export interface Lage {
+  /** Ist der Spieler gerade verletzt? */
+  verletzt: boolean;
+  /** Traegt er die Binde? */
+  kapitaen: boolean;
+  /** Punkte aus den letzten fuenf Pflichtspielen des Vereins, 0 bis 15. */
+  formPunkte: number;
+  /** Wie gut ihn das Land kennt, 0 bis 100. */
+  image: number;
+  /** Verhaeltnis zum Trainer, 0 bis 100. */
+  trainer: number;
+  /** Monat, 1 bis 12. */
+  monat: number;
+  /** Alter des Spielers. */
+  alter: number;
 }
 
 /**
@@ -47,6 +75,75 @@ interface EventTemplate {
  * `life.<key>.*`. So bleibt der Pool ueberschaubar und zweisprachig.
  */
 const EVENT_POOL: EventTemplate[] = [
+  // --- An die Lage gebunden ---------------------------------------
+  //
+  // Diese hier passen nur in bestimmte Momente. Genau das macht den
+  // Unterschied zwischen "es passiert etwas" und "es passiert etwas,
+  // das zu dem passt, was gerade los ist".
+  {
+    key: 'krisensitzung',
+    passt: (l) => l.formPunkte <= 3 && !l.verletzt,
+    options: [
+      { id: 'speak', effect: { coach: 5, morale: 3, image: 2 }, hasNews: true },
+      { id: 'quiet', effect: { coach: -2, morale: -2 } },
+    ],
+  },
+  {
+    key: 'siegesserie',
+    passt: (l) => l.formPunkte >= 13,
+    options: [
+      { id: 'humble', effect: { coach: 4, image: 2 }, hasNews: true },
+      { id: 'boast', effect: { image: 7, coach: -5, fans: 3 } },
+    ],
+  },
+  {
+    key: 'reha',
+    passt: (l) => l.verletzt,
+    options: [
+      { id: 'patient', effect: { fitness: 6, coach: 3 }, hasNews: true },
+      { id: 'rush', effect: { fitness: -6, morale: 4, coach: -2 } },
+    ],
+  },
+  {
+    key: 'mannschaftsrat',
+    passt: (l) => l.kapitaen,
+    options: [
+      { id: 'defend', effect: { morale: 6, coach: -4 }, hasNews: true },
+      { id: 'side', effect: { coach: 6, morale: -4 } },
+    ],
+  },
+  {
+    key: 'wintertrainingslager',
+    passt: (l) => l.monat === 1 && !l.verletzt,
+    options: [
+      { id: 'extra', effect: { fitness: 5, sharpness: 4, morale: -2 }, hasNews: true },
+      { id: 'family', effect: { morale: 6, fitness: -2 } },
+    ],
+  },
+  {
+    key: 'werbedreh',
+    passt: (l) => l.image >= 62,
+    options: [
+      { id: 'shoot', effect: { image: 8, fans: 3, sharpness: -4 }, hasNews: true },
+      { id: 'decline', effect: { coach: 4, sharpness: 2, image: -3 } },
+    ],
+  },
+  {
+    key: 'aussprache',
+    passt: (l) => l.trainer <= 35,
+    options: [
+      { id: 'honest', effect: { coach: 8, morale: -2 }, hasNews: true },
+      { id: 'avoid', effect: { coach: -4, morale: 2 } },
+    ],
+  },
+  {
+    key: 'altmeister',
+    passt: (l) => l.alter >= 30,
+    options: [
+      { id: 'mentor', effect: { coach: 6, image: 3, morale: 2 }, hasNews: true },
+      { id: 'focus', effect: { sharpness: 4, fitness: 2 } },
+    ],
+  },
   {
     key: 'karaoke',
     options: [
@@ -494,8 +591,28 @@ const EVENT_POOL: EventTemplate[] = [
  * Baut ein Ereignis aus dem Pool. Die Texte kommen dabei in der aktuell
  * eingestellten Sprache dazu - der Pool selbst haelt nur Kennungen.
  */
-export function buildLifeEvent(rng: Rng, idSeed: number): LifeEvent {
-  const template = rng.pick(EVENT_POOL);
+/**
+ * Zieht ein Ereignis, das zur Lage passt.
+ *
+ * Ohne `lage` wird wie frueher gleichverteilt gezogen - so bleiben
+ * aeltere Aufrufe gueltig. Mit Lage werden zuerst die Ereignisse
+ * betrachtet, die eine Bedingung stellen **und** sie erfuellen: sie sind
+ * die interessanteren, weil sie zu dem passen, was gerade los ist. Nur
+ * wenn keines davon greift, kommt der allgemeine Vorrat zum Zug.
+ */
+export function buildLifeEvent(
+  rng: Rng, idSeed: number, lage?: Lage,
+): LifeEvent {
+  const moeglich = lage
+    ? EVENT_POOL.filter((e) => !e.passt || e.passt(lage))
+    : EVENT_POOL.filter((e) => !e.passt);
+  const passend = lage
+    ? moeglich.filter((e) => e.passt) : [];
+  // Passende Ereignisse bekommen den Vorrang, aber keinen Monopolanspruch:
+  // sonst saehe eine schlechte Serie nur noch Krisensitzungen.
+  const auswahl = passend.length > 0 && rng.chance(0.6) ? passend
+    : moeglich.length > 0 ? moeglich : EVENT_POOL;
+  const template = rng.pick(auswahl);
   const k = template.key;
   return {
     id: `ev-${idSeed}`,

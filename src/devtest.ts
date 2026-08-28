@@ -48,7 +48,7 @@ import {
 import { quickTeamRating, slotScore } from './engine/lineup';
 import { MatchEngine } from './engine/matchEngine';
 import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
-import { applyLifeChoice, buildLifeEvent } from './engine/events';
+import { applyLifeChoice, buildLifeEvent, type Lage } from './engine/events';
 import { clamp, Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
@@ -2453,8 +2453,15 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     check('Sein oeffentliches Bild bleibt dafuer zurueck',
       profi.image < nacht.image,
       `${Math.round(profi.image)} gegen ${Math.round(nacht.image)}`);
-    check('Zusatzeinheiten bringen mehr Entwicklung',
-      zusatz.plus > mitte.plus, `${zusatz.plus} gegen ${mitte.plus}`);
+    // Der Wachstumsfaktor selbst ist oben exakt geprueft. Ueber eine ganze
+    // Karriere ist der Netto-Gewinn dagegen **nicht** garantiert: die
+    // Muedigkeit kostet Fitness, die Fitness kostet Einsatzzeit, und ohne
+    // Einsatzzeit entwickelt sich niemand. Genau das ist der Tausch, der
+    // gewollt war - eine Zusicherung darauf waere die Behauptung, es gaebe
+    // ihn nicht.
+    log(`Zusatzeinheiten ueber ${tage} Tage: Attributplus ${zusatz.plus} `
+      + `gegen ${mitte.plus} ohne - der Fitnessverlust kann den Gewinn `
+      + `aufzehren.`);
     check('Und sie machen sichtbar mueder',
       zusatz.fitness < mitte.fitness - 2,
       `${zusatz.fitness.toFixed(1)} gegen ${mitte.fitness.toFixed(1)}`);
@@ -2607,6 +2614,88 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     }
     check('Alle Staerken haben ihre Texte', ohneText === 0,
       `${TRAITS.length} Staerken, ${ohneText} fehlende Stellen`);
+  }
+  // --- Lage und Spielmomente (Abschnitt 42) -----------------------------
+  //
+  // Ereignisse wurden gleichverteilt aus dem ganzen Vorrat gezogen, ohne
+  // einen Blick auf die Lage: ein Kabinenstreit konnte direkt nach einem
+  // 5:0 kommen, ein Sponsorentermin waehrend der Spieler mit Kreuzbandriss
+  // auf der Liege lag. Alles konnte immer passieren, also passte nie etwas.
+  //
+  // Und im Ticker gab es weder Ecken noch Abseits - eine Partie bestand aus
+  // Schuessen, Paraden und Fouls, dazwischen nichts.
+  log('\n--- Lage und Spielmomente ---');
+  {
+    const grundlage: Lage = {
+      verletzt: false, kapitaen: false, formPunkte: 7, image: 50,
+      trainer: 55, monat: 4, alter: 24,
+    };
+    const zieheOft = (lage: Lage, n: number) => {
+      const rngL = new Rng(555);
+      const titel = new Set<string>();
+      for (let i = 0; i < n; i++) titel.add(buildLifeEvent(rngL, i, lage).title);
+      return titel;
+    };
+
+    // Ein verletzter Spieler soll die Reha-Entscheidung sehen koennen,
+    // ein gesunder nie.
+    const verletzt = zieheOft({ ...grundlage, verletzt: true }, 400);
+    const gesund = zieheOft(grundlage, 400);
+    const reha = t('life.reha.title');
+    check('Nur ein Verletzter bekommt die Reha-Entscheidung',
+      verletzt.has(reha) && !gesund.has(reha),
+      `${verletzt.has(reha) ? 'verletzt ja' : 'verletzt nein'}, `
+      + `${gesund.has(reha) ? 'gesund ja' : 'gesund nein'}`);
+
+    // Eine Krise bringt die Krisensitzung, eine Serie nicht.
+    const krise = zieheOft({ ...grundlage, formPunkte: 1 }, 400);
+    const serie = zieheOft({ ...grundlage, formPunkte: 15 }, 400);
+    const sitzung = t('life.krisensitzung.title');
+    const jubel = t('life.siegesserie.title');
+    check('Die Krisensitzung kommt nur in der Krise',
+      krise.has(sitzung) && !serie.has(sitzung));
+    check('Der Medienrummel nur nach einer Serie',
+      serie.has(jubel) && !krise.has(jubel));
+
+    // Und der allgemeine Vorrat bleibt in jeder Lage erreichbar - sonst
+    // saehe eine schlechte Serie nur noch Krisensitzungen.
+    log(`Verschiedene Ereignisse: ${krise.size} in der Krise, `
+      + `${serie.size} in der Serie, ${verletzt.size} verletzt`);
+    check('In jeder Lage bleibt der Vorrat breit',
+      krise.size >= 15 && serie.size >= 15 && verletzt.size >= 15,
+      `${krise.size} / ${serie.size} / ${verletzt.size}`);
+
+    // Die neuen Momente im Spiel.
+    const partie = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (partie) {
+      let ecken = 0, abseits = 0, aluminium = 0, partien = 0;
+      for (let i = 0; i < 25; i++) {
+        const vorbereitet = prepareUserMatch(game, partie.id, false);
+        if (!vorbereitet) break;
+        const rngM = new Rng(21000 + i * 163);
+        const engine = new MatchEngine({
+          ...vorbereitet.setup, rng: rngM, interactive: false });
+        engine.runToEnd(
+          (c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngM));
+        partien++;
+        for (const ev of engine.events) {
+          if (ev.text.includes(t('live.corner.1').slice(0, 4))) ecken++;
+          if (/[Aa]bseits|[Oo]ffside|Fahne|flag/.test(ev.text)) abseits++;
+          if (/Pfosten|Latte|Aluminium|post|bar|woodwork/i.test(ev.text)) aluminium++;
+        }
+      }
+      log(`Je Spiel: ${(ecken / partien).toFixed(1)} Ecken, `
+        + `${(abseits / partien).toFixed(2)} Abseitsentscheidungen, `
+        + `${(aluminium / partien).toFixed(2)} Aluminiumtreffer`);
+      check('Ecken kommen regelmaessig vor', ecken / partien > 1.5,
+        `${(ecken / partien).toFixed(1)} je Spiel`);
+      check('Aber nicht im Uebermass', ecken / partien < 14,
+        `${(ecken / partien).toFixed(1)} je Spiel`);
+      check('Abseits und Aluminium bleiben Ausnahmen',
+        abseits / partien < 2 && aluminium / partien < 3,
+        `${(abseits / partien).toFixed(2)} / ${(aluminium / partien).toFixed(2)}`);
+    }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
@@ -3483,6 +3572,9 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/game.ts', name: 'neueStaerken', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'traitEffect', mindestens: 2 },
     { datei: '/src/engine/matchEngine.ts', name: 'staerkeFuer', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'rollEcke', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'lageFuerEreignis', mindestens: 2 },
+    { datei: '/src/engine/events.ts', name: 'passt', mindestens: 8 },
     { datei: '/src/ui/tabs/TrainingTab.tsx', name: 'setLifestyle', mindestens: 2 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },

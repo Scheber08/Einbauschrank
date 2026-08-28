@@ -516,6 +516,7 @@ export class MatchEngine {
     // Der Schwung laeuft weiter, bevor irgendetwas gewuerfelt wird.
     this.schwung.tick(this.rng);
     this.meldePhase(evts);
+    this.rollEcke(evts);
 
     this.rollDiscipline(evts);
     this.rollInjury(evts);
@@ -713,6 +714,28 @@ export class MatchEngine {
     const heim = this.heimfaktor() * this.schwung.heimAnteil();
     const homeShare = (h.midfield * heim) / (h.midfield * heim + a.midfield);
     return this.rng.chance(homeShare) ? 'home' : 'away';
+  }
+
+  /**
+   * Ecken.
+   *
+   * Im Ticker gab es sie nicht - eine Partie bestand aus Schuessen, Paraden
+   * und Fouls, dazwischen nichts. Dabei ist die Ecke der haeufigste
+   * Standard ueberhaupt und faerbt eine Druckphase, ohne dass gleich etwas
+   * passieren muss.
+   */
+  private rollEcke(evts: LiveEvent[]) {
+    // Wer drueckt, holt mehr Ecken heraus - der Schwung entscheidet mit.
+    if (!this.rng.chance(0.05 * this.schwung.dichte(this.minute))) return;
+    const side: Side = this.rng.chance(0.5 + this.schwung.wert * 0.3) ? 'home' : 'away';
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side,
+      text: tVariant('live.corner', this.rng.next(), { club: this.clubName(side) }),
+    });
+    // Aus etwa jeder fuenften Ecke wird eine Kopfballchance.
+    if (this.rng.chance(0.22)) {
+      this.continueAttack(side, evts, { xgBonus: 1.1, guaranteedShot: true });
+    }
   }
 
   /**
@@ -1002,12 +1025,19 @@ export class MatchEngine {
         const blocker = this.rng.pick(this.onPitch[defSide].filter((o) => o.slot !== 'TW'));
         if (blocker) this.statOf(blocker.player.id, defSide, blocker.slot).blocks++;
       }
+      // Nicht jeder Fehlschuss ist gleich weit weg. Ein Pfostentreffer ist
+      // der Moment, ueber den nach dem Spiel geredet wird - im Ticker stand
+      // dafuer bisher dasselbe "daneben" wie fuer einen Schuss ins Nichts.
+      const aluminium = !blocked && this.rng.chance(0.09);
       this.emit(evts, {
         minute: this.minute, type: 'miss', side,
         playerId: shooter.player.id,
+        chanceKind: chance.kind,
         text: blocked
           ? tVariant('live.shotBlockedLate', this.rng.next(), { player: this.name(shooter.player.id) })
-          : tVariant('live.shotWide', this.rng.next(), { player: this.name(shooter.player.id) }),
+          : aluminium
+            ? tVariant('live.woodwork', this.rng.next(), { player: this.name(shooter.player.id) })
+            : tVariant('live.shotWide', this.rng.next(), { player: this.name(shooter.player.id) }),
       });
       return;
     }
@@ -1088,6 +1118,19 @@ export class MatchEngine {
     side: Side, shooter: OnPitchPlayer, creator: OnPitchPlayer | null,
     evts: LiveEvent[], bigChance: boolean, kind?: string, distance?: number,
   ) {
+    // Ein Tor, das keines war. Selten genug, dass es weh tut, und haeufiger
+    // bei Baellen in die Tiefe als bei einem Kopfball aus dem Gewuehl.
+    const tiefe = kind === 'oneOnOne' ? 0.075 : 0.028;
+    if (this.rng.chance(tiefe)) {
+      this.emit(evts, {
+        minute: this.minute, type: 'miss', side,
+        playerId: shooter.player.id,
+        user: shooter.player.id === this.setup.userPlayerId,
+        text: tVariant('live.offside', this.rng.next(),
+          { player: this.name(shooter.player.id) }),
+      });
+      return;
+    }
     if (side === 'home') this.homeScore++; else this.awayScore++;
     // Wer trifft, macht meistens weiter - und offener wird es sowieso.
     this.schwung.tor(side === 'home');
