@@ -1177,8 +1177,35 @@ export class MatchEngine {
    * Erhoeht den Gegnerdruck in bedeutenden Partien: Ein Derby oder ein
    * Spitzenspiel wird auch in den Szenen spuerbar (Konzept Abschnitt 26).
    */
+  /**
+   * Druck einer Szene: Bedeutung der Partie **und** Spielweise des Gegners.
+   *
+   * Gegen eine hoch pressende Mannschaft bleibt weniger Zeit am Ball, gegen
+   * einen tiefen Block mehr - dafuer sind dort die Raeume zu, was sich in
+   * der Chancenqualitaet niederschlaegt. Ohne diesen Zusatz fuehlte sich
+   * jeder Gegner gleich an.
+   */
   private withImportance(base: number): number {
-    return clamp(base + (this.setup.importance?.pressure ?? 0), 0.1, 0.97);
+    return clamp(
+      base + (this.setup.importance?.pressure ?? 0) + this.gegnerDruck(),
+      0.1, 0.97);
+  }
+
+  /** Druckzuschlag aus der Spielweise des gegnerischen Vereins. */
+  private gegnerDruck(): number {
+    if (!this.userSide) return 0;
+    const gegner = this.userSide === 'home' ? this.setup.awayClub : this.setup.homeClub;
+    const mods: Record<string, number> = {
+      highPress: 0.12,
+      counter: 0.04,
+      direct: 0.02,
+      possession: 0.02,
+      wingPlay: 0.01,
+      buildUp: 0,
+      longBall: -0.02,
+      deepBlock: -0.06,
+    };
+    return mods[gegner.tacticStyle] ?? 0;
   }
 
   private baseChallenge(side: Side, kind: Challenge['kind']): Omit<Challenge, 'title' | 'hint' | 'distance' | 'offset' | 'xg' | 'bigChance' | 'pressure' | 'opponent'> {

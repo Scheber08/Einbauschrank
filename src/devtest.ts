@@ -28,7 +28,7 @@ import { applyLifeChoice, buildLifeEvent } from './engine/events';
 import { Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
-import { DIFFICULTY_SETTINGS, type SquadRole } from './engine/types';
+import { DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
 import { FORMATION_SLOTS } from './engine/worldGen';
 import { place } from './ui/FormationPitch';
 import { EVENT_KEYS } from './ui/tabs/ChronicleTab';
@@ -1235,6 +1235,58 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       `${ligenMitDopplung} von ${proLiga.size}`);
     check('Kein Nachname ueberwiegt', haeufigster < spieler.length * 0.01,
       `haeufigster ${haeufigster}x`);
+  }
+  // --- Spielweise des Gegners (Abschnitt 28) ---------------------------
+  //
+  // Acht Spielweisen gibt es, und `matchEngine.ts` las **keine** davon -
+  // `tactic` kam im ganzen Modul nicht vor. Der Stil verschob nur die
+  // Staerkewerte in `lineup.ts`; ein tief stehender Gegner stand nicht tief,
+  // ein hoch pressender presste nicht. Die Szenen des Spielers waren gegen
+  // jeden Gegner gleich.
+  log('\n--- Spielweise des Gegners ---');
+  {
+    const naechstes = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (naechstes) {
+      const gegnerId = naechstes.homeClubId === user.clubId
+        ? naechstes.awayClubId : naechstes.homeClubId;
+      const gegner = game.clubs[gegnerId];
+
+      // Dieselbe Partie mit denselben Wuerfeln, nur der Stil unterscheidet
+      // sich - so misst der Vergleich den Stil und nicht den Zufall.
+      const druckBei = (stil: TacticStyle) => {
+        if (!gegner) return 0;
+        gegner.tacticStyle = stil;
+        let summe = 0, n = 0;
+        for (let i = 0; i < 8; i++) {
+          const vorbereitet = prepareUserMatch(game, naechstes.id, true);
+          if (!vorbereitet) break;
+          const rngT = new Rng(9000 + i * 137);
+          const engine = new MatchEngine({ ...vorbereitet.setup, rng: rngT, highlightMode: 'own' });
+          engine.runToEnd((c) => {
+            if (typeof c.pressure === 'number') { summe += c.pressure; n++; }
+            return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngT);
+          });
+        }
+        return n > 0 ? summe / n : 0;
+      };
+
+      const stilVorher = gegner?.tacticStyle;
+      const pressing = druckBei('highPress');
+      const block = druckBei('deepBlock');
+      if (gegner && stilVorher) gegner.tacticStyle = stilVorher;
+
+      log(`Szenendruck: gegen hohes Pressing ${pressing.toFixed(3)}, `
+        + `gegen tiefen Block ${block.toFixed(3)}`);
+      if (pressing > 0 && block > 0) {
+        check('Ein pressender Gegner erzeugt mehr Druck', pressing > block,
+          `${pressing.toFixed(3)} gegen ${block.toFixed(3)}`);
+        check('Der Unterschied bleibt im Rahmen', pressing < block * 1.5,
+          `Faktor ${(pressing / block).toFixed(2)}`);
+      } else {
+        log('Keine Szenen mit Druckwert - uebersprungen.');
+      }
+    }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

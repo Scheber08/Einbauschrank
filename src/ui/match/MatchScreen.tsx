@@ -14,7 +14,7 @@ import {
 import type { Challenge, ChallengeResult, LiveEvent } from '../../engine/matchTypes';
 import { expectedAttendance, matchImportance } from '../../engine/rivalry';
 import { Rng } from '../../engine/rng';
-import { DIFFICULTY_SETTINGS } from '../../engine/types';
+import { TACTIC_LABELS, DIFFICULTY_SETTINGS } from '../../engine/types';
 import { advanceCalendar, saveCurrent } from '../../state/actions';
 import { commit, setState, useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
@@ -253,6 +253,10 @@ export default function MatchScreen() {
   const score = engine ? engine.score : [0, 0];
   const events = engine?.events ?? [];
   const user = game.players[game.userPlayerId];
+  // Der Verein auf der anderen Seite - fuer den Hinweis auf seine Spielweise.
+  const gegner = user?.clubId && homeClub && awayClub
+    ? (user.clubId === homeClub.id ? awayClub : user.clubId === awayClub.id ? homeClub : null)
+    : null;
   const userStats = engine?.userStats;
 
   return (
@@ -304,6 +308,22 @@ export default function MatchScreen() {
           <div className="row between">
             <MentalityRow value={mentality} onChange={changeMentality} />
             <span className="tiny dim">{mentalityHint(mentality)}</span>
+          </div>
+        </Panel>
+      )}
+
+      {/* Was fuer ein Gegner das ist. Die Spielweise setzt den eigenen
+          Szenen mehr oder weniger Druck entgegen - ohne diese Zeile waere
+          das eine Mechanik, die niemand sieht. */}
+      {phase === 'setup' && gegner && (
+        <Panel title={t('ms.opponentStyle')}>
+          <div className="row between">
+            <span>
+              <strong>{gegner.name}</strong>
+              {' - '}
+              {t(TACTIC_LABELS[gegner.tacticStyle])}
+            </span>
+            <span className="tiny dim">{t(`ms.style.${gegner.tacticStyle}`)}</span>
           </div>
         </Panel>
       )}

@@ -1696,6 +1696,15 @@ export const DE: Record<string, string> = {
 
 
   // --- Engine: Attribute, Positionen, Training, Datum ----------------------
+  'ms.opponentStyle': 'Der Gegner',
+  'ms.style.possession': 'Haelt den Ball in den eigenen Reihen.',
+  'ms.style.counter': 'Laesst kommen und schaltet schnell um.',
+  'ms.style.highPress': 'Presst hoch - du wirst wenig Zeit am Ball haben.',
+  'ms.style.deepBlock': 'Steht tief. Wenig Druck, aber die Raeume sind zu.',
+  'ms.style.wingPlay': 'Sucht die Aussenbahnen.',
+  'ms.style.direct': 'Spielt geradlinig nach vorne.',
+  'ms.style.longBall': 'Schlaegt lange Baelle - viel zweiter Ball.',
+  'ms.style.buildUp': 'Baut geduldig von hinten auf.',
   'ms.yourApproach': 'Deine Ausrichtung',
   'ms.howToExperience': 'Wie moechtest du dieses Spiel erleben?',
   'ms.course': 'Verlauf',
