@@ -193,7 +193,7 @@ export default function StatsTab() {
           )}
           {game.awards.filter((a) => a.playerId === game.userPlayerId).slice().reverse().map((a) => (
             <div className="row between small" key={a.id} style={{ padding: '0.25rem 0' }}>
-              <span style={{ color: '#f5c542' }}>{a.label}</span>
+              <span style={{ color: '#d9bd6a' }}>{a.label}</span>
               <span className="tiny dim">{seasonLabel(a.season)} - {a.value}</span>
             </div>
           ))}

@@ -42,17 +42,20 @@ export function Bar({ value, max = 100, color }: { value: number; max?: number; 
 /**
  * Farbe eines Balkens nach seinem Fuellstand.
  *
- * Der Mittelbereich war ein kaltes Blau und stach aus der warmen Palette
- * heraus. Er ist jetzt ein gedecktes Kupfer - die Reihe laeuft damit
- * durchgehend von Rot ueber Bernstein zu Gruen und bleibt trotzdem in
- * fuenf Stufen unterscheidbar.
+ * Vorher lief die Reihe von Rot ueber Bernstein und Kupfer zu Gruen. Weil
+ * die meisten Werte im mittleren Band liegen, war damit praktisch jeder
+ * Balken der Oberflaeche orange - und weil es so viele davon gibt, das
+ * ganze Bild.
+ *
+ * Jetzt geht die Mitte durch ein kuehles Grau-Blau: unauffaellig, wo nichts
+ * zu sagen ist, und die Farbe bleibt den Raendern vorbehalten, wo sie
+ * tatsaechlich etwas bedeutet.
  */
 export function barColor(pct: number): string {
-  if (pct < 30) return '#c0483a';
-  if (pct < 50) return '#cf8a24';
-  if (pct < 70) return '#b8763a';
-  if (pct < 88) return '#4faa63';
-  return '#e0b338';
+  if (pct < 30) return '#d05a5a';
+  if (pct < 70) return '#8fa3b8';
+  if (pct < 88) return '#4bb377';
+  return '#3ecf8e';
 }
 
 export function Meter({ label, value, hint }: { label: string; value: number; hint?: string }) {
@@ -141,12 +144,19 @@ export function rating(value: number): string {
   return tDecimal(value, 1);
 }
 
+/**
+ * Farbe einer Spielnote.
+ *
+ * Dieselbe Ueberlegung wie beim Balken: eine Sechs ist der Normalfall und
+ * bekommt deshalb keine Farbe, sondern ein ruhiges Grau-Blau. Auffaellig
+ * wird es nur nach oben und nach unten.
+ */
 export function ratingColor(value: number): string {
-  if (value >= 8) return '#f5c542';
-  if (value >= 7) return '#7ce6a5';
-  if (value >= 6) return '#9fd6ff';
-  if (value >= 5) return '#ffb020';
-  return '#ff7a86';
+  if (value >= 8) return '#d9bd6a';
+  if (value >= 7) return '#7fddb4';
+  if (value >= 6) return '#8fa3b8';
+  if (value >= 5) return '#c98f8f';
+  return '#d05a5a';
 }
 
 export function initials(first: string, last: string): string {

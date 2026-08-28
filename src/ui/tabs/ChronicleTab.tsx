@@ -68,7 +68,7 @@ export default function ChronicleTab() {
         <Panel title={t('chronicle.finished')}>
           <div className="center" style={{ padding: '0.4rem 0 0.8rem' }}>
             <div className="tiny dim">{t('chronicle.endedAt', { date: formatDate(done.date), age: done.age })}</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5c542', margin: '0.3rem 0' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#d9bd6a', margin: '0.3rem 0' }}>
               {done.status}
             </div>
             <div className="small muted">{user.firstName} {user.lastName}</div>
@@ -101,7 +101,7 @@ export default function ChronicleTab() {
         </div>
         <p className="small muted" style={{ marginTop: '0.8rem', marginBottom: 0 }}>
           Aktueller Karrierestatus:{' '}
-          <strong style={{ color: '#f5c542' }}>
+          <strong style={{ color: '#d9bd6a' }}>
             {careerStatus(totals.goals, totals.appearances, game.honours.length)}
           </strong>
           {' - '}
@@ -137,7 +137,7 @@ export default function ChronicleTab() {
         <Panel title={t('chronicle.honours')}>
           <div className="chip-row">
             {game.honours.slice().reverse().map((h, i) => (
-              <span className="chip" key={i} style={{ borderColor: '#6d5520', color: '#ffd479' }}>
+              <span className="chip" key={i} style={{ borderColor: '#3a4a52', color: '#8fd4e0' }}>
                 {seasonLabel(h.season)} - {h.label}
               </span>
             ))}

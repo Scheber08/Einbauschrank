@@ -115,13 +115,13 @@ export default function TrainingTab() {
             <div className="label">{t('training.progress')}</div>
           </div>
           <div className="stat">
-            <div className="value" style={{ color: factors.fatigue > 1.5 ? '#ffb020' : undefined }}>
+            <div className="value" style={{ color: factors.fatigue > 1.5 ? '#d8a657' : undefined }}>
               {Math.round(factors.fatigue * 100)}%
             </div>
             <div className="label">{t('training.fatigue')}</div>
           </div>
           <div className="stat">
-            <div className="value" style={{ color: factors.injury > 1.5 ? '#ff7a86' : undefined }}>
+            <div className="value" style={{ color: factors.injury > 1.5 ? '#d05a5a' : undefined }}>
               {Math.round(factors.injury * 100)}%
             </div>
             <div className="label">{t('training.injuryRisk')}</div>

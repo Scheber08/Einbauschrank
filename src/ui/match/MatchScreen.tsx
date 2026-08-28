@@ -780,7 +780,7 @@ function HalftimeModal(
                   diesen Hinweis waehlt man blind: Bei niedriger Fuehrung ist
                   die Ansprache schwaecher als das schlichte Anlaufen. */}
               {o.leadership && (
-                <div className="tiny" style={{ marginTop: 4, color: leadership >= 55 ? 'var(--good, #7ce6a5)' : 'var(--bad, #c86)' }}>
+                <div className="tiny" style={{ marginTop: 4, color: leadership >= 55 ? 'var(--good, #7fddb4)' : 'var(--bad, #c86)' }}>
                   {t(leadership >= 70 ? 'match.rally.strong'
                     : leadership >= 55 ? 'match.rally.ok' : 'match.rally.weak',
                     { value: leadership })}
@@ -850,10 +850,10 @@ function EventIcon({ type }: { type: LiveEvent['type'] }) {
         <path d="M8 3.6 l2.6 1.9 -1 3.1 h-3.2 l-1 -3.1 Z" fill="#16253d" /></svg>
       );
     case 'yellow':
-      return <svg {...common}><rect x="5" y="2.5" width="6" height="11" rx="1" fill="#f5c542" /></svg>;
+      return <svg {...common}><rect x="5" y="2.5" width="6" height="11" rx="1" fill="#d9bd6a" /></svg>;
     case 'red':
     case 'secondYellow':
-      return <svg {...common}><rect x="5" y="2.5" width="6" height="11" rx="1" fill="#ff5c6c" /></svg>;
+      return <svg {...common}><rect x="5" y="2.5" width="6" height="11" rx="1" fill="#d05a5a" /></svg>;
     case 'sub':
       return (
         <svg {...common}><path d="M3 5.5 h8 M9 3 l2.5 2.5 L9 8 M13 10.5 h-8 M7 8 l-2.5 2.5 L7 13"

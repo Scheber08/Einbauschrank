@@ -11,7 +11,7 @@ function Floodlight({ x, flip }: { x: number; flip?: boolean }) {
       <rect x={-3} y={44} width={6} height={82} fill="#1b2942" />
       <rect x={-24} y={26} width={48} height={20} rx="3" fill="#22334f" />
       {[-16, -5.5, 5.5, 16].map((lx) => (
-        <circle key={lx} cx={lx} cy={36} r="4.4" fill="#ffeeb8" className="lamp" />
+        <circle key={lx} cx={lx} cy={36} r="4.4" fill="#e8f2ff" className="lamp" />
       ))}
       <path d={`M ${dir * -28} 46 L ${dir * 140} 260 L ${dir * -84} 260 Z`}
         fill="url(#beam)" className="beam" />
@@ -37,8 +37,8 @@ export function PitchBackdrop() {
           <stop offset="100%" stopColor="#132743" />
         </linearGradient>
         <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffeeb8" stopOpacity="0.20" />
-          <stop offset="100%" stopColor="#ffeeb8" stopOpacity="0" />
+          <stop offset="0%" stopColor="#e8f2ff" stopOpacity="0.20" />
+          <stop offset="100%" stopColor="#e8f2ff" stopOpacity="0" />
         </linearGradient>
         <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#0d5a2e" />
@@ -52,8 +52,8 @@ export function PitchBackdrop() {
         <pattern id="crowd" width="14" height="10" patternUnits="userSpaceOnUse">
           <circle cx="3" cy="3" r="1.7" fill="#8ea3c4" opacity="0.55" />
           <circle cx="10" cy="8" r="1.7" fill="#c9d6ea" opacity="0.4" />
-          <circle cx="10" cy="3" r="1.5" fill="#37d67a" opacity="0.22" />
-          <circle cx="3" cy="8" r="1.5" fill="#f5c542" opacity="0.18" />
+          <circle cx="10" cy="3" r="1.5" fill="#3ecf8e" opacity="0.22" />
+          <circle cx="3" cy="8" r="1.5" fill="#d9bd6a" opacity="0.18" />
         </pattern>
         <pattern id="mow" width="80" height="200" patternUnits="userSpaceOnUse">
           <rect width="40" height="200" fill="rgba(255,255,255,0.035)" />

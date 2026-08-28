@@ -137,8 +137,8 @@ export default function TableTab() {
                   return (
                     <tr key={row.clubId} className={isUser ? 'user' : promo ? 'highlight' : ''}>
                       <td className="mono" style={{
-                        borderLeft: `3px solid ${promo ? '#2fae63' : releg ? '#b8404d'
-                          : playoff ? '#c98a1c' : 'transparent'}`,
+                        borderLeft: `3px solid ${promo ? '#3ecf8e' : releg ? '#d05a5a'
+                          : playoff ? '#5aa9d6' : 'transparent'}`,
                       }}>{pos}</td>
                       <td>
                         <span className="row" style={{ gap: '0.45rem', alignItems: 'center' }}>
@@ -260,7 +260,7 @@ function ChampionsCupPanel() {
                     const pos = i + 1;
                     const isUser = club?.id === row.clubId;
                     // 1-16 kommen weiter, 1-8 direkt ins Achtelfinale.
-                    const border = pos <= 8 ? '#2fae63' : pos <= 16 ? '#c98a1c' : '#b8404d';
+                    const border = pos <= 8 ? '#3ecf8e' : pos <= 16 ? '#5aa9d6' : '#d05a5a';
                     return (
                       <tr key={row.clubId} className={isUser ? 'user' : ''}>
                         <td className="mono" style={{ borderLeft: `3px solid ${border}` }}>{pos}</td>

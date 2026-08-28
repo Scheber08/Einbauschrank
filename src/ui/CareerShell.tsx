@@ -303,7 +303,7 @@ function WncModal(
         <h2>World Nations Cup {result.year}</h2>
         <p style={{ fontSize: '1.1rem' }}>
           {t('wnc.champion')}: 
-          <strong style={{ color: '#f5c542' }}>{result.championName}</strong>
+          <strong style={{ color: '#d9bd6a' }}>{result.championName}</strong>
           <span className="muted">
             {' '}({t('wnc.finalAgainst', { team: result.runnerUpName })})
           </span>
@@ -311,7 +311,7 @@ function WncModal(
         {result.userNominated ? (
           <div style={{ marginTop: '0.6rem' }}>
             {won ? (
-              <p style={{ color: '#37d67a', fontWeight: 680 }}>
+              <p style={{ color: '#3ecf8e', fontWeight: 680 }}>
                 {t('wnc.youWon', { nation: nation ?? '' })}
               </p>
             ) : (
@@ -416,7 +416,7 @@ function TrainingModal({ outcome, onClose }: { outcome: TrainingOutcome; onClose
             <ul>
               {outcome.gains.map((g) => (
                 <li key={g.attr}>
-                  {g.label} <strong style={{ color: '#7ce6a5' }}>+{g.amount}</strong>
+                  {g.label} <strong style={{ color: '#7fddb4' }}>+{g.amount}</strong>
                 </li>
               ))}
             </ul>
@@ -425,7 +425,7 @@ function TrainingModal({ outcome, onClose }: { outcome: TrainingOutcome; onClose
         {outcome.overallAfter > outcome.overallBefore && (
           <p>
             {t('player.overall')}: {outcome.overallBefore} {'->'}{' '}
-            <strong style={{ color: '#7ce6a5' }}>{outcome.overallAfter}</strong>
+            <strong style={{ color: '#7fddb4' }}>{outcome.overallAfter}</strong>
           </p>
         )}
         {outcome.injured && (
@@ -478,7 +478,7 @@ function SeasonModal({ report, onClose }: { report: SeasonReport; onClose: () =>
             <h4>{t('report.yourAwards')}</h4>
             <ul className="small">
               {report.awards.filter((a) => a.playerId === game.userPlayerId).map((a) => (
-                <li key={a.id} style={{ color: '#f5c542' }}>{a.label} ({a.value})</li>
+                <li key={a.id} style={{ color: '#d9bd6a' }}>{a.label} ({a.value})</li>
               ))}
             </ul>
           </>
