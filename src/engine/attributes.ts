@@ -176,6 +176,26 @@ export const POSITION_WEIGHTS: Record<PositionCode, Weights> = {
   },
 };
 
+/**
+ * Tempo: Antritt und Grundschnelligkeit zu einer Zahl.
+ *
+ * Der Antritt wiegt schwerer, weil im Zweikampf und beim Dribbling die
+ * ersten Meter entscheiden - die Hoechstgeschwindigkeit erreicht ein
+ * Spieler in einer Szene ohnehin selten.
+ */
+export function tempo(attrs: Attributes): number {
+  return attrs.acceleration * 0.55 + attrs.pace * 0.45;
+}
+
+/**
+ * Zweikampfstaerke ohne Ball: das, was einen Verteidiger ausmacht,
+ * jenseits der Graetsche.
+ */
+export function defensiveSkill(attrs: Attributes): number {
+  return attrs.marking * 0.3 + attrs.interception * 0.28
+    + attrs.defPositioning * 0.24 + attrs.pressing * 0.18;
+}
+
 /** Gesamtstaerke eines Spielers auf einer bestimmten Position (1-100). */
 export function computeOverall(attrs: Attributes, position: PositionCode): number {
   const weights = POSITION_WEIGHTS[position];

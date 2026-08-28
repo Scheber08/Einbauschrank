@@ -6,6 +6,7 @@
  *   y  Tiefe, 0 = Torlinie, positive Werte = weiter vom Tor entfernt
  *   z  Hoehe ueber dem Rasen
  */
+import { defensiveSkill, tempo } from './attributes';
 import { Rng, clamp } from './rng';
 import type { ChallengeOutcome, ChallengeResult, Challenge } from './matchTypes';
 import type { DifficultySettings, Player } from './types';
@@ -205,7 +206,11 @@ export interface ExecutionContext {
 export function applyExecutionError(input: BallInput, ctx: ExecutionContext): BallInput {
   const p = ctx.player;
   const condition = (p.form / 100) * 0.4 + (p.fitness / 100) * 0.35 + (p.confidence / 100) * 0.25;
-  let errorScale = (1 - ctx.skill / 100) * (0.55 + ctx.pressure * 0.85);
+  // Ein sauberer erster Kontakt nimmt dem Gegnerdruck einen Teil seiner
+  // Wirkung - genau dafuer ist der Wert da, und genau da fehlte er. Bei
+  // einem Durchschnittswert von 50 aendert sich nichts.
+  const druck = ctx.pressure * (1.25 - p.attrs.firstTouch / 200);
+  let errorScale = (1 - ctx.skill / 100) * (0.55 + druck * 0.85);
   errorScale *= 1.25 - condition * 0.5;
   errorScale /= ctx.difficulty.targetSize;
   if (ctx.weakFoot) errorScale *= 1 + (100 - p.attrs.weakFoot) / 90;
@@ -637,9 +642,12 @@ export function resolveDuel(
 ): ChallengeResult {
   // Die Graetsche ist der letzte Griff im Zweikampf - genau der Moment, den
   // der Spieler hier selbst timen muss. Sie gehoert deshalb in diese Formel.
-  const skill = player.attrs.tackling * 0.38 + player.attrs.slideTackle * 0.12
-    + player.attrs.anticipation * 0.22 + player.attrs.defPositioning * 0.18
-    + player.attrs.reactions * 0.1;
+  // Deckung, Abfangen und Anlaufen fehlten hier ganz: ein Verteidiger konnte
+  // exzellent decken und trotzdem jeden Zweikampf verlieren, weil nur die
+  // Graetsche zaehlte. Auch hier bleibt die Summe der Gewichte 1.
+  const skill = player.attrs.tackling * 0.30 + player.attrs.slideTackle * 0.10
+    + player.attrs.anticipation * 0.16 + player.attrs.reactions * 0.08
+    + defensiveSkill(player.attrs) * 0.36;
 
   // Trefferfenster in Sekunden
   const window = (0.1 + skill / 520) * difficulty.targetSize;
@@ -737,8 +745,13 @@ export function resolveDribble(
   timing: TimingInput, challenge: Challenge, player: Player,
   difficulty: DifficultySettings, rng: Rng, move?: DribbleMove,
 ): ChallengeResult {
-  const skill = player.attrs.dribbling * 0.45 + player.attrs.agility * 0.2
-    + player.attrs.balance * 0.15 + player.attrs.ballControl * 0.2;
+  // Ohne Tempo war ein Dribbling reine Technik - ein antrittsschneller
+  // Aussenspieler kam an niemandem vorbei, wenn seine Ballkontrolle mittel
+  // war. Die Gewichte summieren sich weiter auf 1, der Massstab bleibt also
+  // derselbe.
+  const skill = player.attrs.dribbling * 0.38 + player.attrs.agility * 0.15
+    + player.attrs.balance * 0.12 + player.attrs.ballControl * 0.15
+    + tempo(player.attrs) * 0.20;
   const window = (0.12 + skill / 480) * difficulty.targetSize * (move?.windowScale ?? 1);
   const dev = Math.abs(timing.offset);
   // Wie beim Zweikampf: der genaue Zeitpunkt der Finte entscheidet mit.

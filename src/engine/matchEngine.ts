@@ -5,7 +5,7 @@
  */
 import { CARD_SHARE, refereeEffect, type RefereeStyle } from './referee';
 import { weatherEffect, type Weather } from './weather';
-import { POSITION_LINE, effectiveOverall } from './attributes';
+import { defensiveSkill, tempo, POSITION_LINE, effectiveOverall } from './attributes';
 import { GOAL_HALF_WIDTH } from './ballAction';
 import type { Lineup } from './lineup';
 import {
@@ -1054,13 +1054,22 @@ export class MatchEngine {
     if (!user || user.slot === 'TW') return false;
 
     const base = MatchEngine.DRIBBLE_CHANCE[user.slot] ?? 0.03;
-    // Gute Dribbler kommen haeufiger in solche Situationen.
-    const skillFactor = 0.6 + user.player.attrs.dribbling / 125;
+    // Gute Dribbler kommen haeufiger in solche Situationen - und schnelle,
+    // denn wer sich loest, hat den Zweikampf ueberhaupt erst.
+    const skillFactor = 0.6
+      + (user.player.attrs.dribbling * 0.6 + tempo(user.player.attrs) * 0.4) / 125;
     if (!this.rng.chance(clamp(base * skillFactor * this.attackFactor, 0.01, 0.5))) return false;
 
     const defenders = this.onPitch[this.other(side)].filter((o) => o.slot !== 'TW');
     if (defenders.length === 0) return false;
     const opponent = this.rng.pick(defenders);
+
+    // Ein antrittsschneller Angreifer gegen einen langsamen Verteidiger hat
+    // es leichter. Im Modell stand davon nichts: nur die Gesamtstaerke des
+    // Gegenspielers zaehlte, egal wie die beiden zueinander passen.
+    const tempoVorteil = clamp(
+      (tempo(user.player.attrs) - tempo(opponent.player.attrs)) * 0.25, -12, 12);
+    const gegner = clamp(opponent.rating - tempoVorteil, 10, 99);
 
     const distance = this.rng.float(14, 34);
     const offset = this.rng.normal(0, 12);
@@ -1071,8 +1080,8 @@ export class MatchEngine {
       hint: t('me.ch.dribble.hint'),
       distance,
       offset,
-      pressure: this.withImportance(clamp(0.35 + opponent.rating / 180, 0.2, 0.95)),
-      opponent: opponent.rating,
+      pressure: this.withImportance(clamp(0.35 + gegner / 180, 0.2, 0.95)),
+      opponent: gegner,
       xg: 0,
       bigChance: false,
     }, {
@@ -1175,6 +1184,10 @@ export class MatchEngine {
     // Der Zuwachs bleibt moderat, weil Klaerungen am Schuss dazukommen.
     if (this.allHighlights) base *= 1.3;
     base *= this.defendFactor;
+    // Wer gut steht, abfaengt und schnell ist, ist ueberhaupt erst dort, wo
+    // der Zweikampf stattfindet. Bisher haing das allein an der Position.
+    base *= clamp(0.6 + (defensiveSkill(user.player.attrs) * 0.6
+      + tempo(user.player.attrs) * 0.4) / 150, 0.55, 1.45);
     if (!this.rng.chance(base)) return false;
 
     const attacker = this.rng.pick(this.onPitch[attackingSide].filter((o) => o.slot !== 'TW'));

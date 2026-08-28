@@ -3,11 +3,12 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import type { Challenge } from './engine/matchTypes';
 import { matchReferee, type RefereeStyle } from './engine/referee';
 import { matchWeather, type Weather } from './engine/weather';
 import { attendanceRoll } from './engine/rivalry';
-import { autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
-import { computeOverall } from './engine/attributes';
+import { resolveDuel, resolveDribble, applyExecutionError, autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
+import { ALL_ATTRS, defensiveSkill, tempo, computeOverall, type AttrKey, type Attributes } from './engine/attributes';
 import { seasonLabel } from './engine/date';
 import {
   advanceDay, createNewGame, finishUserMatch, prepareUserMatch, sortedTable, userClub,
@@ -31,7 +32,7 @@ import { applyLifeChoice, buildLifeEvent } from './engine/events';
 import { Rng } from './engine/rng';
 import { leaguesOfCountry } from './engine/season';
 import { collectStats, sumStats } from './engine/stats';
-import { DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
+import { type Player, DIFFICULTY_SETTINGS, type SquadRole, type TacticStyle } from './engine/types';
 import { FORMATION_SLOTS } from './engine/worldGen';
 import { place } from './ui/FormationPitch';
 import { EVENT_KEYS } from './ui/tabs/ChronicleTab';
@@ -1553,6 +1554,96 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         `${milde.rot.toFixed(2)} gegen ${streng.rot.toFixed(2)}`);
       check('Platzverweise bleiben die Ausnahme', rotSchnitt < 1.1,
         `${rotSchnitt.toFixed(2)} je Spiel`);
+    }
+  }
+  // --- Attribute, die nichts taten (Abschnitt 32) -----------------------
+  //
+  // 54 Attribute gibt es, in den Szenen des eigenen Spielers kamen 25 davon
+  // vor. Der Rest floss nur in `computeOverall` ein, also in eine einzige
+  // Zahl. Zwei Spieler mit derselben Gesamtstaerke, aber gegensaetzlichem
+  // Profil spielten sich deshalb vollkommen gleich.
+  //
+  // Am schwersten wog das beim Tempo: `pace` und `acceleration` sind die
+  // zwei Werte, auf die jeder Fussballer zuerst schaut, und sie machten in
+  // keiner einzigen Szene einen Unterschied. Dazu der halbe Abwehrblock
+  // und der erste Kontakt.
+  log('\n--- Attribute, die nichts taten ---');
+  {
+    // Die Gewichte summieren sich auf 1, der Massstab bleibt also derselbe
+    // wie vorher. Das laesst sich genau pruefen statt nur zu messen.
+    const gleich = { ...user.attrs } as Attributes;
+    for (const k of ALL_ATTRS) gleich[k] = 70;
+    check('Tempo behaelt den Massstab', Math.abs(tempo(gleich) - 70) < 0.001,
+      tempo(gleich).toFixed(3));
+    check('Zweikampfstaerke behaelt den Massstab',
+      Math.abs(defensiveSkill(gleich) - 70) < 0.001, defensiveSkill(gleich).toFixed(3));
+
+    // Ganze Partien sind hier das falsche Messgeraet: der Testspieler ist
+    // Stuermer und kommt in vierzehn Spielen auf eine Handvoll Zweikaempfe.
+    // Bei so wenigen Faellen kippt kein einziger Wurf, und beide Seiten
+    // liefern exakt dieselbe Zahl. Geprueft wird deshalb direkt die Formel,
+    // ueber viele Wuerfe mit demselben Zweikampf.
+    {
+      const sichern = { ...user.attrs } as Attributes;
+      const probe = (aenderung: Partial<Record<AttrKey, number>>,
+        art: 'dribble' | 'duel') => {
+        const p = { ...user, attrs: { ...sichern, ...aenderung } } as Player;
+        const gegner = { opponent: 62 } as unknown as Challenge;
+        let erfolge = 0;
+        const wuerfe = 1200;
+        const rngP = new Rng(4242);
+        for (let i = 0; i < wuerfe; i++) {
+          // Immer derselbe Zeitpunkt - gemessen wird das Attribut, nicht
+          // die Eingabe.
+          const timing = { offset: 0.02 };
+          const res = art === 'dribble'
+            ? resolveDribble(timing, gegner, p, DIFFICULTY_SETTINGS.normal, rngP)
+            : resolveDuel(timing, gegner, p, DIFFICULTY_SETTINGS.normal, rngP);
+          if (res.outcome === 'dribbleWon' || res.outcome === 'duelWon') erfolge++;
+        }
+        return erfolge / wuerfe;
+      };
+
+      const langsam = probe({ acceleration: 30, pace: 30 }, 'dribble');
+      const schnell = probe({ acceleration: 95, pace: 95 }, 'dribble');
+      log(`Dribbling bei Tempo 30 gegen 95: ${(langsam * 100).toFixed(1)} % `
+        + `gegen ${(schnell * 100).toFixed(1)} %`);
+      check('Tempo entscheidet Dribblings mit', schnell > langsam + 0.03,
+        `${(schnell * 100).toFixed(1)} % gegen ${(langsam * 100).toFixed(1)} %`);
+
+      const schwach = probe(
+        { marking: 30, interception: 30, pressing: 30, defPositioning: 30 }, 'duel');
+      const stark = probe(
+        { marking: 95, interception: 95, pressing: 95, defPositioning: 95 }, 'duel');
+      log(`Zweikampf bei Deckung 30 gegen 95: ${(schwach * 100).toFixed(1)} % `
+        + `gegen ${(stark * 100).toFixed(1)} %`);
+      check('Deckung und Abfangen entscheiden Zweikaempfe mit',
+        stark > schwach + 0.05,
+        `${(stark * 100).toFixed(1)} % gegen ${(schwach * 100).toFixed(1)} %`);
+
+      // Der erste Kontakt wirkt nicht im Zweikampf, sondern gegen den Druck:
+      // er verkleinert den Ausfuehrungsfehler. Gemessen wird die Streuung.
+      const streuung = (wert: number) => {
+        const p = { ...user, attrs: { ...sichern, firstTouch: wert } } as Player;
+        const rngS = new Rng(777);
+        let summe = 0;
+        const wuerfe = 1500;
+        for (let i = 0; i < wuerfe; i++) {
+          const raus = applyExecutionError(
+            { aimX: 0, aimY: 0, power: 0.6, contactX: 0, contactY: 0 },
+            { player: p, pressure: 0.8, difficulty: DIFFICULTY_SETTINGS.normal,
+              rng: rngS, skill: 60, weakFoot: false });
+          summe += Math.abs(raus.aimX);
+        }
+        return summe / wuerfe;
+      };
+      const roh = streuung(20);
+      const sauber = streuung(95);
+      log(`Streuung unter Druck bei erstem Kontakt 20 gegen 95: `
+        + `${roh.toFixed(2)} m gegen ${sauber.toFixed(2)} m`);
+      check('Ein sauberer erster Kontakt nimmt dem Druck seine Wirkung',
+        sauber < roh * 0.92,
+        `${sauber.toFixed(2)} m gegen ${roh.toFixed(2)} m`);
     }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
