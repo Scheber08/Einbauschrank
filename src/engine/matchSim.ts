@@ -3,6 +3,7 @@
  * (Konzept Abschnitt 27 und 56).
  */
 import { refereeEffect, type RefereeStyle } from './referee';
+import { zieheTorminute } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import { POSITION_LINE, effectiveOverall, type PositionCode, computeOverall } from './attributes';
 import { isAvailable, quickTeamRating } from './lineup';
@@ -273,7 +274,11 @@ export function simulateLight(
       const kind = rng.chance(0.22) ? 'longShot' : rng.chance(0.2) ? 'header' : 'shot';
       const scorer = pickShooter(rng, side, kind);
       const creator = rng.chance(0.68) ? pickCreator(rng, side, scorer.player.id) : null;
-      const minute = rng.int(1, 94);
+      // Gleichverteilt gewuerfelt fielen in der zweiten Minute genauso viele
+      // Tore wie in der achtzigsten. Dieselbe Kurve wie in der ausgespielten
+      // Partie - sonst haetten Hintergrundspiele eine andere Torverteilung
+      // als die eigenen, und in den Ligastatistiken faellt das auf.
+      const minute = zieheTorminute(rng);
       scorers.push({
         clubId, playerId: scorer.player.id,
         assistId: creator?.player.id ?? null, minute,

@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { minutenGewicht, zieheTorminute } from './engine/tempo';
 import { advanceUntil } from './state/actions';
 import { getState, setState } from './state/store';
 import type { Challenge } from './engine/matchTypes';
@@ -1911,6 +1912,102 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       setState({ game: vorher });
     }
   }
+  // --- Spielphasen (Abschnitt 35) ---------------------------------------
+  //
+  // `ATTACK_PROB` war eine Konstante: Minute 3 und Minute 88 gleich
+  // wahrscheinlich, in jeder Partie, immer. Damit plaetscherte jedes Spiel
+  // gleichmaessig durch - keine Druckphasen, keine zaehe Mitte, keine wilde
+  // Schlussphase. Zwei Partien mit demselben Ergebnis fuehlten sich
+  // identisch an, obwohl im Fussball genau das den Unterschied macht.
+  log('\n--- Spielphasen ---');
+  {
+    // Die Kurve verteilt nur um, sie erzeugt keine zusaetzlichen Tore.
+    // Das laesst sich genau nachrechnen statt zu messen.
+    let summe = 0;
+    for (let m = 1; m <= 95; m++) summe += minutenGewicht(m);
+    const schnitt = summe / 95;
+    check('Die Minutenkurve verteilt nur um', Math.abs(schnitt - 1) < 0.02,
+      `Mittel ${schnitt.toFixed(3)}`);
+    check('Spaet ist mehr los als frueh',
+      minutenGewicht(85) > minutenGewicht(5) * 1.5,
+      `${minutenGewicht(5).toFixed(2)} gegen ${minutenGewicht(85).toFixed(2)}`);
+
+    // Dieselbe Kurve zieht die Torminuten der schnellen Simulation - sonst
+    // haetten Hintergrundpartien eine andere Torverteilung als die eigenen.
+    {
+      const rngM = new Rng(4711);
+      let frueh = 0, spaet = 0;
+      for (let i = 0; i < 4000; i++) {
+        const m = zieheTorminute(rngM);
+        if (m <= 15) frueh++;
+        if (m > 75) spaet++;
+      }
+      log(`Gezogene Torminuten: ${frueh} in den ersten 15, ${spaet} nach der 75.`);
+      check('Auch die gezogenen Torminuten folgen der Kurve', spaet > frueh * 1.3,
+        `${spaet} gegen ${frueh}`);
+    }
+
+    // Und jetzt die ausgespielte Partie: dieselbe Begegnung, viele Wuerfel.
+    const partie = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (partie) {
+      const abschnitte = [0, 0, 0, 0, 0, 0];
+      const chancen: number[] = [];
+      let tore = 0;
+      let phasenzeilen = 0;
+      const laeufe = 40;
+      for (let i = 0; i < laeufe; i++) {
+        const vorbereitet = prepareUserMatch(game, partie.id, false);
+        if (!vorbereitet) break;
+        const rngP = new Rng(11000 + i * 173);
+        const engine = new MatchEngine({
+          ...vorbereitet.setup, rng: rngP, interactive: false });
+        engine.runToEnd(
+          (c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngP));
+        let n = 0;
+        for (const ev of engine.events) {
+          if (ev.type === 'goal') {
+            tore++;
+            abschnitte[Math.min(5, Math.floor(Math.max(0, ev.minute - 1) / 15))]++;
+          }
+          if (ev.type === 'goal' || ev.type === 'save' || ev.type === 'miss') n++;
+          if (ev.type === 'note') phasenzeilen++;
+        }
+        chancen.push(n);
+      }
+
+      if (tore > 40 && chancen.length > 0) {
+        const anteile = abschnitte.map((n) => n / tore * 100);
+        log(`Tore je Viertelstunde: ${anteile.map((a) => a.toFixed(1)).join(', ')} %`);
+        const ersteHaelfte = anteile[0] + anteile[1] + anteile[2];
+        const zweiteHaelfte = anteile[3] + anteile[4] + anteile[5];
+        check('In der zweiten Haelfte fallen mehr Tore',
+          zweiteHaelfte > ersteHaelfte,
+          `${zweiteHaelfte.toFixed(1)} % gegen ${ersteHaelfte.toFixed(1)} %`);
+        check('Die letzte Viertelstunde ist die torreichste',
+          anteile[5] > anteile[0] * 1.3,
+          `${anteile[5].toFixed(1)} % gegen ${anteile[0].toFixed(1)} %`);
+
+        // Ueberdispersion: bei unabhaengigen Minuten waere die Varianz
+        // hoechstens so gross wie das Mittel (Summe von Bernoulli-Versuchen).
+        // Alles darueber kommt aus den Phasen - und genau das macht aus
+        // gleichfoermigen Partien unterschiedliche.
+        const mittel = chancen.reduce((a, b) => a + b, 0) / chancen.length;
+        const varianz = chancen.reduce((a, b) => a + (b - mittel) ** 2, 0)
+          / chancen.length;
+        log(`Chancen je Spiel: ${mittel.toFixed(1)} im Mittel, `
+          + `Streuung ${Math.sqrt(varianz).toFixed(2)}, `
+          + `Dispersion ${(varianz / mittel).toFixed(2)}`);
+        check('Die Partien unterscheiden sich staerker als der reine Zufall',
+          varianz / mittel > 1.05, `${(varianz / mittel).toFixed(2)}`);
+
+        check('Die Phasen stehen auch im Ticker', phasenzeilen > laeufe,
+          `${phasenzeilen} Zeilen in ${laeufe} Partien`);
+      } else {
+        log('Zu wenige Tore fuer eine Verteilung - uebersprungen.');
+      }
+    }
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -2737,6 +2834,9 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/state/actions.ts', name: 'advanceUntil', mindestens: 1 },
     { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
     { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'schwung', mindestens: 5 },
+    { datei: '/src/engine/matchEngine.ts', name: 'meldePhase', mindestens: 2 },
+    { datei: '/src/engine/matchSim.ts', name: 'zieheTorminute', mindestens: 2 },
   ];
   let fehler = 0;
   const quellen = new Map<string, string>();

@@ -4,6 +4,7 @@
  * eine Schluesselsituation hat, die selbst gespielt werden kann.
  */
 import { CARD_SHARE, refereeEffect, type RefereeStyle } from './referee';
+import { Schwung } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import {
   defensiveSkill, keeperSkill, tempo, POSITION_LINE, effectiveOverall,
@@ -199,6 +200,16 @@ export class MatchEngine {
   private liveFitness = new Map<Id, number>();
   private subsUsed: Record<Side, number> = { home: 0, away: 0 };
   private yellows = new Map<Id, number>();
+  /**
+   * Schwung und Tempo der Partie.
+   *
+   * Vorher war die Ereignisdichte eine Konstante - Minute 3 und Minute 88
+   * gleich wahrscheinlich, in jeder Partie. Damit hatte kein Spiel eine
+   * Druckphase, eine zaehe Mitte oder eine wilde Schlussphase.
+   */
+  private schwung = new Schwung();
+  /** In welcher Minute zuletzt eine Phase im Ticker stand. */
+  private letztePhasenzeile = -20;
   private sentOff = new Set<Id>();
   private injuries: { playerId: Id; days: number }[] = [];
   private pendingCtx: PendingContext | null = null;
@@ -471,6 +482,10 @@ export class MatchEngine {
       this.considerSubstitutions('away', evts);
     }
 
+    // Der Schwung laeuft weiter, bevor irgendetwas gewuerfelt wird.
+    this.schwung.tick(this.rng);
+    this.meldePhase(evts);
+
     this.rollDiscipline(evts);
     this.rollInjury(evts);
     if (this.pendingInjury) {
@@ -488,7 +503,8 @@ export class MatchEngine {
     } else if (this.rng.chance(0.016)) {
       this.awardFreeKick(this.pickAttackingSide(), evts);
       if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
-    } else if (this.rng.chance(ATTACK_PROB)) {
+    } else if (this.rng.chance(clamp(
+      ATTACK_PROB * this.schwung.dichte(this.minute), 0.08, 0.9))) {
       const side = this.pickAttackingSide();
       this.runAttack(side, evts);
       if (this.pending) return { events: evts, pending: this.pending, finished: false, minute: this.minute };
@@ -661,9 +677,44 @@ export class MatchEngine {
   private pickAttackingSide(): Side {
     const h = this.strengthOf('home');
     const a = this.strengthOf('away');
-    const heim = this.heimfaktor();
+    // Staerke, Heimvorteil und der Schwung der Partie zusammen: wer gerade
+    // drueber ist, hat den Ball haeufiger.
+    const heim = this.heimfaktor() * this.schwung.heimAnteil();
     const homeShare = (h.midfield * heim) / (h.midfield * heim + a.midfield);
     return this.rng.chance(homeShare) ? 'home' : 'away';
+  }
+
+  /**
+   * Eine Zeile, wenn sich die Partie merklich dreht.
+   *
+   * Ohne sie waere der Schwung eine Mechanik, die man nur an den Zahlen
+   * ablesen koennte. Hoechstens alle zwoelf Minuten, sonst kommentiert der
+   * Ticker sich selbst zu Tode.
+   */
+  private meldePhase(evts: LiveEvent[]) {
+    if (this.minute - this.letztePhasenzeile < 12) return;
+    if (this.minute < 8 || this.minute > this.fullTime - 2) return;
+
+    const w = this.schwung.wert;
+    const tempo = this.schwung.tempo;
+    let schluessel: string | null = null;
+    let verein = '';
+
+    if (Math.abs(w) > 0.42) {
+      schluessel = 'live.phase.pressure';
+      verein = this.clubName(w > 0 ? 'home' : 'away');
+    } else if (tempo > 1.3) {
+      schluessel = 'live.phase.open';
+    } else if (tempo < 0.72) {
+      schluessel = 'live.phase.quiet';
+    }
+    if (!schluessel) return;
+
+    this.letztePhasenzeile = this.minute;
+    this.emit(evts, {
+      minute: this.minute, type: 'note', side: null,
+      text: tVariant(schluessel, this.rng.next(), { club: verein }),
+    });
   }
 
   // --- Angriffe ----------------------------------------------------------
@@ -987,6 +1038,8 @@ export class MatchEngine {
     evts: LiveEvent[], bigChance: boolean, kind?: string,
   ) {
     if (side === 'home') this.homeScore++; else this.awayScore++;
+    // Wer trifft, macht meistens weiter - und offener wird es sowieso.
+    this.schwung.tor(side === 'home');
     const st = this.statOf(shooter.player.id, side, shooter.slot);
     st.goals++;
     if (bigChance) st.bigChancesScored++;
@@ -2002,6 +2055,8 @@ export class MatchEngine {
 
   private sendOff(playerId: Id, side: Side) {
     this.sentOff.add(playerId);
+    // Eine Unterzahl dreht eine Partie deutlicher als alles andere.
+    this.schwung.platzverweis(side === 'home');
     this.onPitch[side] = this.onPitch[side].filter((o) => o.player.id !== playerId);
   }
 
