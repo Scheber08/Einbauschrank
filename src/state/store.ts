@@ -1,4 +1,8 @@
 /** Schlanker Zustandsspeicher fuer die Oberflaeche. */
+import type { GameDate } from '../engine/date';
+import type { LifeEvent } from '../engine/events';
+import type { SeasonReport } from '../engine/season';
+import type { Id, WncResult } from '../engine/types';
 import { useSyncExternalStore } from 'react';
 import type { GameState } from '../engine/types';
 
@@ -18,6 +22,43 @@ export interface AppState {
   toast: { text: string; tone: 'info' | 'good' | 'bad' } | null;
   /** Bericht, der als Dialog angezeigt wird. */
   modal: ModalState | null;
+  /** Sammelbericht eines Kalendersprungs, von der Schale angezeigt. */
+  skipReport: SkipSummary | null;
+}
+
+/**
+ * Was auf dem Weg zu einem Zieldatum passiert ist.
+ *
+ * Steht hier und nicht bei den Aktionen, weil die Schale ihn anzeigt und
+ * die Aktionen ihn setzen - beide haengen am Zustand, nicht aneinander.
+ */
+export interface SkipSummary {
+  /** Tage, die tatsaechlich vergangen sind. */
+  days: number;
+  von: GameDate;
+  bis: GameDate;
+  /** Eigene Partien, die unterwegs simuliert wurden. */
+  eigeneSpiele: {
+    matchId: Id;
+    datum: GameDate;
+    gegner: string;
+    daheim: boolean;
+    tore: number;
+    gegentore: number;
+    note: number | null;
+    eigeneTore: number;
+    vorlagen: number;
+  }[];
+  /** Summe der Attributzuwaechse aus dem Training unterwegs. */
+  trainingsPlus: number;
+  /** Neue Meldungen im Feed. */
+  meldungen: number;
+  /** Warum der Sprung geendet hat. */
+  grund: 'ziel' | 'spiel' | 'ereignis' | 'saison' | 'ende' | 'grenze';
+  matchToPlay: Id | null;
+  lifeEvent: LifeEvent | null;
+  seasonReport: SeasonReport | null;
+  wnc: WncResult | null;
 }
 
 export type ModalState =
@@ -33,6 +74,7 @@ let state: AppState = {
   busy: null,
   toast: null,
   modal: null,
+  skipReport: null,
 };
 
 const listeners = new Set<() => void>();

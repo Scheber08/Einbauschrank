@@ -30,7 +30,8 @@ import {
 } from './relationships';
 import { addCareerEvent, addNews, makeId, matchesOn } from './ids';
 import { quickTeamRating, selectLineup, type Lineup } from './lineup';
-import type { MatchEngineSetup, MatchOutcome } from './matchEngine';
+import { MatchEngine, type MatchEngineSetup, type MatchOutcome } from './matchEngine';
+import { autoResolveChallenge } from './ballAction';
 import { simulateLight } from './matchSim';
 import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
@@ -825,6 +826,34 @@ function hasBusyWeek(state: GameState, match: Match): boolean {
 }
 
 /** Uebernimmt das Ergebnis eines selbst gespielten Spiels. */
+/**
+ * Spielt eine eigene Partie ohne Zutun des Nutzers durch.
+ *
+ * Genau derselbe Weg wie der Simulationsmodus im Spielbildschirm: volle
+ * Spielmaschine, nur ohne Szenen zum Selbstspielen. Wichtig, dass es
+ * dieselbe ist - sonst haette ein uebersprungenes Spiel eine andere Physik
+ * als ein gespieltes, und der Kalender waere ein zweiter, stiller
+ * Schwierigkeitsgrad.
+ *
+ * Wird vom Kalender gebraucht, wenn man ueber eigene Spieltage hinweg
+ * vorspulen will.
+ */
+export function simulateUserMatch(state: GameState, matchId: Id): MatchOutcome | null {
+  const vorbereitet = prepareUserMatch(state, matchId, false);
+  if (!vorbereitet) return null;
+
+  const rng = new Rng(state.rngState);
+  const engine = new MatchEngine({ ...vorbereitet.setup, rng, interactive: false });
+  const user = state.players[state.userPlayerId];
+  engine.runToEnd((c) =>
+    autoResolveChallenge(c, user, DIFFICULTY_SETTINGS[state.difficulty], rng));
+  const ergebnis = engine.finish();
+  state.rngState = rng.state;
+
+  finishUserMatch(state, matchId, ergebnis);
+  return ergebnis;
+}
+
 export function finishUserMatch(state: GameState, matchId: Id, outcome: MatchOutcome) {
   const rng = new Rng(state.rngState);
   const match = state.matches[matchId];

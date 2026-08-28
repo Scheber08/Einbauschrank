@@ -3,6 +3,8 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { advanceUntil } from './state/actions';
+import { getState, setState } from './state/store';
 import type { Challenge } from './engine/matchTypes';
 import { matchReferee, type RefereeStyle } from './engine/referee';
 import { matchWeather, type Weather } from './engine/weather';
@@ -12,7 +14,7 @@ import {
   ALL_ATTRS, defensiveSkill, keeperSkill, tempo, computeOverall,
   type AttrKey, type Attributes, type KeeperSituation,
 } from './engine/attributes';
-import { seasonLabel } from './engine/date';
+import { isAfter, isBefore, addDays, seasonLabel } from './engine/date';
 import {
   advanceDay, createNewGame, finishUserMatch, prepareUserMatch, sortedTable, userClub,
 } from './engine/game';
@@ -1836,6 +1838,79 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       }
     }
   }
+  // --- Kalendersprung (Abschnitt 34) -----------------------------------
+  //
+  // Weiterkommen ging nur ueber "weiter, bis irgendetwas passiert". Wer drei
+  // Wochen ueberspringen wollte, klickte dreissig Mal. `advanceUntil` setzt
+  // ein Ziel und laesst den Rest durchlaufen.
+  //
+  // Der Sprung greift in den Zustand, deshalb wird der Spielstand hier kurz
+  // in den Speicher gelegt und hinterher zurueckgenommen.
+  log('\n--- Kalendersprung ---');
+  {
+    const vorher = getState().game;
+    setState({ game });
+    try {
+      const start = game.date;
+      const ziel = addDays(start, 21);
+
+      // Ohne Simulation eigener Spiele: der Sprung endet spaetestens am
+      // naechsten eigenen Spiel.
+      const ohne = advanceUntil(ziel, { eigeneSimulieren: false });
+      log(`Ohne eigene Spiele: ${ohne.days} Tage, Grund ${ohne.grund}`);
+      check('Der Sprung geht nie rueckwaerts', !isBefore(game.date, start),
+        `${start} -> ${game.date}`);
+      check('Der Sprung ueberschiesst das Ziel nicht',
+        !isAfter(game.date, ziel), `${game.date} gegen ${ziel}`);
+      check('Ohne Simulation bleiben eigene Spiele ungespielt',
+        ohne.eigeneSpiele.length === 0, `${ohne.eigeneSpiele.length}`);
+      if (ohne.grund === 'spiel') {
+        check('Beim Halt an einer Partie ist sie noch offen',
+          !!ohne.matchToPlay && !game.matches[ohne.matchToPlay]?.played);
+      }
+
+      // Mit Simulation: eigene Spiele werden unterwegs abgerechnet.
+      const zielZwei = addDays(game.date, 45);
+      const mit = advanceUntil(zielZwei, { eigeneSimulieren: true });
+      log(`Mit eigenen Spielen: ${mit.days} Tage, ${mit.eigeneSpiele.length} Partien, `
+        + `+${mit.trainingsPlus} aus dem Training, Grund ${mit.grund}`);
+
+      check('Der zweite Sprung bewegt den Kalender', mit.days > 0, `${mit.days}`);
+      if (mit.eigeneSpiele.length > 0) {
+        check('Simulierte eigene Spiele sind hinterher gespielt',
+          mit.eigeneSpiele.every((p) => game.matches[p.matchId]?.played),
+          `${mit.eigeneSpiele.length} Partien`);
+        check('Die Ergebnisse liegen im Rahmen',
+          mit.eigeneSpiele.every((p) => p.tore >= 0 && p.tore <= 12
+            && p.gegentore >= 0 && p.gegentore <= 12));
+        check('Kein Spiel taucht zweimal auf',
+          new Set(mit.eigeneSpiele.map((p) => p.matchId)).size
+            === mit.eigeneSpiele.length);
+      } else {
+        log('Keine eigenen Partien im Zeitraum - Teil uebersprungen.');
+      }
+
+      // Der Trainingszuwachs kam aus einer Liste von Eintraegen, nicht aus
+      // einem Zahlenverzeichnis. Ein `Object.values` darueber summierte
+      // still nur Nullen - der Bericht meldete dauerhaft "kein Fortschritt".
+      // Geprueft am zweiten Sprung, der lang genug ist; ein eigener dritter
+      // Sprung lief oft nur wenige Tage und die Zusicherung ins Leere.
+      if (mit.days >= 14) {
+        check('Der Trainingszuwachs wird tatsaechlich gezaehlt',
+          mit.trainingsPlus > 0,
+          `+${mit.trainingsPlus} in ${mit.days} Tagen`);
+      } else {
+        log('Sprung zu kurz fuer eine Trainingswoche - Teil uebersprungen.');
+      }
+
+      // Ein Ziel in der Vergangenheit darf nichts tun.
+      const rueckwaerts = advanceUntil(addDays(game.date, -5));
+      check('Ein Ziel in der Vergangenheit bewegt nichts',
+        rueckwaerts.days === 0, `${rueckwaerts.days} Tage`);
+    } finally {
+      setState({ game: vorher });
+    }
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -2657,6 +2732,11 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/ballAction.ts', name: 'tempo', mindestens: 2 },
     { datei: '/src/engine/ballAction.ts', name: 'defensiveSkill', mindestens: 2 },
     { datei: '/src/engine/ballAction.ts', name: 'firstTouch', mindestens: 1 },
+    { datei: '/src/engine/game.ts', name: 'simulateUserMatch', mindestens: 1 },
+    { datei: '/src/state/actions.ts', name: 'simulateUserMatch', mindestens: 2 },
+    { datei: '/src/state/actions.ts', name: 'advanceUntil', mindestens: 1 },
+    { datei: '/src/ui/tabs/CalendarTab.tsx', name: 'advanceUntil', mindestens: 2 },
+    { datei: '/src/ui/CareerShell.tsx', name: 'skipReport', mindestens: 2 },
   ];
   let fehler = 0;
   const quellen = new Map<string, string>();

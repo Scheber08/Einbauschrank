@@ -2,7 +2,7 @@ import { DIFFICULTY_SETTINGS } from '../engine/types';
 import { useState } from 'react';
 import { computeOverall } from '../engine/attributes';
 import { nationName } from '../engine/nations';
-import { t, tDecimal } from '../i18n';
+import { t, tDecimal, tn, tNumber } from '../i18n';
 import { useLocale } from '../i18n/useLocale';
 import { ageOn, formatDate, seasonLabel } from '../engine/date';
 import { nextUserMatch, userClub, userLeague } from '../engine/game';
@@ -14,9 +14,11 @@ import { clubSponsors } from '../engine/identity';
 import {
   advanceCalendar, advanceToMatch, applyLifeEvent, backToMenu, saveCurrent,
 } from '../state/actions';
-import { setState, useAppState, type CareerTab } from '../state/store';
+import {
+  setState, useAppState, type CareerTab, type SkipSummary,
+} from '../state/store';
 import ClubCrest from './ClubCrest';
-import { Bar, Meter, money } from './components';
+import { Bar, Meter, money, Pill, rating, ratingColor } from './components';
 import PlayerAvatar from './PlayerAvatar';
 import CalendarTab from './tabs/CalendarTab';
 import ChronicleTab from './tabs/ChronicleTab';
@@ -52,6 +54,8 @@ export default function CareerShell() {
   const [seasonReport, setSeasonReport] = useState<SeasonReport | null>(null);
   const [training, setTraining] = useState<TrainingOutcome | null>(null);
   const [lifeEvent, setLifeEvent] = useState<LifeEvent | null>(null);
+  /** Sammelbericht eines Kalendersprungs. */
+  const skip = app.skipReport;
   const [wnc, setWnc] = useState<WncResult | null>(null);
 
   const user = game.players[game.userPlayerId];
@@ -270,6 +274,17 @@ export default function CareerShell() {
       {wnc && <WncModal result={wnc}
         nation={nationName(user.nationality)}
         onClose={() => setWnc(null)} />}
+      {skip && (
+        <SkipModal bericht={skip} onClose={() => {
+          // Erst den Bericht schliessen, dann das, was den Sprung beendet
+          // hat - sonst liegen zwei Dialoge uebereinander.
+          setState({ skipReport: null });
+          if (skip.matchToPlay) { setState({ screen: 'match' }); return; }
+          if (skip.lifeEvent) setLifeEvent(skip.lifeEvent);
+          else if (skip.seasonReport) setSeasonReport(skip.seasonReport);
+          if (skip.wnc) setWnc(skip.wnc);
+        }} />
+      )}
       {lifeEvent && <LifeEventModal event={lifeEvent} onClose={() => setLifeEvent(null)} />}
       {training && <TrainingModal outcome={training} onClose={() => setTraining(null)} />}
       {seasonReport && <SeasonModal report={seasonReport} onClose={() => setSeasonReport(null)} />}
@@ -495,6 +510,80 @@ function SeasonModal({ report, onClose }: { report: SeasonReport; onClose: () =>
         <div className="row" style={{ marginTop: '1rem' }}>
           <button className="primary" onClick={onClose}>{t('report.startNextSeason')}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Was auf dem Weg zum Zieldatum passiert ist.
+ *
+ * Ohne diese Aufstellung waere ein Sprung ein schwarzes Loch: drei Wochen
+ * vergangen, zwei Spiele gelaufen, und man erfaehrt es nur, wenn man
+ * hinterher die Tabelle aufschlaegt.
+ */
+function SkipModal({ bericht, onClose }:
+{ bericht: SkipSummary; onClose: () => void }) {
+  const grundText: Record<SkipSummary['grund'], string> = {
+    ziel: 'calendar.report.reachedTarget',
+    spiel: 'calendar.report.stoppedMatch',
+    ereignis: 'calendar.report.stoppedEvent',
+    saison: 'calendar.report.stoppedSeason',
+    ende: 'calendar.report.stoppedRetired',
+    grenze: 'calendar.report.stoppedLimit',
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{t('calendar.report.title')}</h2>
+        <div className="row" style={{ flexWrap: 'wrap', gap: '0.3rem' }}>
+          <Pill>{tn('calendar.report.days', bericht.days)}</Pill>
+          <Pill>{formatDate(bericht.von)} &rarr; {formatDate(bericht.bis)}</Pill>
+          {bericht.meldungen > 0 && (
+            <Pill>{tn('calendar.report.news', bericht.meldungen)}</Pill>
+          )}
+          {bericht.trainingsPlus > 0 && (
+            <Pill tone="good">
+              {t('calendar.report.training', { n: tNumber(bericht.trainingsPlus) })}
+            </Pill>
+          )}
+        </div>
+        <p className="muted">{t(grundText[bericht.grund])}</p>
+
+        {bericht.eigeneSpiele.length > 0 && (
+          <table>
+            <tbody>
+              {bericht.eigeneSpiele.map((s: SkipSummary['eigeneSpiele'][number]) => (
+                <tr key={s.matchId}>
+                  <td className="tiny dim" style={{ whiteSpace: 'nowrap' }}>
+                    {formatDate(s.datum)}
+                  </td>
+                  <td className="tiny dim">
+                    {s.daheim ? t('calendar.report.home') : t('calendar.report.away')}
+                  </td>
+                  <td>{s.gegner}</td>
+                  <td className="center mono">
+                    <strong>{s.tore}:{s.gegentore}</strong>
+                  </td>
+                  <td className="num">
+                    {s.note !== null && (
+                      <span className="mono tiny" style={{ color: ratingColor(s.note) }}>
+                        {rating(s.note)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="tiny dim num">
+                    {s.eigeneTore > 0 && t('calendar.report.goals', { n: s.eigeneTore })}
+                    {s.vorlagen > 0 && ' ' + t('calendar.report.assists', { n: s.vorlagen })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <button className="primary" onClick={onClose}>{t('common.ok')}</button>
       </div>
     </div>
   );

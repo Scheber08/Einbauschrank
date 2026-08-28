@@ -1049,3 +1049,43 @@ input:focus, select:focus, textarea:focus {
   border-radius: var(--radius-sm);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
 }
+
+/* Monatsraster im Kalender. Eine Terminliste beantwortet "wann ist das
+   naechste Spiel", ein Raster beantwortet "wie dicht steht der Dezember" -
+   und das will man wissen, bevor man einen Sprung setzt. */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin: 0.35rem 0 0.7rem;
+}
+.cal-cell {
+  all: unset;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 0.68rem;
+  line-height: 1.9;
+  border-radius: 4px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 82%, var(--fg) 4%);
+  cursor: pointer;
+}
+.cal-cell:hover:not(:disabled) { outline: 1px solid var(--accent); }
+.cal-cell:disabled { cursor: default; }
+.cal-cell.empty { background: none; }
+.cal-cell.past { opacity: 0.4; }
+.cal-cell.today {
+  outline: 1px solid var(--accent);
+  color: var(--fg);
+  font-weight: 700;
+}
+/* Eigene Partien: daheim kraeftig, auswaerts nur umrandet - derselbe
+   Unterschied, den man auf einem Vereinsplakat sieht. */
+.cal-cell.home {
+  background: color-mix(in srgb, var(--accent) 55%, var(--panel));
+  color: var(--fg);
+}
+.cal-cell.away {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  color: var(--fg);
+}

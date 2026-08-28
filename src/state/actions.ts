@@ -1,8 +1,8 @@
 /** Aktionen, die den Spielstand veraendern. */
 import { ensureAgent, startAgentTask } from '../engine/agent';
-import { ageOn, makeDate } from '../engine/date';
+import { ageOn, isBefore, makeDate, type GameDate } from '../engine/date';
 import {
-  advanceDay, createNewGame, createObjectives, userClub,
+  advanceDay, createNewGame, createObjectives, simulateUserMatch, userClub,
   type DayResult, type NewGameOptions,
 } from '../engine/game';
 import { applyLifeChoice, type LifeEvent } from '../engine/events';
@@ -20,7 +20,9 @@ import { getLastSaveId, listSaves, loadGame, rememberLastSave, saveGame } from '
 import type { SeasonReport } from '../engine/season';
 import { computeOverall } from '../engine/attributes';
 import type { AgentTaskKind, TrainingFocus, TrainingIntensity } from '../engine/types';
-import { commit, getState, setState, showToast } from './store';
+import {
+  commit, getState, setState, showToast, type SkipSummary,
+} from './store';
 
 export async function startNewCareer(opts: NewGameOptions) {
   setState({ busy: t('act.creatingWorld') });
@@ -80,6 +82,113 @@ export interface AdvanceSummary {
  * Spult den Kalender vor, bis ein Spiel des eigenen Vereins ansteht
  * oder das Tageslimit erreicht ist.
  */
+/** Wie viele Tage ein Sprung hoechstens umfasst - eine ganze Saison plus Rand. */
+const MAX_SPRUNG = 400;
+
+/**
+ * Spult bis zu einem Datum vor.
+ *
+ * Der bisherige Kalender kannte nur "weiter, bis irgendetwas passiert". Wer
+ * drei Wochen ueberspringen wollte, musste dreissig Mal klicken. Hier wird
+ * ein Ziel gesetzt und der Rest laeuft durch.
+ *
+ * Angehalten wird nur bei Dingen, die eine Entscheidung verlangen: eigene
+ * Spiele (wenn man sie selbst spielen will), Ereignisse abseits des Platzes,
+ * Saisonwechsel, Karriereende. Trainingsberichte und Meldungen halten den
+ * Sprung nicht an - sie wirken trotzdem und stehen hinterher im
+ * Sammelbericht. Sonst waere das Vorspulen kein Vorspulen.
+ */
+export function advanceUntil(
+  ziel: GameDate, opts: { eigeneSimulieren?: boolean } = {},
+): SkipSummary {
+  const game = getState().game;
+  const leer: SkipSummary = {
+    days: 0, von: ziel, bis: ziel, eigeneSpiele: [], trainingsPlus: 0,
+    meldungen: 0, grund: 'ziel', matchToPlay: null, lifeEvent: null,
+    seasonReport: null, wnc: null,
+  };
+  if (!game) return leer;
+
+  const von = game.date;
+  const meldungenVorher = game.news.length;
+  const bericht: SkipSummary = { ...leer, von, bis: von, eigeneSpiele: [] };
+
+  for (let i = 0; i < MAX_SPRUNG; i++) {
+    if (!isBefore(game.date, ziel)) { bericht.grund = 'ziel'; break; }
+    if (game.retirement) { bericht.grund = 'ende'; break; }
+
+    const tag = advanceDay(game);
+
+    if (tag.matchToPlay) {
+      if (!opts.eigeneSimulieren) {
+        bericht.matchToPlay = tag.matchToPlay;
+        bericht.grund = 'spiel';
+        break;
+      }
+      const partie = game.matches[tag.matchToPlay];
+      const eigenerVerein = game.players[game.userPlayerId]?.clubId;
+      const daheim = partie?.homeClubId === eigenerVerein;
+      const gegnerId = daheim ? partie?.awayClubId : partie?.homeClubId;
+      const datum = partie?.date ?? game.date;
+      const ergebnis = simulateUserMatch(game, tag.matchToPlay);
+      if (ergebnis) {
+        const eigene = game.matches[tag.matchToPlay]?.userStats ?? null;
+        bericht.eigeneSpiele.push({
+          matchId: tag.matchToPlay,
+          datum,
+          gegner: (gegnerId ? game.clubs[gegnerId]?.name : '') ?? '',
+          daheim,
+          tore: daheim ? ergebnis.homeScore : ergebnis.awayScore,
+          gegentore: daheim ? ergebnis.awayScore : ergebnis.homeScore,
+          note: eigene?.rating ?? null,
+          eigeneTore: eigene?.goals ?? 0,
+          vorlagen: eigene?.assists ?? 0,
+        });
+      } else {
+        // Laesst sich nicht simulieren - dann eben anhalten, statt in einer
+        // Schleife auf demselben Tag zu bleiben.
+        bericht.matchToPlay = tag.matchToPlay;
+        bericht.grund = 'spiel';
+        break;
+      }
+      continue;
+    }
+
+    bericht.days++;
+    bericht.bis = game.date;
+    if (tag.wnc) bericht.wnc = tag.wnc;
+    if (tag.training) {
+      // `gains` ist eine Liste von Eintraegen, kein Zahlenverzeichnis - ein
+      // Object.values darueber haette still nur Nullen summiert und der
+      // Sammelbericht haette dauerhaft "kein Fortschritt" gemeldet.
+      for (const zuwachs of tag.training.gains) {
+        bericht.trainingsPlus += zuwachs.amount;
+      }
+    }
+    if (tag.lifeEvent) {
+      bericht.lifeEvent = tag.lifeEvent;
+      bericht.grund = 'ereignis';
+      break;
+    }
+    if (tag.seasonReport) {
+      bericht.seasonReport = tag.seasonReport;
+      bericht.grund = 'saison';
+      break;
+    }
+  }
+
+  bericht.bis = game.date;
+  bericht.meldungen = Math.max(0, game.news.length - meldungenVorher);
+  if (bericht.grund === 'ziel' && isBefore(game.date, ziel)) bericht.grund = 'grenze';
+
+  commit();
+  void saveCurrent(true);
+  // In den Zustand, damit die Schale ihn anzeigen kann - auch dann, wenn
+  // der Sprung an einem Ereignis endet und der Reiter wechselt.
+  setState({ skipReport: bericht });
+  return bericht;
+}
+
 export function advanceCalendar(maxDays = 60): AdvanceSummary {
   const game = getState().game;
   if (!game) return { days: 0, matchToPlay: null, seasonReport: null, training: null, lifeEvent: null, wnc: null };
