@@ -3,6 +3,7 @@
  * (Konzept Abschnitt 27 und 56).
  */
 import { refereeEffect, type RefereeStyle } from './referee';
+import { matchFormation } from './formation';
 import { zieheTorminute } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import { POSITION_LINE, effectiveOverall, type PositionCode, computeOverall } from './attributes';
@@ -191,11 +192,18 @@ export function simulateLight(
   homeSquad: Player[], awaySquad: Player[], neutral = false,
   weather?: Weather, refereeStyle?: RefereeStyle,
 ): LightResult {
-  const home = pickLightLineup(homeSquad, homeClub.formation);
-  const away = pickLightLineup(awaySquad, awayClub.formation);
-
   const homeRating = quickTeamRating(homeSquad);
   const awayRating = quickTeamRating(awaySquad);
+
+  // Dieselbe Wahl der Grundordnung wie in der ausgespielten Partie.
+  const home = pickLightLineup(homeSquad, matchFormation({
+    basis: homeClub.formation, eigene: homeRating, gegner: awayRating,
+    daheim: !neutral, matchId, clubId: homeClub.id,
+  }));
+  const away = pickLightLineup(awaySquad, matchFormation({
+    basis: awayClub.formation, eigene: awayRating, gegner: homeRating,
+    daheim: false, matchId, clubId: awayClub.id,
+  }));
   const diff = (homeRating - awayRating) / 9;
   const homeAdvantage = neutral ? 0 : 0.26;
 

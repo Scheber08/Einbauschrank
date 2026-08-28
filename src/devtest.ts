@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { DEFENSIVER_TEST, matchFormation } from './engine/formation';
 import {
   formatKickoff, kickoffAuslastung, matchKickoff,
 } from './engine/kickoff';
@@ -34,7 +35,7 @@ import { advanceAgent, ensureAgent, startAgentTask } from './engine/agent';
 import {
   applyTraining, injuryForDays, updateFormAfterMatch,
 } from './engine/development';
-import { slotScore } from './engine/lineup';
+import { quickTeamRating, slotScore } from './engine/lineup';
 import { MatchEngine } from './engine/matchEngine';
 import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
 import { applyLifeChoice, buildLifeEvent } from './engine/events';
@@ -2069,6 +2070,123 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       log('Zu wenige Partien je Gruppe - Kulissenteil uebersprungen.');
     }
   }
+  // --- Aufstellung und Torzeilen (Abschnitt 37) -------------------------
+  //
+  // Zwei Sorten Gleichfoermigkeit auf einmal. `club.formation` wurde bei der
+  // Weltgenerierung gesetzt und **nie wieder angefasst**: sieben Formationen
+  // gab es, benutzt wurde je Verein genau eine, im August wie im Mai, gegen
+  // jeden. Und die meistgelesene Zeile des Spiels sagte nie, **wie** ein Tor
+  // fiel - ein Hammer aus 28 Metern, ein Kopfball und ein Abstauber lasen
+  // sich alle als "TOR fuer X! Y."
+  log('\n--- Aufstellung und Torzeilen ---');
+  {
+    const kaderIndex = new Map<string, typeof user[]>();
+    for (const p of Object.values(game.players)) {
+      if (!p.clubId) continue;
+      if (!kaderIndex.has(p.clubId)) kaderIndex.set(p.clubId, []);
+      kaderIndex.get(p.clubId)!.push(p);
+    }
+
+    let gleich = 0, anders = 0, gesamt = 0;
+    const ordnungen = new Set<string>();
+    // Aussenseiter und Favoriten getrennt zaehlen: wer klar unterlegen ist,
+    // soll sich haeufiger nach hinten orientieren.
+    let unterlegenDefensiv = 0, unterlegen = 0;
+    let ueberlegenDefensiv = 0, ueberlegen = 0;
+
+    for (const m of Object.values(game.matches).slice(0, 2000)) {
+      const h = game.clubs[m.homeClubId];
+      const a = game.clubs[m.awayClubId];
+      if (!h || !a) continue;
+      const hs = quickTeamRating(kaderIndex.get(h.id) ?? []);
+      const as = quickTeamRating(kaderIndex.get(a.id) ?? []);
+      const seiten: [typeof h, number, number, boolean][] = [
+        [h, hs, as, true], [a, as, hs, false],
+      ];
+      for (const [c, eigene, gegner, daheim] of seiten) {
+        const gewaehlt = matchFormation({
+          basis: c.formation, eigene, gegner, daheim, matchId: m.id, clubId: c.id,
+        });
+        ordnungen.add(gewaehlt);
+        gesamt++;
+        if (gewaehlt === c.formation) gleich++; else anders++;
+        const nachHinten = DEFENSIVER_TEST[c.formation] === gewaehlt
+          && gewaehlt !== c.formation;
+        if (eigene - gegner <= -6) {
+          unterlegen++; if (nachHinten) unterlegenDefensiv++;
+        } else if (eigene - gegner >= 6) {
+          ueberlegen++; if (nachHinten) ueberlegenDefensiv++;
+        }
+      }
+    }
+
+    log(`Grundordnung: ${(gleich / gesamt * 100).toFixed(1)} % wie der Verein, `
+      + `${(anders / gesamt * 100).toFixed(1)} % abweichend, `
+      + `${ordnungen.size} verschiedene`);
+    check('Die Vereinsordnung bleibt der Normalfall', gleich / gesamt > 0.6,
+      `${(gleich / gesamt * 100).toFixed(1)} %`);
+    check('Es wird aber nicht immer dieselbe gespielt', anders / gesamt > 0.08,
+      `${(anders / gesamt * 100).toFixed(1)} %`);
+    check('Dieselbe Partie ergibt dieselbe Ordnung',
+      Object.values(game.matches).slice(0, 50).every((m) => {
+        const c = game.clubs[m.homeClubId];
+        if (!c) return true;
+        const lage = {
+          basis: c.formation, eigene: 60, gegner: 60, daheim: true,
+          matchId: m.id, clubId: c.id,
+        };
+        return matchFormation(lage) === matchFormation(lage);
+      }));
+
+    if (unterlegen > 50 && ueberlegen > 50) {
+      const u = unterlegenDefensiv / unterlegen;
+      const o = ueberlegenDefensiv / ueberlegen;
+      log(`Nach hinten orientiert: ${(u * 100).toFixed(1)} % als Aussenseiter, `
+        + `${(o * 100).toFixed(1)} % als Favorit`);
+      check('Aussenseiter stellen sich haeufiger nach hinten', u > o,
+        `${(u * 100).toFixed(1)} % gegen ${(o * 100).toFixed(1)} %`);
+    } else {
+      log('Zu wenige klare Kraefteverhaeltnisse - Vergleich uebersprungen.');
+    }
+
+    // Die Torzeile nach Art der Situation. Geprueft wird, dass wirklich
+    // verschiedene Familien vorkommen - nicht nur, dass es sie gibt.
+    const partie = Object.values(game.matches).find(
+      (m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId));
+    if (partie) {
+      const formulierungen = new Set<string>();
+      let tore = 0;
+      for (let i = 0; i < 25; i++) {
+        const vorbereitet = prepareUserMatch(game, partie.id, false);
+        if (!vorbereitet) break;
+        const rngT = new Rng(15000 + i * 181);
+        const engine = new MatchEngine({
+          ...vorbereitet.setup, rng: rngT, interactive: false });
+        engine.runToEnd(
+          (c) => autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngT));
+        for (const ev of engine.events) {
+          if (ev.type !== 'goal') continue;
+          tore++;
+          // Namen ausblenden, damit nur die Formulierung zaehlt.
+          formulierungen.add(ev.text.replace(/[A-Z][a-z]+/g, 'N'));
+        }
+      }
+      log(`Torzeilen: ${formulierungen.size} verschiedene Formulierungen `
+        + `bei ${tore} Toren`);
+      if (tore > 30) {
+        check('Tore lesen sich nicht alle gleich', formulierungen.size >= 8,
+          `${formulierungen.size} bei ${tore} Toren`);
+      }
+
+      // Jede Familie muss in beiden Katalogen Fassungen haben - sonst faellt
+      // `tVariant` auf einen fehlenden Schluessel zurueck und im Ticker steht
+      // der rohe Name.
+      for (const art of ['header', 'longShot', 'oneOnOne', 'close', 'normal']) {
+        check(`Die Torzeilen fuer ${art} sind vorhanden`,
+          t(`live.goal.${art}.1`) !== `live.goal.${art}.1`);
+      }
+    }
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -2900,6 +3018,10 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchSim.ts', name: 'zieheTorminute', mindestens: 2 },
     { datei: '/src/engine/rivalry.ts', name: 'kickoffAuslastung', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'matchKickoff', mindestens: 2 },
+    { datei: '/src/engine/game.ts', name: 'matchFormation', mindestens: 3 },
+    { datei: '/src/engine/matchSim.ts', name: 'matchFormation', mindestens: 3 },
+    { datei: '/src/engine/lineup.ts', name: 'aufstellung', mindestens: 3 },
+    { datei: '/src/engine/matchEngine.ts', name: 'torArt', mindestens: 2 },
   ];
   let fehler = 0;
   const quellen = new Map<string, string>();

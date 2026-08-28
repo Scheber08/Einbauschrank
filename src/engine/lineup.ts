@@ -2,7 +2,7 @@
 import { keeperOutfield, POSITION_LINE, effectiveOverall, type PositionCode } from './attributes';
 import { FORMATION_SLOTS } from './worldGen';
 import { clamp } from './rng';
-import { SQUAD_ROLE_ORDER, type Club, type Id, type Player, type TacticStyle } from './types';
+import { FormationKey, SQUAD_ROLE_ORDER, type Club, type Id, type Player, type TacticStyle } from './types';
 
 export interface LineupSlot {
   playerId: Id;
@@ -47,6 +47,13 @@ export interface LineupOptions {
   rotate?: boolean;
   /** Zusatzbonus fuer den eigenen Spieler aus dem Schwierigkeitsgrad. */
   userBonus?: number;
+  /**
+   * Grundordnung fuer diese eine Partie.
+   *
+   * Ohne Angabe die des Vereins. Vorher gab es nur die: ein Verein spielte
+   * im August dieselbe Ordnung wie im Mai, gegen jeden.
+   */
+  formation?: FormationKey;
 }
 
 /**
@@ -56,7 +63,8 @@ export interface LineupOptions {
 export function selectLineup(
   club: Club, squad: Player[], opts: LineupOptions,
 ): Lineup {
-  const slots = FORMATION_SLOTS[club.formation];
+  const aufstellung = opts.formation ?? club.formation;
+  const slots = FORMATION_SLOTS[aufstellung];
   const available = squad.filter(isAvailable);
   const used = new Set<Id>();
   const starters: LineupSlot[] = [];
@@ -103,7 +111,7 @@ export function selectLineup(
 
   return {
     clubId: club.id,
-    formation: club.formation,
+    formation: aufstellung,
     starters,
     bench,
     tactic: club.tacticStyle,

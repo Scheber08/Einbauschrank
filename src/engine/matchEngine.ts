@@ -1015,17 +1015,17 @@ export class MatchEngine {
     );
 
     this.finishShot(side, shooter, creator, goalProb, chance.bigChance, evts,
-      chance.kind);
+      chance.kind, chance.distance);
   }
 
   /** Schliesst einen Abschluss ab: Tor oder Parade des Torhueters. */
   private finishShot(
     side: Side, shooter: OnPitchPlayer, creator: OnPitchPlayer | null,
     goalProb: number, bigChance: boolean, evts: LiveEvent[],
-    kind?: string,
+    kind?: string, distance?: number,
   ) {
     if (this.rng.chance(goalProb)) {
-      this.scoreGoal(side, shooter, creator, evts, bigChance, kind);
+      this.scoreGoal(side, shooter, creator, evts, bigChance, kind, distance);
     } else {
       const gk = this.onPitch[this.other(side)].find((o) => o.slot === 'TW');
       if (gk) this.statOf(gk.player.id, this.other(side), 'TW').saves++;
@@ -1038,9 +1038,25 @@ export class MatchEngine {
     }
   }
 
+  /**
+   * Welche Sorte Torzeile zu dieser Situation passt.
+   *
+   * Die Angabe lag laengst vor und wurde nur weggeworfen: ein Hammer aus
+   * 28 Metern, ein Kopfball und ein Abstauber aus fuenf Metern lasen sich
+   * alle als "TOR fuer X! Y."
+   */
+  private torArt(kind?: string, distance?: number): string {
+    const d = distance ?? 16;
+    if (kind === 'header') return 'header';
+    if (kind === 'oneOnOne') return 'oneOnOne';
+    if (kind === 'longShot' || d >= 24) return 'longShot';
+    if (d <= 8) return 'close';
+    return 'normal';
+  }
+
   private scoreGoal(
     side: Side, shooter: OnPitchPlayer, creator: OnPitchPlayer | null,
-    evts: LiveEvent[], bigChance: boolean, kind?: string,
+    evts: LiveEvent[], bigChance: boolean, kind?: string, distance?: number,
   ) {
     if (side === 'home') this.homeScore++; else this.awayScore++;
     // Wer trifft, macht meistens weiter - und offener wird es sowieso.
@@ -1067,7 +1083,13 @@ export class MatchEngine {
       assistId: creator?.player.id,
       chanceKind: kind,
       user: shooter.player.id === this.setup.userPlayerId,
-      text: tVariant('live.goal', this.rng.next(), { club: this.clubName(side), scorer: this.name(shooter.player.id), assist: assistText }),
+      text: tVariant(`live.goal.${this.torArt(kind, distance)}`, this.rng.next(),
+        {
+          club: this.clubName(side),
+          scorer: this.name(shooter.player.id),
+          assist: assistText,
+          m: Math.round(distance ?? 16),
+        }),
     });
   }
 

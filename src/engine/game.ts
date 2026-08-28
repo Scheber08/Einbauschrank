@@ -37,6 +37,7 @@ import { calcMarketValue, calcSalary, generateAttributes } from './playerGen';
 import { advanceAgent, createAgent } from './agent';
 import { socialAfterMatch } from './social';
 import { attendanceRoll, expectedAttendance, matchImportance } from './rivalry';
+import { matchFormation } from './formation';
 import { formatKickoff, matchKickoff } from './kickoff';
 import { matchReferee } from './referee';
 import { matchWeather, weatherEffect } from './weather';
@@ -776,15 +777,31 @@ export function prepareUserMatch(
   const user = state.players[state.userPlayerId];
 
   const rotate = hasBusyWeek(state, match);
+  // Was fuer eine Grundordnung an diesem Tag: die des Vereins, oder eine
+  // Stufe vorsichtiger beziehungsweise mutiger, je nach Kraefteverhaeltnis
+  // und Platz. Vorher spielte jeder Verein immer dieselbe.
+  const heimStaerke = quickTeamRating(homeSquad);
+  const gastStaerke = quickTeamRating(awaySquad);
+  const heimOrdnung = matchFormation({
+    basis: homeClub.formation, eigene: heimStaerke, gegner: gastStaerke,
+    daheim: !match.neutralVenue, matchId: match.id, clubId: homeClub.id,
+  });
+  const gastOrdnung = matchFormation({
+    basis: awayClub.formation, eigene: gastStaerke, gegner: heimStaerke,
+    daheim: false, matchId: match.id, clubId: awayClub.id,
+  });
+
   const homeLineup = selectLineup(homeClub, homeSquad, {
     coachRelation: user?.clubId === homeClub.id ? state.coachRelation : 50,
     rotate,
     userBonus: DIFFICULTY_SETTINGS[state.difficulty].playtimeBonus,
+    formation: heimOrdnung,
   });
   const awayLineup = selectLineup(awayClub, awaySquad, {
     coachRelation: user?.clubId === awayClub.id ? state.coachRelation : 50,
     rotate,
     userBonus: DIFFICULTY_SETTINGS[state.difficulty].playtimeBonus,
+    formation: gastOrdnung,
   });
 
   const userLineup = user?.clubId === homeClub.id ? homeLineup
