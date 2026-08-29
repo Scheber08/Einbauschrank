@@ -1082,7 +1082,8 @@ export class MatchEngine {
           ? tVariant('live.shotBlockedLate', this.rng.next(), { player: this.name(shooter.player.id) })
           : aluminium
             ? tVariant('live.woodwork', this.rng.next(), { player: this.name(shooter.player.id) })
-            : tVariant('live.shotWide', this.rng.next(), { player: this.name(shooter.player.id) }),
+            : tVariant(this.fehlschussArt(chance.kind, chance.distance), this.rng.next(),
+              { player: this.name(shooter.player.id) }),
       });
       return;
     }
@@ -1138,7 +1139,8 @@ export class MatchEngine {
         minute: this.minute, type: 'save', side,
         playerId: shooter.player.id,
         chanceKind: kind,
-        text: tVariant('live.keeperSave', this.rng.next(), { player: this.name(shooter.player.id) }),
+        text: tVariant(this.paradeArt(kind, distance), this.rng.next(),
+          { player: this.name(shooter.player.id) }),
       });
     }
   }
@@ -1164,6 +1166,32 @@ export class MatchEngine {
     // Eine Direktabnahme ist fuer den Torwart ein Schuss - kurz, hart,
     // ohne Zeit zum Stellungsspiel.
     return 'shot';
+  }
+
+  /**
+   * Welche Sorte Paradenzeile zu dieser Situation passt.
+   *
+   * Es gab eine einzige Fassung fuer alles: Ein Kopfball aus fuenf
+   * Metern, eine Direktabnahme und ein Hammer aus dreissig Metern wurden
+   * alle drei mit demselben Satz gemeldet. Die Angabe lag vor und wurde
+   * weggeworfen - derselbe Fehler, der bei den Torzeilen laengst behoben
+   * ist. Ohne eigene Familie bleibt es beim allgemeinen Satz.
+   */
+  private paradeArt(kind?: string, distance?: number): string {
+    if (kind === 'header') return 'live.saveHeader';
+    if (kind === 'volley') return 'live.saveVolley';
+    if (kind === 'oneOnOne') return 'live.saveOneOnOne';
+    if (kind === 'longShot' || (distance ?? 16) >= 24) return 'live.saveLong';
+    return 'live.keeperSave';
+  }
+
+  /** Dasselbe fuer den Schuss, der das Tor verfehlt. */
+  private fehlschussArt(kind?: string, distance?: number): string {
+    if (kind === 'header') return 'live.wideHeader';
+    if (kind === 'volley') return 'live.wideVolley';
+    if (kind === 'oneOnOne') return 'live.wideOneOnOne';
+    if (kind === 'longShot' || (distance ?? 16) >= 24) return 'live.wideLong';
+    return 'live.shotWide';
   }
 
   private torArt(kind?: string, distance?: number): string {

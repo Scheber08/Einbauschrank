@@ -3800,6 +3800,91 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
         `${tDecimal(summe, 1)} gegen ${tDecimal(echt - ohneAlles, 1)}`);
     }
   }
+  // --- Paraden und Fehlschuesse nach Art der Chance (Abschnitt 57) -------
+  //
+  // Es gab eine einzige Fassung fuer alles: Ein Kopfball aus fuenf Metern,
+  // eine Direktabnahme und ein Hammer aus dreissig Metern wurden alle drei
+  // mit demselben Satz gemeldet, obwohl die Art der Chance danebenstand.
+  //
+  // Fehlt eine Fassung, faellt `tVariant` auf den Schluesselnamen selbst
+  // zurueck - im Ticker stuende dann woertlich "live.saveHeader". Das
+  // faellt niemandem auf, der nicht genau diese Szene erlebt.
+  log('\n--- Paraden und Fehlschuesse ---');
+  {
+    // Alle Ticker-Familien mit nummerierten Fassungen, direkt aus dem
+    // Katalog. Von Hand gepflegt veraltete die Liste mit jeder neuen
+    // Zeile - zweimal hintereinander hat die Zuordnung unten genau das
+    // aufgedeckt.
+    const familien = [...new Set(Object.keys(DE)
+      .filter((k) => /^live\.[A-Za-z]+\.\d+$/.test(k))
+      .map((k) => k.replace(/\.\d+$/, '')))];
+    /** Wieviele Fassungen eine Familie hat - so zaehlt auch `tVariant`. */
+    const anzahl = (familie: string) => {
+      let n = 0;
+      while (t(`${familie}.${n + 1}`) !== `${familie}.${n + 1}`) n++;
+      return n;
+    };
+    const abschluss = familien.filter((k) => /save|wide|woodwork|Blocked/i
+      .test(k));
+    const fehlend = abschluss.filter((familie) => anzahl(familie) < 3);
+    log(`${familien.length} Ticker-Familien, davon ${abschluss.length} zum `
+      + 'Abschluss: '
+      + `${fehlend.length ? fehlend.join(', ') : 'keine Luecke'}`);
+    check('Jede Zeilenfamilie hat mindestens drei Fassungen',
+      fehlend.length === 0, fehlend.join(', ') || 'vollstaendig');
+
+    // Und im Spiel muessen wirklich verschiedene Zeilen herauskommen.
+    const lage = spielbareLage(12);
+    const texte = new Set<string>();
+    // Jede Fassung zerfaellt in Vorspann und Nachspann um den Namen.
+    const muster = familien.flatMap((familie) => Array.from(
+      { length: anzahl(familie) }, (_, k) => k + 1,
+    ).map((i) => {
+      const roh = t(`${familie}.${i}`);
+      const teile = roh.split('{player}');
+      return { key: `${familie}.${i}`, vor: teile[0], nach: teile[1] ?? '' };
+    }));
+    const benutzte = new Set<string>();
+    const fremd: string[] = [];
+    let abschluesse = 0;
+    lage.spiele.forEach((m, k) => {
+      const vorbereitet = prepareUserMatch(lage.st, m.id, true);
+      if (!vorbereitet) return;
+      const r = new Rng(77000 + k * 911);
+      const e = new MatchEngine({ ...vorbereitet.setup, rng: r });
+      e.runToEnd((c) => autoResolveChallenge(
+        c, user, DIFFICULTY_SETTINGS.normal, r));
+      for (const ev of e.finish().events) {
+        if (ev.type !== 'save' && ev.type !== 'miss') continue;
+        abschluesse++;
+        texte.add(ev.text);
+        const treffer = muster.find((mu) => ev.text.startsWith(mu.vor)
+          && ev.text.endsWith(mu.nach));
+        if (treffer) benutzte.add(treffer.key);
+        else fremd.push(ev.text.slice(0, 60));
+      }
+    });
+    log(`${abschluesse} Paraden und Fehlschuesse aus ${benutzte.size} von `
+      + `${muster.length} Fassungen`);
+    log(`Benutzt: ${[...benutzte].map((k) => k.replace('live.', '')).join(', ')}`);
+    // Ein Schluesselname im Ticker faellt so auf: er hat keine Leerzeichen.
+    const roh = [...texte].filter((z) => /^live\.[a-zA-Z.]+$/.test(z));
+    check('Im Ticker steht kein Schluesselname', roh.length === 0,
+      roh.join(', ') || 'keiner');
+    // Gemessen wird gegen die erreichbaren Fassungen, nicht gegen alle:
+    // Wetter- und Auswechselzeilen koennen bei einem Abschluss gar nicht
+    // vorkommen. Nie alle, weil nicht jede Art von Chance in zwoelf
+    // Partien auftritt - ein Kopfball aus der Distanz etwa gibt es nicht.
+    const erreichbar = abschluss.reduce((a, k) => a + anzahl(k), 0);
+    log(`${erreichbar} Fassungen sind bei einem Abschluss ueberhaupt erreichbar`);
+    check('Der Ticker greift wirklich auf verschiedene Fassungen zu',
+      abschluesse > 0 && benutzte.size >= erreichbar * 0.5,
+      `${benutzte.size} von ${erreichbar} erreichbaren`);
+    // Eine Zeile, die zu keiner bekannten Fassung passt, kommt aus einer
+    // Quelle, die diese Pruefung nicht kennt - dann ist sie unvollstaendig.
+    check('Jede Zeile stammt aus einer bekannten Fassung', fremd.length === 0,
+      fremd.slice(0, 2).join(' | ') || 'alle zugeordnet');
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
