@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { kopfballGefahr, luftHoheit } from './engine/attributes';
 import { aufSchwachemFuss, resolvePass } from './engine/ballAction';
 import { tDecimal } from './i18n';
 import { ATTR_LABELS } from './engine/attributes';
@@ -3626,6 +3627,49 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
         gesamt > 0 && mitWert === gesamt, `${mitWert} von ${gesamt}`);
     }
   }
+  // --- Lufthoheit im Strafraum (Abschnitt 54) ---------------------------
+  //
+  // Eine angekommene Flanke wurde zum Kopfball, dessen Gefahr allein am
+  // `heading` des Abnehmers hing. Wer mit hochsteigt, kam nicht vor: eine
+  // Flanke in einen Strafraum voller kopfballstarker Verteidiger war
+  // genauso gut wie eine in einen leeren. `defHeading` las bis dahin
+  // keine Regel.
+  log('\n--- Lufthoheit im Strafraum ---');
+  {
+    const werte = (defHeading: number, jumping: number) => ({
+      ...user.attrs, defHeading, jumping,
+    });
+    // Der Wert selbst: Kopfball zaehlt mehr als Sprungkraft.
+    const stark = luftHoheit(werte(90, 60));
+    const schwach = luftHoheit(werte(20, 60));
+    log(`Lufthoheit: stark ${tDecimal(stark, 1)}, schwach ${tDecimal(schwach, 1)}`);
+    check('Der Kopfball wiegt schwerer als die Sprungkraft',
+      luftHoheit(werte(90, 20)) > luftHoheit(werte(20, 90)),
+      `${tDecimal(luftHoheit(werte(90, 20)), 1)} gegen `
+      + `${tDecimal(luftHoheit(werte(20, 90)), 1)}`);
+
+    // Und die Wirkung auf die Flanke.
+    const gegenStark = kopfballGefahr(75, stark);
+    const gegenSchwach = kopfballGefahr(75, schwach);
+    const gegenMittel = kopfballGefahr(75, 50);
+    log(`Kopfballgefahr bei gleichem Stuermer: gegen starke Abwehr `
+      + `${tDecimal(gegenStark, 2)}, gegen schwache ${tDecimal(gegenSchwach, 2)}, `
+      + `gegen mittlere ${tDecimal(gegenMittel, 2)}`);
+    check('Eine kopfballstarke Abwehr entschaerft die Flanke',
+      gegenStark < gegenSchwach * 0.85,
+      `${tDecimal(gegenStark, 2)} gegen ${tDecimal(gegenSchwach, 2)}`);
+    // Bei einer durchschnittlichen Abwehr darf sich nichts geaendert
+    // haben - sonst waere die Ergaenzung eine stille Abwertung aller
+    // Flanken.
+    check('Gegen eine mittlere Abwehr bleibt es beim Alten',
+      Math.abs(gegenMittel - clamp(75 / 100, 0.4, 1.3)) < 0.001,
+      `${tDecimal(gegenMittel, 3)}`);
+    // Der Stuermer zaehlt weiterhin.
+    check('Der Kopfballstarke bleibt gefaehrlicher',
+      kopfballGefahr(90, 50) > kopfballGefahr(40, 50),
+      `${tDecimal(kopfballGefahr(90, 50), 2)} gegen `
+      + `${tDecimal(kopfballGefahr(40, 50), 2)}`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -4489,6 +4533,9 @@ async function pruefeVerkabelung(): Promise<number> {
     // Ohne diese Verbindung sind `blocking` und `bravery` wieder Zierde.
     { datei: '/src/engine/ballAction.ts', name: 'blockSkill', mindestens: 1 },
     { datei: '/src/engine/matchEngine.ts', name: 'blockKoennen', mindestens: 2 },
+    // Ohne diese Verbindung steigt die Abwehr bei Flanken wieder nicht mit.
+    { datei: '/src/engine/matchEngine.ts', name: 'abwehrLuft', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'kopfballGefahr', mindestens: 2 },
     // Und die Anzeige: ohne sie faellt der Abzug wieder lautlos.
     { datei: '/src/ui/match/HighlightScene.tsx', name: 'aufSchwachemFuss', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'simulateUserMatch', mindestens: 1 },

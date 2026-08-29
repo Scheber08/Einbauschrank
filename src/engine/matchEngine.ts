@@ -11,7 +11,8 @@ import type { TraitEffect } from './traits';
 import { Schwung } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import {
-  defensiveSkill, keeperSkill, tempo, POSITION_LINE, effectiveOverall,
+  defensiveSkill, keeperSkill, kopfballGefahr, luftHoheit, tempo, POSITION_LINE,
+  effectiveOverall,
   type KeeperSituation,
 } from './attributes';
 import { GOAL_HALF_WIDTH } from './ballAction';
@@ -1642,6 +1643,21 @@ export class MatchEngine {
    * hingeht. Beide Attribute waren bis hierher reine Zierde: erzeugt,
    * angezeigt, trainierbar - und von keiner Regel gelesen.
    */
+  /**
+   * Lufthoheit der verteidigenden Abwehrreihe.
+   *
+   * Gezaehlt wird die Kette, nicht die Mannschaft: Wer eine Flanke im
+   * eigenen Strafraum klaert, steht hinten. Fehlt eine Kette, gilt das
+   * ganze Feld.
+   */
+  private abwehrLuft(defSide: Side): number {
+    const alle = this.onPitch[defSide].filter((o) => o.slot !== 'TW');
+    const kette = alle.filter((o) => POSITION_LINE[o.slot] === 'DEF');
+    const wer = kette.length > 0 ? kette : alle;
+    if (wer.length === 0) return 50;
+    return wer.reduce((a, o) => a + luftHoheit(o.player.attrs), 0) / wer.length;
+  }
+
   private blockKoennen(defSide: Side): number {
     const feld = this.onPitch[defSide].filter((o) => o.slot !== 'TW');
     if (feld.length === 0) return 50;
@@ -2285,7 +2301,12 @@ export class MatchEngine {
     // Eine angekommene Flanke wird zum Kopfball - wie hoch die Chance ist,
     // haengt daran, wie gut sie geschlagen war und wer da hochsteigt.
     const bonus = clamp(0.7 + result.quality * 0.9, 0.6, 1.65);
-    const kopfstark = clamp(receiver.player.attrs.heading / 100, 0.4, 1.3);
+    // Wer hochsteigt, steigt nicht allein hoch. Bisher fehlte die
+    // Abwehr in dieser Rechnung ganz: eine Flanke in einen Strafraum
+    // voller kopfballstarker Verteidiger war genauso gut wie eine in
+    // einen leeren.
+    const kopfstark = kopfballGefahr(
+      receiver.player.attrs.heading, this.abwehrLuft(this.other(side)));
     const chance = {
       kind: 'header',
       distance: clamp(this.rng.float(4, 13), 3, 16),

@@ -196,6 +196,34 @@ export function defensiveSkill(attrs: Attributes): number {
     + attrs.defPositioning * 0.24 + attrs.pressing * 0.18;
 }
 
+/**
+ * Lufthoheit eines Verteidigers.
+ *
+ * Bewusst getrennt von `defensiveSkill`: der ist ein reiner Bodenwert
+ * (Deckung, Abfangen, Stellung, Pressing) und soll es bleiben. Der
+ * Kopfball in der eigenen Box ist eine andere Aufgabe.
+ *
+ * `defHeading` wurde bis hierher von keiner einzigen Regel gelesen -
+ * gewuerfelt, angezeigt, trainierbar und ohne Wirkung.
+ */
+export function luftHoheit(attrs: Attributes): number {
+  return attrs.defHeading * 0.7 + attrs.jumping * 0.3;
+}
+
+/**
+ * Wie gefaehrlich eine angekommene Flanke wird.
+ *
+ * Bisher zaehlte nur, wer hochsteigt. Wer mit hochsteigt, kam nicht vor:
+ * eine Flanke in einen Strafraum voller kopfballstarker Verteidiger war
+ * genau so gut wie eine in einen leeren. Bei einer durchschnittlichen
+ * Abwehr (50) aendert sich nichts.
+ */
+export function kopfballGefahr(kopfball: number, abwehrLuft: number): number {
+  const angriff = clamp(kopfball / 100, 0.4, 1.3);
+  const abwehr = clamp(1 + (50 - abwehrLuft) / 200, 0.75, 1.25);
+  return angriff * abwehr;
+}
+
 /** Was fuer eine Situation der Torwart vor sich hat. */
 export type KeeperSituation = 'shot' | 'longShot' | 'header' | 'oneOnOne';
 
