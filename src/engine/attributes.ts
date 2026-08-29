@@ -218,6 +218,17 @@ export function luftHoheit(attrs: Attributes): number {
  * genau so gut wie eine in einen leeren. Bei einer durchschnittlichen
  * Abwehr (50) aendert sich nichts.
  */
+/**
+ * Wie oft ein Spieler die Flanke direkt nimmt, statt hochzusteigen.
+ *
+ * Wer den Ball besser aus der Luft nimmt, als er hochsteigt, nimmt ihn
+ * direkt - und umgekehrt. Bei gleichen Werten bleibt der Kopfball die
+ * Regel, die Direktabnahme die Ausnahme.
+ */
+export function direktabnahmeChance(kopfball: number, volley: number): number {
+  return clamp(0.28 + (volley - kopfball) / 220, 0.1, 0.6);
+}
+
 export function kopfballGefahr(kopfball: number, abwehrLuft: number): number {
   const angriff = clamp(kopfball / 100, 0.4, 1.3);
   const abwehr = clamp(1 + (50 - abwehrLuft) / 200, 0.75, 1.25);

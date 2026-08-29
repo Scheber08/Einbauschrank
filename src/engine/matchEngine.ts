@@ -11,7 +11,8 @@ import type { TraitEffect } from './traits';
 import { Schwung } from './tempo';
 import { weatherEffect, type Weather } from './weather';
 import {
-  defensiveSkill, keeperSkill, kopfballGefahr, luftHoheit, tempo, POSITION_LINE,
+  defensiveSkill, direktabnahmeChance, keeperSkill, kopfballGefahr, luftHoheit,
+  tempo, POSITION_LINE,
   effectiveOverall,
   type KeeperSituation,
 } from './attributes';
@@ -1056,8 +1057,7 @@ export class MatchEngine {
     const st = this.statOf(shooter.player.id, side, shooter.slot);
     const defSide = this.other(side);
     // Welche Werte des Torwarts zaehlen, haengt an der Art der Chance.
-    const keeperRating = this.keeperFor(
-      defSide, (chance.kind as KeeperSituation) ?? 'shot');
+    const keeperRating = this.keeperFor(defSide, this.torwartLage(chance.kind));
 
     // Ist der Schuss auf dem Tor? Bei Wind, Regen und Schnee seltener.
     const accuracy = (0.32 + shooter.player.attrs.finishing / 230
@@ -1150,9 +1150,26 @@ export class MatchEngine {
    * 28 Metern, ein Kopfball und ein Abstauber aus fuenf Metern lasen sich
    * alle als "TOR fuer X! Y."
    */
+  /**
+   * Welche Werte des Torwarts diese Chance verlangt.
+   *
+   * Vorher wurde die Art der Chance roh als Torwartlage durchgereicht.
+   * Das ging gut, solange beide Listen zufaellig deckungsgleich waren -
+   * eine neue Chancenart waere dort stillschweigend gelandet.
+   */
+  private torwartLage(kind?: string): KeeperSituation {
+    if (kind === 'header') return 'header';
+    if (kind === 'longShot') return 'longShot';
+    if (kind === 'oneOnOne') return 'oneOnOne';
+    // Eine Direktabnahme ist fuer den Torwart ein Schuss - kurz, hart,
+    // ohne Zeit zum Stellungsspiel.
+    return 'shot';
+  }
+
   private torArt(kind?: string, distance?: number): string {
     const d = distance ?? 16;
     if (kind === 'header') return 'header';
+    if (kind === 'volley') return 'volley';
     if (kind === 'oneOnOne') return 'oneOnOne';
     if (kind === 'longShot' || d >= 24) return 'longShot';
     if (d <= 8) return 'close';
@@ -2305,10 +2322,22 @@ export class MatchEngine {
     // Abwehr in dieser Rechnung ganz: eine Flanke in einen Strafraum
     // voller kopfballstarker Verteidiger war genauso gut wie eine in
     // einen leeren.
-    const kopfstark = kopfballGefahr(
-      receiver.player.attrs.heading, this.abwehrLuft(this.other(side)));
+    // Kopfball oder Direktabnahme? Wer den Ball besser aus der Luft
+    // nimmt, als er hochsteigt, nimmt ihn direkt - und umgekehrt. Der
+    // Wert `volleys` war bis hierher der letzte im Attributblatt, den
+    // keine einzige Regel gelesen hat: gewuerfelt, angezeigt,
+    // trainierbar und ohne jede Wirkung.
+    const kopf = receiver.player.attrs.heading;
+    const direkt = receiver.player.attrs.volleys;
+    const luft = this.abwehrLuft(this.other(side));
+    const istVolley = this.rng.chance(direktabnahmeChance(kopf, direkt));
+    // Gegen einen flachen, scharfen Ball hilft Kopfballstaerke nur halb
+    // so viel. Bei einer mittleren Abwehr (50) bleibt es bei 50.
+    const kopfstark = istVolley
+      ? kopfballGefahr(direkt, luft * 0.5 + 25)
+      : kopfballGefahr(kopf, luft);
     const chance = {
-      kind: 'header',
+      kind: istVolley ? 'volley' : 'header',
       distance: clamp(this.rng.float(4, 13), 3, 16),
       offset: this.rng.normal(0, 4),
       xg: clamp(ctx.xg * bonus * kopfstark, 0.02, 0.78),

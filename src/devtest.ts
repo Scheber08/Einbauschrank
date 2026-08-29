@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { direktabnahmeChance } from './engine/attributes';
 import { kopfballGefahr, luftHoheit } from './engine/attributes';
 import { aufSchwachemFuss, resolvePass } from './engine/ballAction';
 import { tDecimal } from './i18n';
@@ -3102,6 +3103,7 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     let flankenAussen = 0;
     let flankenMitte = 0;
     let seiteRichtig = 0;
+    const abschluesse = new Map<string, number>();
     let seiteFalsch = 0;
     flankenLage.spiele.forEach((m, k) => {
       const vorbereitet = prepareUserMatch(flankenLage.st, m.id, true);
@@ -3135,7 +3137,11 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
         }
         return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
       });
-      e.finish();
+      // Was aus den Flanken wird: Kopfball oder Direktabnahme.
+      for (const ev of e.finish().events) {
+        if (!ev.chanceKind) continue;
+        abschluesse.set(ev.chanceKind, (abschluesse.get(ev.chanceKind) ?? 0) + 1);
+      }
     });
     log(`Im Spiel: ${flankenGesamt} Flankenszenen unter ${szenenGesamt} Szenen`);
     log(`Aufgestellt als: ${[...plaetze].map(([p, n]) => `${p} ${n}x`).join(', ')}`);
@@ -3153,6 +3159,16 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Die Flanke kommt von der Seite, auf der der Spieler steht',
       seiteRichtig > 0 && seiteFalsch === 0,
       `${seiteRichtig} richtig, ${seiteFalsch} falsch`);
+    log(`Abschluesse nach Flanken: ${[...abschluesse]
+      .map(([k, n]) => `${k} ${n}x`).join(', ') || 'keine'}`);
+    // Bewusst nur eine Protokollzeile. Ueber dreissig Partien kamen zwei
+    // Direktabnahmen zusammen; bei gut einem Viertel der angekommenen
+    // Flanken waere ein Lauf ganz ohne rund jedes zehnte Mal zu erwarten.
+    // Eine Zusicherung darauf waere eine Wette. Zugesichert wird die
+    // Formel weiter unten und die Verkabelung im Quelltext.
+    check('Aus Flanken entstehen Abschluesse',
+      (abschluesse.get('header') ?? 0) > 0,
+      [...abschluesse].map(([k, n]) => `${k} ${n}`).join(', ') || 'keine');
     // Und die Flankenstaerke muss den Unterschied machen.
     const lage = (druck: number) => ({
       id: 'fl', kind: 'cross' as const, minute: 40, title: 'F', hint: '',
@@ -3669,6 +3685,33 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       kopfballGefahr(90, 50) > kopfballGefahr(40, 50),
       `${tDecimal(kopfballGefahr(90, 50), 2)} gegen `
       + `${tDecimal(kopfballGefahr(40, 50), 2)}`);
+  }
+  // --- Die Direktabnahme (Abschnitt 55) ---------------------------------
+  //
+  // `volleys` war der letzte Wert im Attributblatt, den keine Regel
+  // gelesen hat. Eine angekommene Flanke wurde immer zum Kopfball -
+  // auch beim Spieler, der nie hochsteigt und den Ball lieber direkt
+  // nimmt.
+  log('\n--- Die Direktabnahme ---');
+  {
+    const gleich = direktabnahmeChance(60, 60);
+    const volleyStark = direktabnahmeChance(40, 90);
+    const kopfStark = direktabnahmeChance(90, 40);
+    log(`Anteil Direktabnahmen: bei gleichen Werten `
+      + `${tDecimal(gleich * 100, 0)} %, beim Volleyschützen `
+      + `${tDecimal(volleyStark * 100, 0)} %, beim Kopfballspieler `
+      + `${tDecimal(kopfStark * 100, 0)} %`);
+    check('Wer den Ball lieber direkt nimmt, tut es oefter',
+      volleyStark > gleich && gleich > kopfStark,
+      `${tDecimal(volleyStark * 100, 0)} / ${tDecimal(gleich * 100, 0)} / `
+      + `${tDecimal(kopfStark * 100, 0)} %`);
+    // Der Kopfball bleibt die Regel, sonst kippt das Bild einer Flanke.
+    check('Der Kopfball bleibt der Normalfall', gleich < 0.4,
+      `${tDecimal(gleich * 100, 0)} %`);
+    // Und die Direktabnahme verschwindet nie ganz, auch beim reinen
+    // Kopfballspieler nicht.
+    check('Ganz aus ist sie nie', kopfStark >= 0.1,
+      `${tDecimal(kopfStark * 100, 0)} %`);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
@@ -4536,6 +4579,9 @@ async function pruefeVerkabelung(): Promise<number> {
     // Ohne diese Verbindung steigt die Abwehr bei Flanken wieder nicht mit.
     { datei: '/src/engine/matchEngine.ts', name: 'abwehrLuft', mindestens: 2 },
     { datei: '/src/engine/matchEngine.ts', name: 'kopfballGefahr', mindestens: 2 },
+    // Ohne den Aufruf wird jede Flanke wieder zum Kopfball.
+    { datei: '/src/engine/matchEngine.ts', name: 'direktabnahmeChance', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'volley', mindestens: 2 },
     // Und die Anzeige: ohne sie faellt der Abzug wieder lautlos.
     { datei: '/src/ui/match/HighlightScene.tsx', name: 'aufSchwachemFuss', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'simulateUserMatch', mindestens: 1 },
