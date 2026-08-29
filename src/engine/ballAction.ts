@@ -330,6 +330,25 @@ export interface ShotResolution {
   block: BlockPoint | null;
 }
 
+/**
+ * Liegt der Ball auf der Seite des schwachen Fusses?
+ *
+ * Rein geometrisch, ohne Wurf. Das ist der Punkt: Die Frage laesst
+ * sich schon **vor** der Ausfuehrung beantworten und gehoert deshalb
+ * dem Spieler gesagt - er soll entscheiden koennen, ob er es trotzdem
+ * versucht. Ob der Abzug dann wirklich faellt, entscheidet erst der
+ * Wurf beim Aufloesen.
+ *
+ * Negativ ist links, positiv rechts. Wer mit links stark ist, hat es
+ * rechts schwer und umgekehrt. Kopfbaelle sind ausgenommen.
+ */
+export function aufSchwachemFuss(challenge: Challenge, player: Player): boolean {
+  if (challenge.kind === 'header') return false;
+  const starkerLinks = player.foot === 'links';
+  return (challenge.offset > 3 && starkerLinks)
+    || (challenge.offset < -3 && !starkerLinks);
+}
+
 export function resolveShot(
   input: BallInput, challenge: Challenge, player: Player,
   difficulty: DifficultySettings, rng: Rng,
@@ -348,10 +367,7 @@ export function resolveShot(
           ? (player.attrs.longShots * 0.55 + player.attrs.shotPower * 0.25 + player.attrs.finishing * 0.2)
           : (player.attrs.finishing * 0.6 + player.attrs.ballControl * 0.2 + player.attrs.composure * 0.2);
 
-  // Steht der Ball auf der Seite des schwachen Fusses?
-  const strongIsLeft = player.foot === 'links';
-  const weakFoot = !isHeader && ((challenge.offset > 3 && strongIsLeft) || (challenge.offset < -3 && !strongIsLeft))
-    && rng.chance(0.55);
+  const weakFoot = aufSchwachemFuss(challenge, player) && rng.chance(0.55);
 
   const quality = rateShotInput(input, challenge.distance);
 
@@ -509,8 +525,19 @@ export function resolvePass(
     ? (player.attrs.longPass * 0.6 + player.attrs.vision * 0.25 + player.attrs.curve * 0.15)
     : (player.attrs.shortPass * 0.6 + player.attrs.vision * 0.3 + player.attrs.ballControl * 0.1);
 
+  // Der schwache Fuss galt hier pauschal als kein Thema - `false`, fest
+  // verdrahtet. Fuer ein kurzes Ablegen stimmt das: das kann ein Profi
+  // mit beiden Fuessen. Fuer die **Flanke** stimmt es nicht, im
+  // Gegenteil ist sie der Lehrbuchfall - deshalb ziehen
+  // Rechtsfuesser von links nach innen, statt aussen herumzulaufen.
+  // Der Wert `weakFoot` stand damit fuer die eine Situation, in der er
+  // am meisten zaehlt, ueberhaupt nicht auf dem Platz.
+  const schwacherFuss = challenge.kind === 'cross'
+    && aufSchwachemFuss(challenge, player) && rng.chance(0.55);
+
   const noisy = applyExecutionError(input, {
-    player, pressure: challenge.pressure, difficulty, rng, skill, weakFoot: false,
+    player, pressure: challenge.pressure, difficulty, rng, skill,
+    weakFoot: schwacherFuss,
   });
 
   const flight = simulateBallFlight({

@@ -3,6 +3,8 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { aufSchwachemFuss, resolvePass } from './engine/ballAction';
+import { tDecimal } from './i18n';
 import { ATTR_LABELS } from './engine/attributes';
 import { playWorldNationsCup } from './engine/national';
 import { offerPreContracts, fulfilPreContract, expireUserContract } from './engine/contract';
@@ -3467,6 +3469,92 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Auch die Rueckkehr ohne Folgen wird gemeldet', !!leichteMeldung,
       leichteMeldung ? leichteMeldung.headline : 'keine Meldung');
   }
+  // --- Der schwache Fuss (Abschnitt 52) ---------------------------------
+  //
+  // Der Wert skaliert den Ausfuehrungsfehler mit 1 + (100 - weakFoot)/90 -
+  // bei einem schlechten Fuss fast das Doppelte. Er galt aber nur beim
+  // Schuss: `resolvePass` uebergab pauschal `false`, ausgerechnet fuer die
+  // Flanke, den Lehrbuchfall. Und gesagt wurde es nie: der Ball ging
+  // daneben, ohne dass jemand den Grund nennen konnte.
+  log('\n--- Der schwache Fuss ---');
+  {
+    const lage = (offset: number, kind: string) => ({
+      id: 'f', kind, minute: 50, title: 'T', hint: '',
+      distance: 14, offset, pressure: 0.4, keeper: 60, opponent: 60,
+      xg: 0.12, bigChance: false, scoreline: [0, 0] as [number, number],
+      homeName: 'A', awayName: 'B', userSide: 'home' as const,
+      targets: [{ id: 'z', name: 'Z', x: 0, y: 2, marked: 0.2 }],
+    } as unknown as Challenge);
+
+    const flanker = structuredClone(user);
+    for (const key of Object.keys(flanker.attrs) as (keyof typeof flanker.attrs)[]) {
+      flanker.attrs[key] = 55;
+    }
+    flanker.form = 55; flanker.confidence = 55; flanker.fitness = 90;
+    const rechts = { ...flanker, foot: 'rechts' as const };
+    const links = { ...flanker, foot: 'links' as const };
+
+    // Die Geometrie: negativ ist links, positiv rechts.
+    check('Rechtsfuss hat es links schwer',
+      aufSchwachemFuss(lage(-20, 'cross'), rechts)
+      && !aufSchwachemFuss(lage(20, 'cross'), rechts));
+    check('Linksfuss hat es rechts schwer',
+      aufSchwachemFuss(lage(20, 'cross'), links)
+      && !aufSchwachemFuss(lage(-20, 'cross'), links));
+    // Mittig ist keine Seite - und ein Kopfball kennt keinen Fuss.
+    check('Mittig gibt es keinen schwachen Fuss',
+      !aufSchwachemFuss(lage(0, 'shot'), rechts));
+    check('Der Kopfball kennt keinen schwachen Fuss',
+      !aufSchwachemFuss(lage(-20, 'header'), rechts));
+
+    // Und die Wirkung: derselbe Spieler, derselbe Wurf, nur die Seite
+    // gespiegelt. Ueber viele Durchgaenge muss die schwache Seite
+    // deutlich ungenauer sein.
+    const streuung = (offset: number, wert: number) => {
+      const p = structuredClone(rechts);
+      p.attrs.weakFoot = wert;
+      const r = new Rng(9090);
+      let summe = 0;
+      const n = 900;
+      for (let i = 0; i < n; i++) {
+        const aus = resolvePass(
+          { aimX: 0, aimY: 2, power: 0.6, contactX: 0, contactY: 0 },
+          lage(offset, 'cross'), p, 'z', DIFFICULTY_SETTINGS.normal, r);
+        summe += aus.error;
+      }
+      return summe / n;
+    };
+    const schwach = streuung(-22, 25);
+    const stark = streuung(22, 25);
+    log(`Flanke mit schwachem Fuss: ${tDecimal(schwach, 2)} m Abweichung, `
+      + `mit starkem: ${tDecimal(stark, 2)} m`);
+    check('Die Flanke vom schwachen Fuss wird ungenauer', schwach > stark * 1.15,
+      `${tDecimal(schwach, 2)} gegen ${tDecimal(stark, 2)}`);
+
+    // Ein guter schwacher Fuss federt das ab.
+    const guterFuss = streuung(-22, 85);
+    log(`Mit gutem schwachem Fuss (85): ${tDecimal(guterFuss, 2)} m`);
+    check('Ein guter schwacher Fuss federt den Abzug ab', guterFuss < schwach,
+      `${tDecimal(guterFuss, 2)} gegen ${tDecimal(schwach, 2)}`);
+
+    // Das flache Ablegen bleibt unberuehrt - das kann ein Profi
+    // beidfuessig, und ein Abzug darauf waere eine stille Verschaerfung
+    // des ganzen Passspiels.
+    const flachSchwach = (() => {
+      const r = new Rng(9090);
+      let summe = 0;
+      for (let i = 0; i < 900; i++) {
+        summe += resolvePass(
+          { aimX: 0, aimY: 2, power: 0.6, contactX: 0, contactY: 0 },
+          lage(-22, 'pass'), rechts, 'z', DIFFICULTY_SETTINGS.normal, r).error;
+      }
+      return summe / 900;
+    })();
+    log(`Flacher Pass von links: ${tDecimal(flachSchwach, 2)} m`);
+    check('Das flache Zuspiel kennt keinen schwachen Fuss',
+      flachSchwach < schwach,
+      `${tDecimal(flachSchwach, 2)} gegen ${tDecimal(schwach, 2)}`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -4324,6 +4412,11 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/ballAction.ts', name: 'tempo', mindestens: 2 },
     { datei: '/src/engine/ballAction.ts', name: 'defensiveSkill', mindestens: 2 },
     { datei: '/src/engine/ballAction.ts', name: 'firstTouch', mindestens: 1 },
+    // Definition plus zwei Aufrufstellen (Schuss und Flanke). Faellt eine
+    // davon weg, gilt der schwache Fuss wieder nur zur Haelfte.
+    { datei: '/src/engine/ballAction.ts', name: 'aufSchwachemFuss', mindestens: 3 },
+    // Und die Anzeige: ohne sie faellt der Abzug wieder lautlos.
+    { datei: '/src/ui/match/HighlightScene.tsx', name: 'aufSchwachemFuss', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'simulateUserMatch', mindestens: 1 },
     { datei: '/src/state/actions.ts', name: 'simulateUserMatch', mindestens: 2 },
     { datei: '/src/state/actions.ts', name: 'advanceUntil', mindestens: 1 },

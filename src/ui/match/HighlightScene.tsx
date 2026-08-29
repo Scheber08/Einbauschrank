@@ -4,8 +4,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CROSSBAR, GOAL_HALF_WIDTH, availableMoves, describeShot, hitsWall, resolveDribble, resolveDuel,
-  resolvePass, resolveSave, resolveShot, simulateBallFlight,
+  CROSSBAR, GOAL_HALF_WIDTH, aufSchwachemFuss, availableMoves, describeShot, hitsWall,
+  resolveDribble, resolveDuel, resolvePass, resolveSave, resolveShot, simulateBallFlight,
   type BallInput, type DribbleMove, type Flight, type ShotResolution,
 } from '../../engine/ballAction';
 import type { Challenge, ChallengeResult } from '../../engine/matchTypes';
@@ -99,10 +99,11 @@ function PressureBar({ left }: { left: number }) {
 }
 
 function Frame(
-  { challenge, step, steps, hint, footer, pressureLeft, children }:
+  { challenge, step, steps, hint, footer, pressureLeft, schwacherFuss, children }:
   {
     challenge: Challenge; step: number; steps: string[]; hint: string;
-    footer?: React.ReactNode; pressureLeft?: number; children: React.ReactNode;
+    footer?: React.ReactNode; pressureLeft?: number; schwacherFuss?: boolean;
+    children: React.ReactNode;
   },
 ) {
   return (
@@ -116,6 +117,16 @@ function Frame(
             {challenge.homeName} {challenge.scoreline[0]}:{challenge.scoreline[1]} {challenge.awayName}
           </span>
           {challenge.bigChance && <span className="pill warn">{tr('match.bigChance')}</span>}
+          {/* Der schwache Fuss kostet Genauigkeit - bis fast zum
+              Doppelten des Ausfuehrungsfehlers. Bisher fiel dieser
+              Abzug lautlos: Der Ball ging daneben und niemand konnte
+              sagen, warum. Wer es vorher sieht, kann sich anders
+              entscheiden. */}
+          {schwacherFuss && (
+            <span className="pill warn" title={tr('match.weakFoot.hint')}>
+              {tr('match.weakFoot')}
+            </span>
+          )}
           <span className="spacer" />
           <span className="step-dots">
             {steps.map((_, i) => (
@@ -479,6 +490,10 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   // sonst wuerde ein gewollter Schuss als Fehlpass gewertet.
   const [selfShoot, setSelfShoot] = useState(goodShotPosition);
   const isPass = passLike && !selfShoot;
+  // Beim Schuss zaehlt der schwache Fuss, bei der Flanke auch - beim
+  // flachen Ablegen nicht, das kann ein Profi beidfuessig.
+  const schwacherFuss = aufSchwachemFuss(challenge, player)
+    && (!isPass || challenge.kind === 'cross');
   const stepOrder: BallStep[] = isPass
     ? ['target', 'aim', 'power', 'contact', 'flight', 'result']
     : ['aim', 'power', 'contact', 'flight', 'result'];
@@ -983,6 +998,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   return (
     <Frame challenge={passLike && selfShoot ? { ...challenge, title: tr('scene.finish') } : challenge}
+      schwacherFuss={schwacherFuss}
       step={stepIndex} steps={stepLabels}
       hint={step === 'flight' ? challenge.hint : hints[step]}
       pressureLeft={clockRuns && pressureTime > 0 ? timeLeft : undefined}

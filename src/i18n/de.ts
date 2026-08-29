@@ -1035,6 +1035,8 @@ export const DE: Record<string, string> = {
   'match.speed.fast': 'Schnell',
   'match.speed.veryFast': 'Sehr schnell',
   'match.event': 'Ereignis',
+  'match.weakFoot': 'Schwacher Fuß',
+  'match.weakFoot.hint': 'Der Ball liegt auf der falschen Seite. Das kostet Genauigkeit - je schlechter der schwache Fuß, desto mehr.',
   'match.bigChance': 'Großchance',
   'match.passes': 'Pässe',
   'match.timeUntilPressure': 'Zeit, bis der Gegner da ist',
