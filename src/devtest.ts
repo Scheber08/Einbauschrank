@@ -3435,9 +3435,14 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       while (uH.injury && guard++ < (tage + 60) * 3) {
         const tag = advanceDay(gH);
         if (tag.matchToPlay) {
-          const ausgang = simulateUserMatch(gH, tag.matchToPlay);
-          if (ausgang) finishUserMatch(gH, tag.matchToPlay, ausgang);
-          else gH.matches[tag.matchToPlay].played = true;
+          // `simulateUserMatch` schliesst die Partie selbst ab - ein
+          // zusaetzliches `finishUserMatch` bucht alles ein zweites Mal:
+          // Tore, Einsaetze, Form, Potenzialschritte. Genau daran ist eine
+          // Reproduktion gescheitert und hat einen Fehler vorgetaeuscht,
+          // den es nicht gab.
+          if (!simulateUserMatch(gH, tag.matchToPlay)) {
+            gH.matches[tag.matchToPlay].played = true;
+          }
           gH.pendingMatchId = null;
         }
       }

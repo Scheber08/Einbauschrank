@@ -2,6 +2,7 @@
  * Spielablauf: Karrierestart, Tageslogik und Spielabwicklung
  * (Konzept Abschnitt 14, 18, 41, 51).
  */
+import { expireOffers } from './ids';
 import type { Genesung } from './development';
 import { ATTR_LABELS } from './attributes';
 import {
@@ -688,6 +689,11 @@ export function advanceDay(state: GameState): DayResult {
   if (month(state.date) === 1 && dayOfMonth(state.date) === 3) {
     generateLoanOffers(state, rng);
   }
+  // Abgelaufene Angebote verschwinden. Jedes traegt seit je ein
+  // Ablaufdatum - gelesen hat es niemand, und ein Verein, der vor zwei
+  // Jahren einmal gefragt hat, stand bis zum Karriereende in der Liste.
+  expireOffers(state);
+
   // Ein auslaufender Vertrag soll auffallen, bevor er ausgelaufen ist.
   remindContractExpiry(state);
   // Im Januar des letzten Vertragsjahres darf ohne Abloese unterschrieben

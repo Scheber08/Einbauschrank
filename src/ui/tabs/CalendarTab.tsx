@@ -4,7 +4,7 @@ import {
 } from '../../engine/date';
 import { userClub } from '../../engine/game';
 import { formatKickoff, matchKickoff } from '../../engine/kickoff';
-import { advanceSeason, advanceUntil } from '../../state/actions';
+import { advanceSeason, advanceUntil, mitLadeanzeige } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
 import { t } from '../../i18n';
@@ -62,7 +62,7 @@ export default function CalendarTab() {
     return map;
   }, [game.matches, club, game.version]);
 
-  function springen(ziel: string) {
+  async function springen(ziel: string) {
     if (game.retirement || laeuft) return;
     if (!isBefore(game.date, ziel)) return;
     setLaeuft(true);
@@ -70,15 +70,16 @@ export default function CalendarTab() {
     // fuehrt die Folgedialoge. Lag er hier, war er weg, sobald ein
     // Ereignis den Reiter wechselt - also genau dann, wenn er am meisten
     // zu erzaehlen hat.
-    advanceUntil(ziel, { eigeneSimulieren });
+    await mitLadeanzeige(t('calendar.simulating'),
+      () => advanceUntil(ziel, { eigeneSimulieren }));
     setLaeuft(false);
   }
 
-  function saisonSpringen() {
+  async function saisonSpringen() {
     setSaisonFrage(false);
     if (game.retirement || laeuft) return;
     setLaeuft(true);
-    advanceSeason();
+    await mitLadeanzeige(t('calendar.simulatingSeason'), () => advanceSeason());
     setLaeuft(false);
   }
 

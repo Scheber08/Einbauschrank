@@ -1,6 +1,6 @@
 /** Fortlaufende IDs innerhalb eines Spielstands. */
 import type { GameDate } from './date';
-import type { GameState, Id, Match, NewsCategory } from './types';
+import type { GameState, Id, Match, NewsCategory, TransferOffer } from './types';
 
 export function makeId(state: { nextId: number }, prefix: string): Id {
   state.nextId += 1;
@@ -27,6 +27,37 @@ export function addMatch(state: GameState, match: Match) {
   state.matches[match.id] = match;
   if (!state.matchesByDate[match.date]) state.matchesByDate[match.date] = [];
   state.matchesByDate[match.date].push(match.id);
+}
+
+/**
+ * Nimmt ein Angebot an - und raeumt dabei auf.
+ *
+ * Angebote wurden bisher nur angehaengt. Geleert hat die Liste allein
+ * `generateUserOffers` nach der Saison; Vertragsverlaengerung,
+ * Vorvertrag, Berateranfrage und Leihe kamen einfach obendrauf. Damit
+ * standen mehrere Angebote **desselben Vereins** nebeneinander, jedes
+ * mit eigenen Zahlen - fuer den Spieler nicht unterscheidbar und nicht
+ * erklaerbar.
+ *
+ * Ein neues Angebot desselben Vereins ersetzt deshalb das alte. Nur
+ * ein Vorvertrag steht daneben: Er betrifft die naechste Saison und
+ * ist eine andere Entscheidung als ein Wechsel jetzt.
+ */
+export function addOffer(state: GameState, offer: TransferOffer) {
+  state.offers = state.offers.filter((o) => o.clubId !== offer.clubId
+    || !!o.preContract !== !!offer.preContract);
+  state.offers.push(offer);
+}
+
+/**
+ * Entfernt abgelaufene Angebote.
+ *
+ * Jedes Angebot traegt seit je ein `expiresOn` - gelesen hat es
+ * niemand. Ein Verein, der vor zwei Jahren einmal gefragt hat, stand
+ * damit bis zum Karriereende in der Liste.
+ */
+export function expireOffers(state: GameState) {
+  state.offers = state.offers.filter((o) => o.expiresOn >= state.date);
 }
 
 export function matchesOn(state: GameState, date: GameDate): Match[] {

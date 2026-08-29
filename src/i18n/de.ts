@@ -599,6 +599,8 @@ export const DE: Record<string, string> = {
   'calendar.report.avg': 'Schnitt {rating}',
   'calendar.report.ability': 'Stärke {from} auf {to}',
   'calendar.report.potential': 'Potenzial {from} auf {to}',
+  'calendar.simulating': 'Spiele werden simuliert …',
+  'calendar.simulatingSeason': 'Die Saison wird durchgespielt …',
   'calendar.jump.week': 'Eine Woche',
   'calendar.jump.twoWeeks': 'Zwei Wochen',
   'calendar.jump.month': 'Ein Monat',

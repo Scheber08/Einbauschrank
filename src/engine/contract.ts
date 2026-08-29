@@ -14,6 +14,7 @@
  * verliert die Kontrolle, aber nicht die Laufbahn. Findet sich gar kein Verein,
  * greift die vorhandene Pruefung auf ein erzwungenes Karriereende.
  */
+import { addOffer } from './ids';
 import { addDays } from './date';
 import { makeId } from './ids';
 import { t, tNumber } from '../i18n';
@@ -233,7 +234,7 @@ export function offerPreContracts(state: GameState) {
       * rng.float(1.15, 1.5));
     const role = ability >= club.reputation * 0.72 ? 'Stammspieler'
       : ability >= club.reputation * 0.55 ? 'Rotationsspieler' : 'Ergaenzungsspieler';
-    state.offers.push({
+    addOffer(state, {
       id: makeId(state, 'o'),
       clubId: club.id,
       fee: 0,

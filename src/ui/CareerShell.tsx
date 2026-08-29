@@ -12,7 +12,8 @@ import type { LifeEvent, LifeOption } from '../engine/events';
 import type { WncResult } from '../engine/types';
 import { clubSponsors } from '../engine/identity';
 import {
-  advanceCalendar, advanceToMatch, applyLifeEvent, backToMenu, saveCurrent,
+  advanceCalendar, advanceToMatch, applyLifeEvent, backToMenu, mitLadeanzeige,
+  saveCurrent,
 } from '../state/actions';
 import {
   setState, useAppState, type CareerTab, type SkipSummary,
@@ -65,8 +66,11 @@ export default function CareerShell() {
   const unread = game.news.filter((n) => !n.read).length;
   const ability = computeOverall(user.attrs, user.position);
 
-  function advance(days = 60) {
-    const result = advanceCalendar(days);
+  async function advance(days = 60) {
+    // Bis zu sechzig Tage Weltsimulation - ohne Hinweis sieht das aus wie
+    // ein haengender Browser.
+    const result = await mitLadeanzeige(
+      t('calendar.simulating'), () => advanceCalendar(days));
     if (result.matchToPlay) {
       setState({ screen: 'match' });
       return;

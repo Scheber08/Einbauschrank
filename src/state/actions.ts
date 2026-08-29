@@ -239,6 +239,34 @@ export function advanceUntil(
  * steht hinterher im Bericht - sonst waere eine ganze Saison ein
  * schwarzes Loch.
  */
+/**
+ * Fuehrt eine lange Simulation aus und zeigt dabei den Ladehinweis.
+ *
+ * Ein Saisonsprung rechnet ein ganzes Fussballjahr durch: alle Ligen,
+ * Pokale und Wettbewerbe, dazu die eigenen Partien. Das dauert
+ * spuerbar, und die Oberflaeche stand bis dahin ohne jedes Zeichen
+ * still - nicht zu unterscheiden von einem Absturz.
+ *
+ * Ein `setState` allein genuegt dafuer nicht: Der Browser zeichnet
+ * erst, wenn er den Faden zurueckbekommt, und die Simulation gibt ihn
+ * nicht her. Deshalb werden hier bewusst zwei Bilder abgewartet - das
+ * erste stellt den Hinweis in die Warteschlange, das zweite zeigt ihn
+ * wirklich an.
+ */
+export async function mitLadeanzeige<T>(
+  text: string, arbeit: () => T,
+): Promise<T> {
+  setState({ busy: text });
+  await new Promise((fertig) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => fertig(null)));
+  });
+  try {
+    return arbeit();
+  } finally {
+    setState({ busy: null });
+  }
+}
+
 export function advanceSeason(): SkipSummary {
   const game = getState().game;
   // Ohne Spielstand gibt es nichts zu ueberspringen - `advanceUntil`

@@ -951,7 +951,17 @@ tr.highlight td { background: #1c3320; }
 
 /* --- Kopfleiste des Karrierebereichs ---------------------------------- */
 
+/*
+ * Die Kopfleiste laeuft mit.
+ *
+ * Verein, Datum und die Kennzahlen standen oben und waren nach dem ersten
+ * Bildlauf weg - gerade die Zahlen, auf die man beim Lesen einer Tabelle
+ * oder eines Kaders staendig zurueckschaut.
+ */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 0.85rem;

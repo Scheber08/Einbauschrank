@@ -2,6 +2,7 @@
  * Saisonablauf: Spielplan, Pokal, Relegation, Auf- und Abstieg,
  * Auszeichnungen und Transfers (Konzept Abschnitt 8, 9, 34, 50, 51).
  */
+import { addOffer } from './ids';
 import { maybeOfferBetterAgent, resetAgentSeason } from './agent';
 import { generateLoanOffers } from './loan';
 import { computeOverall, POSITION_LINE } from './attributes';
@@ -899,7 +900,7 @@ export function offerUserRenewal(state: GameState, rng: Rng) {
   const role = SQUAD_ROLE_ORDER.indexOf(byAbility) > SQUAD_ROLE_ORDER.indexOf(user.contract.role)
     ? byAbility : user.contract.role;
 
-  state.offers.push({
+  addOffer(state, {
     id: makeId(state, 'o'),
     clubId: club.id,
     fee: 0,
@@ -990,7 +991,7 @@ export function generateUserOffers(state: GameState, rng: Rng) {
       expiresOn: addDays(state.date, 21),
       leagueLevel: level,
     };
-    state.offers.push(offer);
+    addOffer(state, offer);
   }
 
   if (state.offers.length > 0) {

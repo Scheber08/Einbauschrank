@@ -5,6 +5,7 @@
  * Leihe laeuft bis zum Saisonende; danach kehrt der Spieler zu seinem
  * Stammverein zurueck - mit dem Vertrag, den er dort hatte.
  */
+import { addOffer } from './ids';
 import { COUNTRY_BY_ID } from './countries';
 import { buildWageIndex, canSign } from './finance';
 import { dropCaptaincyOnTransfer } from './captain';
@@ -67,7 +68,7 @@ export function generateLoanOffers(state: GameState, rng: Rng) {
     const salary = Math.round(
       calcSalary(ability, age, level, club.reputation, country?.wealth ?? 1) * rng.float(0.7, 1.0),
     );
-    state.offers.push({
+    addOffer(state, {
       id: `o-loan-${state.nextId++}`,
       clubId: club.id,
       fee: 0,

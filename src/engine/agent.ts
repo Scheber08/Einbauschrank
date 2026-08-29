@@ -6,6 +6,7 @@
  * Auftraege brauchen Zeit, kosten Vertrauen und gelingen nicht immer - wer den
  * Berater staendig losschickt, verspielt seine Wirkung.
  */
+import { addOffer } from './ids';
 import { addDays, ageOn } from './date';
 import { t, tDecimal, tNumber } from '../i18n';
 import { addNews } from './ids';
@@ -172,7 +173,7 @@ function resolveFindClub(
     const salary = Math.round(base * (1 + standing * 0.3) * rng.float(0.95, 1.25));
     const role: SquadRole = ability >= club.reputation * 0.9 ? 'Stammspieler'
       : ability >= club.reputation * 0.62 ? 'Rotationsspieler' : 'Ergaenzungsspieler';
-    state.offers.push({
+    addOffer(state, {
       id: `o-agent-${state.nextId++}`,
       clubId: club.id,
       fee: Math.round(Math.min((state.players[state.userPlayerId]?.marketValue ?? 0)
