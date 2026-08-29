@@ -51,7 +51,7 @@ export default function OverviewTab() {
                     <div className="tiny dim">{formatDate(next.date)}</div>
                     <div className="tiny dim">
                       {isHome ? club?.stadiumName : opponent.stadiumName}
-                      {' - Trainer '}{opponent.managerName}
+                      {' - '}{t('overview.managerNamed', { name: opponent.managerName })}
                     </div>
                   </div>
                 </div>
@@ -105,7 +105,7 @@ export default function OverviewTab() {
         </Panel>
       </div>
 
-      <Panel title={`Deine Saison ${seasonLabel(game.season)}`}>
+      <Panel title={t('overview.yourSeason', { season: seasonLabel(game.season) })}>
         <div className="grid four">
           <div className="stat"><div className="value">{season.appearances}</div><div className="label">{t('overview.appearances')}</div></div>
           <div className="stat"><div className="value">{season.goals}</div><div className="label">{t('stats.goals')}</div></div>
@@ -176,7 +176,7 @@ export default function OverviewTab() {
                     {stats.goals > 0 && ` - ${stats.goals}T`}
                     {stats.assists > 0 && ` ${stats.assists}V`}
                   </span>
-                ) : <span className="tiny dim">nicht im Kader</span>}
+                ) : <span className="tiny dim">{t('overview.notInSquad')}</span>}
               </div>
             );
           })}

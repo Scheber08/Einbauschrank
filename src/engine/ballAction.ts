@@ -856,7 +856,8 @@ export function resolveDribble(
   if (rng.chance(clamp(success, 0.04, 0.95))) {
     return {
       outcome: 'dribbleWon', quality,
-      detail: `${move ? `${move.name} sitzt` : t('ba.beaten')}. ${timingText}`,
+      detail: `${move ? t('ba.move.landed', { move: t(move.name) })
+        : t('ba.beaten')}. ${timingText}`,
     };
   }
   if (rng.chance(0.22)) {

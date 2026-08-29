@@ -219,7 +219,7 @@ export default function DatabaseEditor(
                   d.competitions[compIndex].clubs[clubIndex].crest = e.target.value || undefined;
                 })}>
                   {crestOptions.map((k) => (
-                    <option key={k} value={k}>{k || 'kein Bild'}</option>
+                    <option key={k} value={k}>{k || t('db.noImage')}</option>
                   ))}
                 </select>
               </label>

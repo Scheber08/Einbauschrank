@@ -37,8 +37,11 @@ export default function TransfersTab() {
         </div>
         {game.loan && (
           <p className="small" style={{ marginBottom: 0, color: 'var(--warn)' }}>
-            Du bist bis {formatShort(game.loan.until)} an {club?.name} ausgeliehen.
-            Danach geht es zurück zu {game.clubs[game.loan.parentClubId]?.name}.
+            {t('transfers.loanNote', {
+              until: formatShort(game.loan.until),
+              club: club?.name ?? '',
+              parent: game.clubs[game.loan.parentClubId]?.name ?? '',
+            })}
           </p>
         )}
       </Panel>
@@ -174,9 +177,7 @@ export default function TransfersTab() {
 
       <Panel title={t('transfers.note')}>
         <p className="small muted" style={{ margin: 0 }}>
-          Angebote entstehen nach jeder Saison abhängig von Leistung, Alter und
-          Reputation - oder wenn du deinen Berater losschickst. Leihen,
-          Vorverträge und Tauschgeschäfte aus Abschnitt 34 folgen später.
+          {t('transfers.offersHint')}
         </p>
       </Panel>
     </>
@@ -233,7 +234,7 @@ function AgentPanel() {
           </div>
           <p className="tiny dim" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
             {availability.canRequest
-              ? `Noch ${3 - agent.requestsThisSeason} Aufträge in dieser Saison. Jeder Auftrag kostet etwas Geduld.`
+              ? t('transfers.agentRequestsLeft', { n: 3 - agent.requestsThisSeason })
               : availability.reason}
           </p>
         </>

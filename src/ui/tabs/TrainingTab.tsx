@@ -91,9 +91,7 @@ export default function TrainingTab() {
     <>
       <Panel title={t('training.focus')}>
         <p className="small muted">
-          Trainiert wird die ganze Woche, ausgewertet am Freitag im Abschlusstraining.
-          Wie schnell du dich entwickelst, hängt von Alter, Potenzial, Trainingsqualität
-          des Vereins, Einsatzzeiten und Professionalität ab.
+          {t('training.weekHint')}
         </p>
         <div className="chip-row">
           {FOCUS_ORDER.map((focus) => (
@@ -140,8 +138,7 @@ export default function TrainingTab() {
         <Panel title={t('training.improves')}>
           {Object.keys(effects).length === 0 && (
             <p className="muted small">
-              Regeneration verbessert keine Werte, stellt aber Fitness wieder her und
-              senkt das Verletzungsrisiko deutlich.
+              {t('training.recoveryHint')}
             </p>
           )}
           {Object.entries(effects)

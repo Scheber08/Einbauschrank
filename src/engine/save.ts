@@ -3,6 +3,7 @@
  * Jeder Spielstand besitzt eine eigene Save-ID, damit sich Daten
  * verschiedener Karrieren niemals vermischen koennen.
  */
+import { t } from '../i18n';
 import { ALL_ATTRS } from './attributes';
 import { ageOn, seasonLabel, year } from './date';
 import { normalizeNationality } from './nations';
@@ -218,7 +219,7 @@ export async function exportSave(saveId: string): Promise<string | null> {
 export async function importSave(json: string): Promise<SaveMeta | null> {
   const parsed = entpackeAttribute(JSON.parse(json) as GameState);
   if (!parsed?.saveId || !parsed.players || !parsed.userPlayerId) {
-    throw new Error('Die Datei enthält keinen gültigen Spielstand.');
+    throw new Error(t('save.invalidFile'));
   }
   parsed.saveId = `save-import-${Date.now().toString(36)}`;
   parsed.saveName = `${parsed.saveName} (Import)`;

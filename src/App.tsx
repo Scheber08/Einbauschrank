@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { useAppState } from './state/store';
 import MainMenu from './ui/MainMenu';
+import { t } from './i18n';
 
 /**
  * Nur das Hauptmenue liegt im ersten Paket - alles andere wird erst geladen,
@@ -19,7 +20,7 @@ function Loading() {
     <div className="busy">
       <div className="center">
         <div className="spinner" />
-        <div className="muted">Wird geladen...</div>
+        <div className="muted">{t('app.loading')}</div>
       </div>
     </div>
   );

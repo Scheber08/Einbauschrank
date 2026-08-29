@@ -1280,7 +1280,8 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(tr('scene.spaceOrClick'), VIEW_W / 2, 86);
-    ctx.fillText(`Gegenspieler: ${Math.round(challenge.opponent)}`, VIEW_W / 2, VIEW_H - 36);
+    ctx.fillText(tr('scene.opponentRating', { n: Math.round(challenge.opponent) }),
+      VIEW_W / 2, VIEW_H - 36);
   }, [isDribble, player.shirtNumber, challenge.opponent, window_, activeMove]);
 
   const trigger = useCallback((timedOut = false) => {
@@ -1391,8 +1392,7 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
             ))}
           </div>
           <p className="tiny dim" style={{ marginTop: '0.7rem', marginBottom: 0 }}>
-            Weitere Bewegungen schaltest du über steigende Dribblingwerte frei.
-            Aktuell: {player.attrs.dribbling}.
+            {tr('scene.moreMovesHint', { n: player.attrs.dribbling })}
           </p>
         </div>
       ) : (

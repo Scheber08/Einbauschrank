@@ -290,7 +290,7 @@ export default function MatchScreen() {
           <div className="clock">
             {phase === 'setup' ? formatDate(match.date)
               : phase === 'done' ? t('match.fullTime')
-              : `${engine?.minute ?? 0}. Minute`}
+              : t('match.minuteOf', { n: engine?.minute ?? 0 })}
           </div>
         </div>
         <div className="team away">
@@ -396,9 +396,7 @@ export default function MatchScreen() {
 
           {!prepared.userInLineup && !prepared.userOnBench && !user.injury && user.suspension === 0 && (
             <p className="small muted">
-              Der Trainer setzt dieses Mal auf andere. Arbeite im Training an deinen
-              Werten, halte die Fitness hoch und verbessere die Trainerbeziehung -
-              dann rückst du in den Kader. Das Spiel kannst du simulieren lassen.
+              {t('match.notPickedHint')}
             </p>
           )}
 
@@ -412,14 +410,12 @@ export default function MatchScreen() {
               </div>
               {user.fitness < 65 && (
                 <p className="tiny" style={{ color: 'var(--warn)', margin: '0.1rem 0 0' }}>
-                  Wenig Fitness - mit „Kräfte schonen" hältst du länger durch, sonst
-                  lässt die Leistung gegen Spielende nach.
+                  {t('match.lowFitnessHint')}
                 </p>
               )}
               {user.sharpness < 55 && user.fitness >= 65 && (
                 <p className="tiny dim" style={{ margin: '0.1rem 0 0' }}>
-                  Wenig Spielpraxis - nach wenig Einsatzzeit brauchst du etwas, um in den
-                  Rhythmus zu kommen.
+                  {t('match.lowSharpnessHint')}
                 </p>
               )}
             </div>
@@ -439,7 +435,7 @@ export default function MatchScreen() {
             <button style={{ textAlign: 'left', padding: '0.8rem' }} onClick={() => start('simulate')}>
               <div style={{ fontWeight: 680 }}>{t('match.simulateAll')}</div>
               <div className="tiny muted">
-                Das Spiel wird berechnet. Du erhältst Ergebnis, Bewertung und Statistik.
+                {t('match.simulateAllHint')}
               </div>
             </button>
             <button className="primary" style={{ textAlign: 'left', padding: '0.8rem' }}
@@ -447,7 +443,7 @@ export default function MatchScreen() {
               onClick={() => start('ownHighlights')}>
               <div style={{ fontWeight: 680 }}>{t('match.ownHighlightsOnly')}</div>
               <div className="tiny" style={{ opacity: 0.85 }}>
-                Der zentrale Modus: Du spielst jede Schlüsselszene deines Spielers selbst.
+                {t('match.ownHighlightsHint')}
               </div>
             </button>
             <button style={{ textAlign: 'left', padding: '0.8rem' }}
@@ -455,8 +451,7 @@ export default function MatchScreen() {
               onClick={() => start('allHighlights')}>
               <div style={{ fontWeight: 680 }}>{t('match.allScenes')}</div>
               <div className="tiny muted">
-                Wie oben, aber du bist auch ohne Ball gefragt: mehr Zweikämpfe und
-                Klärungen gegnerischer Großchancen.
+                {t('match.allScenesHint')}
               </div>
             </button>
           </div>
@@ -752,31 +747,27 @@ function InjuryModal(
           <span className={`pill ${sevTone}`}>{decision.severity}</span>
         </div>
         <p className="muted">
-          Du bist angeschlagen. Der Betreuer schätzt bei sofortiger Auswechslung
-          etwa {decision.estimatedDays} Tage Pause. Weiterspielen ist möglich,
-          riskiert aber eine Verschlimmerung - und du bist geschwächt.
+          {t('match.injuryHint', { days: decision.estimatedDays })}
         </p>
         <div className="grid two" style={{ marginTop: '0.6rem' }}>
           <button className="primary" style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
             onClick={() => onChoose('off')}>
             <div style={{ fontWeight: 680 }}>{t('match.halftimeSubOff')}</div>
             <div className="tiny" style={{ opacity: 0.85 }}>
-              Sicher. Etwa {decision.estimatedDays} Tage Pause, normale Genesung.
+              {t('match.injurySubHint', { days: decision.estimatedDays })}
             </div>
           </button>
           <button style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
             onClick={() => onChoose('play')}>
             <div style={{ fontWeight: 680 }}>{t('match.halftimeFightOn')}</div>
             <div className="tiny muted">
-              Weiterspielen mit Leistungseinbruch. Geht es gut, kommst du
-              glimpflich davon - sonst wird es schlimmer.
+              {t('match.injuryPlayOnHint')}
             </div>
           </button>
         </div>
         {!decision.canSubstitute && (
           <p className="tiny dim" style={{ marginTop: '0.5rem' }}>
-            Alle Wechsel sind aufgebraucht. Ein Ausscheiden liesse dein Team in
-            Unterzahl zurück.
+            {t('match.noSubsLeftHint')}
           </p>
         )}
       </div>
@@ -971,7 +962,7 @@ function TeamStatsPanel(
 ) {
   const rows: { label: string; h: number; a: number; pct?: boolean }[] = [
     { label: t('stats.shots'), h: home.shots, a: away.shots },
-    { label: 'aufs Tor', h: home.shotsOnTarget, a: away.shotsOnTarget },
+    { label: t('stats.shotsOnTarget'), h: home.shotsOnTarget, a: away.shotsOnTarget },
   ];
   if (full) {
     // Ballbesitz aus dem Passvolumen - erst nach Abpfiff vollstaendig.

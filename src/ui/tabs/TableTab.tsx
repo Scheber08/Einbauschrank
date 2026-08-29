@@ -279,8 +279,7 @@ function ChampionsCupPanel() {
             </div>
           )}
           <p className="tiny dim" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-            {cc.clubIds.length} Teilnehmer aus fünf Ländern. Die besten 16 der Ligaphase
-            erreichen die K.-o.-Phase, ab Platz 17 ist Schluss.
+            {t('table.championsHint', { n: cc.clubIds.length })}
           </p>
         </>
       )}
@@ -351,8 +350,7 @@ function TrophyPanel() {
         </div>
       )}
       <p className="tiny dim" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-        Der zweite europäische Wettbewerb: Hier spielen die Vereine, die den Champions
-        Cup knapp verpasst haben - im reinen K.-o.-Modus vom Achtelfinale bis zum Finale.
+        {t('table.secondCupHint')}
       </p>
     </Panel>
   );

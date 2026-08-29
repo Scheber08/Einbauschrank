@@ -503,7 +503,7 @@ function SeasonModal({ report, onClose }: { report: SeasonReport; onClose: () =>
 
         {game.offers.length > 0 && (
           <p className="pill good" style={{ marginTop: '0.6rem' }}>
-            {game.offers.length} neue Vertragsangebote im Bereich Transfers
+            {tn('career.newOffers', game.offers.length)}
           </p>
         )}
 

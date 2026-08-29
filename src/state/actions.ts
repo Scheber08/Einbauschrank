@@ -445,7 +445,8 @@ export function acceptOffer(offerId: string) {
         salary: tNumber(offer.salary),
       }),
       { clubId: club.id });
-    addNews(game, 'contract', `${user.lastName} verlängert bei ${club.name}`,
+    addNews(game, 'contract',
+      t('act.renewed.headline', { player: user.lastName, club: club.name }),
       t('act.renewed.news', { until: game.season + offer.years }), true);
     commit();
     void saveCurrent(true);

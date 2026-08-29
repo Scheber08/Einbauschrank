@@ -8,6 +8,7 @@ import { careerTotals } from '../../engine/stats';
 import { retireCareer } from '../../state/actions';
 import { useAppState } from '../../state/store';
 import { Empty, Panel, rating, ratingColor } from '../components';
+import { tn } from '../../i18n';
 import { t } from '../../i18n';
 import { useLocale } from '../../i18n/useLocale';
 
@@ -105,19 +106,18 @@ export default function ChronicleTab() {
             {careerStatus(totals.goals, totals.appearances, game.honours.length)}
           </strong>
           {' - '}
-          {user.firstName} {user.lastName}, {game.honours.length} Titel und Auszeichnungen.
+          {user.firstName} {user.lastName}, {tn('chronicle.honourCount', game.honours.length)}
         </p>
         {canRetire(game) && (
           <div style={{ marginTop: '0.9rem', paddingTop: '0.8rem', borderTop: '1px solid var(--border-soft)' }}>
             {!confirmRetire ? (
               <button className="small ghost" onClick={() => setConfirmRetire(true)}>
-                Laufbahn beenden
+                {t('chronicle.retire')}
               </button>
             ) : (
               <div>
                 <p className="small" style={{ marginTop: 0 }}>
-                  Die aktive Laufbahn wirklich beenden? Danach bleibt nur noch die Chronik -
-                  gespielt wird nicht mehr.
+                  {t('chronicle.retireConfirm')}
                 </p>
                 <div className="row">
                   <button className="primary small" onClick={() => retireCareer()}>

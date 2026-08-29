@@ -4062,6 +4062,74 @@ async function pruefeVerkabelung(): Promise<number> {
   return fehler;
 }
 
+/**
+ * Deutsche Prosa, die direkt im JSX steht und damit am Katalog vorbeigeht.
+ *
+ * Auf Englisch stand an solchen Stellen bis vor kurzem Deutsch - im
+ * Spielbildschirm, in den Reitern, im Verletzungsdialog. Der bestehende
+ * Waechter sah nur Zeichenketten in der Engine; JSX-Text ist gar keine
+ * Zeichenkette und fiel deshalb nie auf.
+ *
+ * Ohne Parser, denn der Rauchtest laeuft im Browser: Gesucht werden Zeilen
+ * ohne jedes Code-Merkmal (kein Anfuehrungszeichen, keine Klammer, kein
+ * Tag), die ein deutsches Funktionswort enthalten. Kommentare sind hier
+ * deutsch und sollen es bleiben - ihr Zustand wird deshalb ueber die
+ * Zeilen hinweg mitgefuehrt.
+ *
+ * Gegen den Stand vor der Umstellung geprueft: 31 Fundstellen dort, 0 hier.
+ */
+async function pruefeOberflaechentext(): Promise<number> {
+  const dateien = [
+    '/src/ui/match/MatchScreen.tsx', '/src/ui/CareerShell.tsx',
+    '/src/ui/tabs/SquadTab.tsx', '/src/ui/tabs/TrainingTab.tsx',
+    '/src/ui/tabs/TransfersTab.tsx', '/src/ui/tabs/TableTab.tsx',
+    '/src/ui/tabs/ChronicleTab.tsx', '/src/ui/tabs/OverviewTab.tsx',
+    '/src/ui/match/HighlightScene.tsx', '/src/App.tsx',
+  ];
+  const deutsch = /(^|\s)(der|die|das|den|dem|des|ein|eine|einen|einem|und|oder|nicht|nur|noch|mehr|sehr|dich|dir|dein|deine|deinen|du|mit|ohne|ist|sind|wird|werden|kann|kannst|hast|hat|haben|sich|auf|aus|nach|vor|bei|zum|zur|im|am|vom|als|wie|wenn|dass|damit|weil|schon|jetzt|immer|kein|keine|jede|jeder|alle)($|\s|[.,!?:;])/i;
+
+  const istProsa = (z: string): boolean => {
+    const t2 = z.trim();
+    if (t2.length < 12) return false;
+    if (/["'`<>{}=();]/.test(t2)) return false;
+    // Objekteigenschaften wie `aimX: dir.x,` - "dir" ist dort kein Wort.
+    if (/^\w+:\s/.test(t2)) return false;
+    if (!/[a-zäöüß]{3}/.test(t2)) return false;
+    return deutsch.test(t2);
+  };
+
+  log('\n--- Deutscher Text direkt im JSX ---');
+  let fehler = 0;
+  const fundstellen: string[] = [];
+  for (const pfad of dateien) {
+    let quelle = '';
+    try {
+      const antwort = await fetch(pfad);
+      if (!antwort.ok) throw new Error(String(antwort.status));
+      quelle = await antwort.text();
+    } catch {
+      log(`${pfad}: nicht lesbar - uebersprungen`);
+      continue;
+    }
+    let imKommentar = false;
+    quelle.split(/\r?\n/).forEach((z, i) => {
+      const t2 = z.trim();
+      const oeffnet = z.lastIndexOf('/*');
+      const schliesst = z.lastIndexOf('*/');
+      const warDrin = imKommentar;
+      if (oeffnet > schliesst) imKommentar = true;
+      else if (schliesst > oeffnet && schliesst > -1) imKommentar = false;
+      if (warDrin || imKommentar) return;
+      if (t2.startsWith('//') || t2.startsWith('*') || t2.startsWith('/*')) return;
+      if (istProsa(z)) fundstellen.push(`${pfad}:${i + 1}  ${t2.slice(0, 60)}`);
+    });
+  }
+  for (const st of fundstellen.slice(0, 8)) log(`  ${st}`);
+  fehler += fundstellen.length > 0 ? 1 : 0;
+  check('Kein deutscher Text direkt im JSX', fundstellen.length === 0,
+    `${fundstellen.length} Fundstellen`);
+  return fehler;
+}
 async function pruefeQuelltexte(): Promise<number> {
   const dateien = ['/src/engine/matchEngine.ts', '/src/engine/ballAction.ts'];
   let fehler = 0;
@@ -4085,6 +4153,10 @@ async function pruefeQuelltexte(): Promise<number> {
     const treffer = quelle.split(/\r?\n/)
       .map((zeile, i) => ({ zeile: zeile.trim(), nr: i + 1 }))
       .filter(({ zeile }) => /^(text|detail):\s*[`'"]/.test(zeile))
+      // Eine Vorlage, die mit ${t(...)} beginnt, ist uebersetzt - sie faengt
+      // nur zufaellig mit einem Anfuehrungszeichen an. Ohne diese Zeile
+      // meldete der Waechter genau die frisch berichtigten Stellen.
+      .filter(({ zeile }) => !/\bt\(/.test(zeile))
       .filter(({ zeile }) => /[a-zA-Z]{4,}/.test(zeile.replace(/\$\{[^}]*\}/g, '')));
     for (const { zeile, nr } of treffer) {
       log(`  ${pfad}:${nr}  ${zeile.slice(0, 70)}`);
@@ -4104,8 +4176,9 @@ setLocale('de')
     try {
       const ausLauf = run();
       const ausQuelle = await pruefeQuelltexte();
+      const ausOberflaeche = await pruefeOberflaechentext();
       const ausVerkabelung = await pruefeVerkabelung();
-      const gesamt = ausLauf + ausQuelle + ausVerkabelung;
+      const gesamt = ausLauf + ausQuelle + ausOberflaeche + ausVerkabelung;
       log(gesamt === 0 ? '\nALLE PRUEFUNGEN BESTANDEN'
         : `\n${gesamt} PRUEFUNGEN FEHLGESCHLAGEN`);
       (window as unknown as Record<string, unknown>).__testFailures = gesamt;

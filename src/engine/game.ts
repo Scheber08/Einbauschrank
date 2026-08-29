@@ -1361,7 +1361,7 @@ function handleUserMatchAftermath(
     const socialRng = new Rng(state.rngState);
     const own = s.clubId === match.homeClubId ? input.homeScore : input.awayScore;
     const opp = s.clubId === match.homeClubId ? input.awayScore : input.homeScore;
-    socialAfterMatch(state, s, own, opp, opponent?.name ?? 'den Gegner', socialRng);
+    socialAfterMatch(state, s, own, opp, opponent?.name ?? t('game.theOpponent'), socialRng);
     state.rngState = socialRng.state;
   }
 

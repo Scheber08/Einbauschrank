@@ -995,9 +995,13 @@ export function generateUserOffers(state: GameState, rng: Rng) {
 
 function buildPitch(state: GameState, club: Club, level: number, role: string): string {
   const league = state.competitions[club.leagueId];
-  const levelText = level === 1 ? 'erste Liga' : level === 2 ? 'zweite Liga' : 'dritte Liga';
-  return `${club.name} (${league?.name ?? levelText}) plant dich als ${role} ein. `
-    + `Vereinsreputation ${club.reputation}, Trainingsanlagen ${club.training}.`;
+  return t(`se.pitch`, {
+    club: club.name,
+    league: league?.name ?? t(`se.pitch.tier${Math.min(3, Math.max(1, level))}`),
+    role: t(`role.${role}`),
+    reputation: club.reputation,
+    training: club.training,
+  });
 }
 
 // --- Neue Saison vorbereiten ------------------------------------------
