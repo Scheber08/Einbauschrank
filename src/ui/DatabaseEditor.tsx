@@ -231,7 +231,7 @@ export default function DatabaseEditor(
             </div>
 
             <div className="row between" style={{ marginTop: '1rem', marginBottom: '0.4rem' }}>
-              <strong className="small">Kader ({club.squad.length})</strong>
+              <strong className="small">{t('editor.squad', { n: club.squad.length })}</strong>
               <button className="small ghost" onClick={() => update((d) => {
                 d.competitions[compIndex].clubs[clubIndex].squad.push({ name: t('editor.newPlayer') });
               })}>{t('editor.addPlayer')}</button>

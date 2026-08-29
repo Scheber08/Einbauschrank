@@ -4778,8 +4778,28 @@ async function pruefeOberflaechentext(): Promise<number> {
     '/src/ui/tabs/TransfersTab.tsx', '/src/ui/tabs/TableTab.tsx',
     '/src/ui/tabs/ChronicleTab.tsx', '/src/ui/tabs/OverviewTab.tsx',
     '/src/ui/match/HighlightScene.tsx', '/src/App.tsx',
+    '/src/ui/tabs/PlayerTab.tsx', '/src/ui/tabs/CalendarTab.tsx',
+    '/src/ui/tabs/StatsTab.tsx', '/src/ui/tabs/NewsTab.tsx',
+    '/src/ui/DatabaseEditor.tsx', '/src/ui/MainMenu.tsx',
   ];
   const deutsch = /(^|\s)(der|die|das|den|dem|des|ein|eine|einen|einem|und|oder|nicht|nur|noch|mehr|sehr|dich|dir|dein|deine|deinen|du|mit|ohne|ist|sind|wird|werden|kann|kannst|hast|hat|haben|sich|auf|aus|nach|vor|bei|zum|zur|im|am|vom|als|wie|wenn|dass|damit|weil|schon|jetzt|immer|kein|keine|jede|jeder|alle)($|\s|[.,!?:;])/i;
+
+  // Deutsche Hauptwoerter, die fest eingebaut nichts zu suchen haben.
+  //
+  // Der Prosa-Durchgang unten findet sie nicht: er ueberspringt jede
+  // Zeile mit Klammern, und genau dort stehen sie - zwischen zwei
+  // JSX-Ausdruecken. So gefunden:
+  // "{row.played} Spiele - {row.won}S {row.drawn}U {row.lost}N", das in
+  // der englischen Fassung woertlich genau so dastand, und ein
+  // "Kader ({n})" im Datenbankeditor.
+  const BROCKEN = [
+    'Spiele', 'Tore', 'Punkte', 'Saison', 'Verein', 'Spieler', 'Woche',
+    'Vertrag', 'Gehalt', 'Kader', 'Trainer', 'Jahre', 'Tage', 'Minuten',
+    'Siege', 'Niederlagen', 'Spieltag', 'Vorlagen', 'Torwart', 'Abwehr',
+  ];
+  // Nur innerhalb einer Zeichenkette gesucht - sonst schlaegt jeder
+  // Bezeichner an. Zeilen, die uebersetzen, sind in Ordnung.
+  const brocken = new RegExp(`"[^"]*\\b(${BROCKEN.join(`|`)})\\b[^"]*"`);
 
   const istProsa = (z: string): boolean => {
     const t2 = z.trim();
@@ -4794,6 +4814,7 @@ async function pruefeOberflaechentext(): Promise<number> {
   log('\n--- Deutscher Text direkt im JSX ---');
   let fehler = 0;
   const fundstellen: string[] = [];
+  const brockenStellen: string[] = [];
   for (const pfad of dateien) {
     let quelle = '';
     try {
@@ -4815,12 +4836,19 @@ async function pruefeOberflaechentext(): Promise<number> {
       if (warDrin || imKommentar) return;
       if (t2.startsWith('//') || t2.startsWith('*') || t2.startsWith('/*')) return;
       if (istProsa(z)) fundstellen.push(`${pfad}:${i + 1}  ${t2.slice(0, 60)}`);
+      else if (brocken.test(z) && !/\bt\(|\btr\(|\btVariant\(|\btn\(/.test(z)) {
+        brockenStellen.push(`${pfad}:${i + 1}  ${t2.slice(0, 60)}`);
+      }
     });
   }
   for (const st of fundstellen.slice(0, 8)) log(`  ${st}`);
   fehler += fundstellen.length > 0 ? 1 : 0;
   check('Kein deutscher Text direkt im JSX', fundstellen.length === 0,
     `${fundstellen.length} Fundstellen`);
+  for (const st of brockenStellen.slice(0, 8)) log(`  ${st}`);
+  fehler += brockenStellen.length > 0 ? 1 : 0;
+  check('Kein deutsches Wort zwischen JSX-Ausdruecken',
+    brockenStellen.length === 0, `${brockenStellen.length} Fundstellen`);
   return fehler;
 }
 async function pruefeQuelltexte(): Promise<number> {

@@ -96,7 +96,10 @@ export default function OverviewTab() {
               </div>
               <div className="row between" style={{ marginTop: '0.6rem' }}>
                 <span className="small muted">
-                  {row.played} Spiele - {row.won}S {row.drawn}U {row.lost}N
+                  {t('overview.record', {
+                    played: row.played, won: row.won,
+                    drawn: row.drawn, lost: row.lost,
+                  })}
                 </span>
                 <FormDots form={row.form} />
               </div>

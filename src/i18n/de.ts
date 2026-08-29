@@ -645,6 +645,8 @@ export const DE: Record<string, string> = {
   'overview.appearances': 'Einsätze',
   'overview.average': 'Schnitt',
   'overview.points': 'Punkte',
+  'overview.record': '{played} Spiele - {won}S {drawn}U {lost}N',
+  'editor.squad': 'Kader ({n})',
   'overview.goalDiff': 'Tordifferenz',
   'overview.injured': 'Verletzt',
 

@@ -59,7 +59,7 @@ export default function PlayerTab() {
           </div>
           <div className="stat"><div className="value">{ageOn(user.birthDate, game.date)}</div>
             <div className="label">{t('squad.age')}</div></div>
-          <div className="stat"><div className="value">{user.reputation}</div>
+          <div className="stat"><div className="value">{Math.round(user.reputation)}</div>
             <div className="label">{t('club.reputation')}</div></div>
         </div>
 

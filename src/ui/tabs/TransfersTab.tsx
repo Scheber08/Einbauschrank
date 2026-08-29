@@ -24,7 +24,7 @@ export default function TransfersTab() {
       <Panel title={t('transfers.market')}>
         <div className="grid four">
           <div className="stat"><div className="value">{money(user.marketValue)}</div><div className="label">{t('player.marketValue')}</div></div>
-          <div className="stat"><div className="value">{user.reputation}</div><div className="label">{t('club.reputation')}</div></div>
+          <div className="stat"><div className="value">{Math.round(user.reputation)}</div><div className="label">{t('club.reputation')}</div></div>
           <div className="stat"><div className="value">{game.offers.length}</div><div className="label">{t('transfers.offersHeading')}</div></div>
           <div className="stat">
             <div className="value">{user.contract ? formatShort(user.contract.until).slice(6) : '-'}</div>
