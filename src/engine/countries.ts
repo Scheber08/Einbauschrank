@@ -172,7 +172,7 @@ export const COUNTRIES: CountryDef[] = [
     wealth: 0.7,
     youth: 66,
     leagueNames: ['Türkei Erste Liga', 'Türkei Zweite Liga', 'Türkei Dritte Liga'],
-    cupName: 'Tuerkei-Pokal',
+    cupName: 'Türkei-Pokal',
   },
 ];
 
