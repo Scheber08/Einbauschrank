@@ -156,6 +156,8 @@ export const DE: Record<string, string> = {
   'squad.standing.behind': '{points} Punkte hinter {name}.',
   'squad.standing.ahead': '{points} Punkte vor {name}.',
   'squad.standing.alone': 'Auf deiner Position bist du allein im Kader.',
+  'squad.standing.injured': 'Verletzt - noch {days} Tage. Der Rang gilt für den Tag, an dem du zurückkommst.',
+  'squad.standing.suspended': 'Gesperrt für {games} Spiele. Der Rang gilt für dein nächstes mögliches Spiel.',
   'squad.standing.hint': 'Der Trainer wiegt Können, Form, Fitness, deine Rolle im Kader, euer Verhältnis und dein Potenzial gegeneinander ab. Die Punkte zeigen, was dich gerade trägt und was dich bremst.',
   'squad.factor.form': 'Form',
   'squad.factor.fitness': 'Fitness',

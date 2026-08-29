@@ -5,7 +5,7 @@ import { userClub } from '../../engine/game';
 import { kaderplatz, selectLineup } from '../../engine/lineup';
 import { clubSponsors } from '../../engine/identity';
 import { nationCode, nationName } from '../../engine/nations';
-import { t, tNumber } from '../../i18n';
+import { t, tDecimal, tNumber } from '../../i18n';
 import { useLocale } from '../../i18n/useLocale';
 import { RELATION_LABELS, relationList } from '../../engine/relationships';
 import { wageBill, wageRoom } from '../../engine/finance';
@@ -272,7 +272,7 @@ function KaderplatzPanel() {
               ? t(platz.rivaleVorn
                 ? 'squad.standing.behind' : 'squad.standing.ahead', {
                 name: platz.rivale,
-                points: tNumber(Math.abs(Math.round(platz.abstand * 10)) / 10),
+                points: tDecimal(Math.abs(platz.abstand), 1),
               })
               : t('squad.standing.alone')}
           </div>
@@ -283,10 +283,17 @@ function KaderplatzPanel() {
           {platz.faktoren.map((k) => (
             <Pill key={k.key} tone={k.punkte > 0 ? 'good' : 'bad'}>
               {t(k.key)} {k.punkte > 0 ? '+' : '−'}
-              {tNumber(Math.abs(Math.round(k.punkte * 10)) / 10)}
+              {tDecimal(Math.abs(k.punkte), 1)}
             </Pill>
           ))}
         </div>
+      )}
+      {(user.injury || user.suspension > 0) && (
+        <p className='tiny' style={{ marginTop: 8 }}>
+          <Pill tone='warn'>{user.injury
+            ? t('squad.standing.injured', { days: user.injury.daysOut })
+            : t('squad.standing.suspended', { games: user.suspension })}</Pill>
+        </p>
       )}
       <p className='tiny muted' style={{ marginTop: 8 }}>
         {t('squad.standing.hint')}</p>
