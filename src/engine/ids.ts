@@ -7,6 +7,21 @@ export function makeId(state: { nextId: number }, prefix: string): Id {
   return `${prefix}${state.nextId}`;
 }
 
+/**
+ * Id fuer reinen Text - Nachrichten und Chronikeintraege.
+ *
+ * Bewusst ein eigener Zaehler. Aus einer **Spiel**-Id werden Wetter,
+ * Schiedsrichter, Anstosszeit und Formation abgeleitet; wer Text aus
+ * demselben Zaehler bedient, verschiebt mit jeder zusaetzlichen
+ * Meldung den gesamten spaeteren Spielplan. Gemessen: eine einzige neue
+ * Genesungsnachricht liess die Zahl der eigenen Spielszenen ueber
+ * dreissig Partien auf null fallen - nicht kaputt, nur eine andere Welt.
+ */
+export function makeTextId(state: { nextTextId?: number }, prefix: string): Id {
+  state.nextTextId = (state.nextTextId ?? 0) + 1;
+  return `${prefix}t${state.nextTextId}`;
+}
+
 /** Fuegt ein Spiel in den Spielplan ein und pflegt den Datumsindex. */
 export function addMatch(state: GameState, match: Match) {
   state.matches[match.id] = match;
@@ -23,7 +38,7 @@ export function addNews(
   important = false,
 ) {
   state.news.unshift({
-    id: makeId(state, 'n'),
+    id: makeTextId(state, 'n'),
     date: state.date,
     category,
     headline,
@@ -39,7 +54,7 @@ export function addCareerEvent(
   extra: { clubId?: Id; competitionId?: Id } = {},
 ) {
   state.careerEvents.push({
-    id: makeId(state, 'e'),
+    id: makeTextId(state, 'e'),
     date: state.date,
     type,
     title,

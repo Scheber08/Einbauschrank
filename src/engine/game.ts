@@ -2,6 +2,8 @@
  * Spielablauf: Karrierestart, Tageslogik und Spielabwicklung
  * (Konzept Abschnitt 14, 18, 41, 51).
  */
+import type { Genesung } from './development';
+import { ATTR_LABELS } from './attributes';
 import {
   REVIEW_ALLE, TALENT_PROFILE, reviewPotential, type TalentProfile,
 } from './potential';
@@ -566,6 +568,41 @@ function lageFuerEreignis(state: GameState, user: Player): Lage {
   };
 }
 
+/**
+ * Meldet die Rueckkehr aus einer Verletzung - und was sie gekostet hat.
+ *
+ * Bei leichten Blessuren genuegt eine Nachricht. Ein bleibender Schaden
+ * kommt zusaetzlich in die Chronik: Er begleitet den Spieler bis zum
+ * Karriereende und soll dort nachlesbar sein, nicht nur als
+ * unerklaerlich gesunkener Wert auffallen.
+ */
+function meldeGenesung(state: GameState, genesen: Genesung) {
+  const user = state.players[state.userPlayerId];
+  if (!user) return;
+  const art = t(genesen.name);
+
+  const verluste = Object.entries(genesen.permanentLoss ?? {})
+    .filter(([, wert]) => (wert ?? 0) > 0)
+    .map(([schluessel, wert]) => `${t(ATTR_LABELS[schluessel as AttrKey])} -${wert}`);
+
+  if (verluste.length === 0) {
+    addNews(state, 'injury', t('gm.recovered.title', { injury: art }),
+      t('gm.recovered.body', { injury: art, days: genesen.totalDays }), false);
+    return;
+  }
+
+  const liste = verluste.join(', ');
+  addNews(state, 'injury', t('gm.recoveredHurt.title', { injury: art }),
+    t('gm.recoveredHurt.body', {
+      injury: art, days: genesen.totalDays, losses: liste,
+    }), true);
+  addCareerEvent(state, 'injury', t('gm.recoveredHurt.event', { injury: art }),
+    t('gm.recoveredHurt.eventBody', {
+      injury: art, days: genesen.totalDays, losses: liste,
+      name: `${user.firstName} ${user.lastName}`,
+    }));
+}
+
 export function advanceDay(state: GameState): DayResult {
   const rng = new Rng(state.rngState);
   const result: DayResult = {
@@ -668,10 +705,16 @@ export function advanceDay(state: GameState): DayResult {
     const eigener = player.id === state.userPlayerId;
     const stil = LIFESTYLE[state.lifestyle ?? 'balanced'];
     const zusatz = extraSessionEffect(state.extraSessions ?? 0);
-    advancePlayerDay(
+    const genesen = advancePlayerDay(
       rng, player, player.clubId ? playedClubs.has(player.clubId) : false,
       eigener ? stil.recovery : 1,
       eigener ? zusatz.fatigue : 0);
+    // Die Rueckkehr aus einer Verletzung gehoert gemeldet - und vor allem,
+    // was sie gekostet hat. Der bleibende Schaden einer schweren
+    // Verletzung wurde bis hierher lautlos abgezogen: nach einem
+    // Kreuzbandriss war man drei Punkte langsamer, ohne dass es irgendwo
+    // stand. Ein Wert, der wirkt und nie ankommt, ist kein Spielinhalt.
+    if (eigener && genesen) meldeGenesung(state, genesen);
     if (weekday(state.date) === 1) driftForm(player);
   }
   // Montags wirkt das Beziehungsumfeld leicht auf die Moral des Spielers.

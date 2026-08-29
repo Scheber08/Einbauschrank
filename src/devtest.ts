@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { ATTR_LABELS } from './engine/attributes';
 import { playWorldNationsCup } from './engine/national';
 import { offerPreContracts, fulfilPreContract, expireUserContract } from './engine/contract';
 import { offerUserRenewal } from './engine/season';
@@ -534,6 +535,14 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     .filter((m) => !m.played && (m.homeClubId === user.clubId || m.awayClubId === user.clubId))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 60);
+
+  // Eine Momentaufnahme fuer die spaeten Abschnitte. Nach dem
+  // Saisonsprung weiter unten ist im geteilten Spielstand keine Partie
+  // mehr offen; wer dort eine echte Spielsituation braucht, nimmt diese
+  // Kopie. Vorher benutzten jene Abschnitte die Liste oben einfach
+  // weiter - ihre Partien waren laengst gespielt, sie spielten also alte
+  // Ergebnisse noch einmal nach und massen in Wahrheit nichts.
+  const mitSpielen = structuredClone(game);
 
   // Aufstellungsentscheidung des Trainers fuer das naechste Spiel nachvollziehen
   if (upcoming[0]) {
@@ -2883,6 +2892,40 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Alle Schussgründe haben ihren Text', ohneText.length === 0,
       ohneText.join(', ') || `${gruende.length} geprüft`);
   }
+  /** Die in einem Spielstand noch offenen Partien des Spielers. */
+  function offeneIn(st: typeof game, n: number) {
+    const u = st.players[st.userPlayerId];
+    return Object.values(st.matches)
+      .filter((m) => !m.played
+        && (m.homeClubId === u.clubId || m.awayClubId === u.clubId))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, n);
+  }
+
+  /**
+   * Ein Spielstand, in dem der Spieler wirklich eine Partie vor sich hat.
+   *
+   * Der geteilte Spielstand steht nach dem Saisonsprung am Saisonende -
+   * dort ist keine Partie mehr offen. Die Abschnitte danach benutzten
+   * bisher eine ganz oben gebaute Liste weiter, deren Partien laengst
+   * gespielt waren: sie spielten alte Ergebnisse noch einmal nach und
+   * massen in Wahrheit nichts. Steht nichts mehr an, wird hier auf einer
+   * Kopie so weit vorgerueckt, bis der neue Spielplan steht.
+   */
+  function spielbareLage(n: number) {
+    const eigene = offeneIn(game, n);
+    if (eigene.length > 0 && !user.injury && user.suspension <= 0) {
+      return { st: game, spiele: eigene };
+    }
+    const u = mitSpielen.players[mitSpielen.userPlayerId];
+    const spiele = offeneIn(mitSpielen, n);
+    log(`Lage aus der Momentaufnahme: ${spiele.length} offene Partien, `
+      + `${u.injury ? 'verletzt' : 'fit'}, Sperre ${u.suspension} `
+      + `(im geteilten Spielstand: ${eigene.length} offen, `
+      + `${user.injury ? 'verletzt' : 'fit'})`);
+    return { st: mitSpielen, spiele };
+  }
+
   // --- Die Uhr und der verlorene Ball (Abschnitt 45) ---------------------
   //
   // Frueher fiel beim Ablaufen der Uhr ein ueberhasteter Abschluss: man
@@ -2913,9 +2956,10 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     // Und der Ausgang selbst: ein verlorener Ball ist kein Abschluss und
     // kein Pass. Wuerde er als Schuss verbucht, stuende in der Statistik
     // ein Versuch, den es nie gab.
-    const uhrMatch = upcoming.find((m) => prepareUserMatch(game, m.id, true));
+    const uhrLage = spielbareLage(60);
+    const uhrMatch = uhrLage.spiele.find((m) => prepareUserMatch(uhrLage.st, m.id, true));
     if (uhrMatch) {
-      const vorbereitet = prepareUserMatch(game, uhrMatch.id, true)!;
+      const vorbereitet = prepareUserMatch(uhrLage.st, uhrMatch.id, true)!;
       const uhrRng = new Rng(31337);
       const uhrEngine = new MatchEngine({
         ...vorbereitet.setup, highlightMode: 'own', rng: uhrRng,
@@ -2937,7 +2981,7 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       // Gegenprobe: dieselbe Partie, dieselben Szenen - aber gelungen.
       const gutRng = new Rng(31337);
       const gutEngine = new MatchEngine({
-        ...prepareUserMatch(game, uhrMatch.id, true)!.setup,
+        ...prepareUserMatch(uhrLage.st, uhrMatch.id, true)!.setup,
         highlightMode: 'own', rng: gutRng,
       });
       gutEngine.runToEnd((c) => autoResolveChallenge(
@@ -2946,17 +2990,22 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       const gut = gutEngine.finish().stats.find((st) => st.playerId === user.id);
       log(`Zum Vergleich mit gespielten Szenen: ${gut?.shots ?? 0} Schüsse, `
         + `${gut?.passes ?? 0} Pässe, ${gut?.possessionLost ?? 0} Ballverluste`);
+      // Ohne Szenen ist nichts zu vergleichen - das muss auffallen und
+      // darf nicht als bestanden durchgehen.
       check('Verschlafene Szenen bringen weniger Abschlüsse',
-        (meine?.shots ?? 0) < (gut?.shots ?? 0),
-        `${meine?.shots ?? 0} gegen ${gut?.shots ?? 0}`);
+        szenen > 0 && (meine?.shots ?? 0) < (gut?.shots ?? 0),
+        szenen === 0 ? `keine Szenen - nicht messbar`
+          : `${meine?.shots ?? 0} gegen ${gut?.shots ?? 0}`);
       // Nicht "mehr als im Vergleichslauf": dort gehen Szenen ebenfalls
       // daneben, und eine misslungene Flanke ist auch ein Ballverlust.
       // Sicher gilt nur die Untergrenze - jede verschlafene Szene bucht
       // einen Verlust, zusaetzlich zu denen der uebrigen Minuten.
       check('Jede verschlafene Szene bucht einen Ballverlust',
-        (meine?.possessionLost ?? 0) >= szenen,
+        szenen > 0 && (meine?.possessionLost ?? 0) >= szenen,
         `${meine?.possessionLost ?? 0} bei ${szenen} Szenen`);
-      check('Der Ticker sagt, was passiert ist', zeilenMitVerlust >= szenen,
+      // Auch hier: null Zeilen zu null Szenen ist keine bestandene Pruefung.
+      check('Der Ticker sagt, was passiert ist',
+        szenen > 0 && zeilenMitVerlust >= szenen,
         `${zeilenMitVerlust} Zeilen zu ${szenen} Szenen`);
     }
   }
@@ -3037,23 +3086,57 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     // Und die Gegenprobe im laufenden Spiel: die Szene kommt wirklich vor.
     // Vor dem Umbau war sie nur auf dem Papier vorhanden.
     let flankenGesamt = 0; let szenenGesamt = 0;
-    upcoming.slice(0, 30).forEach((m, k) => {
-      const vorbereitet = prepareUserMatch(game, m.id, true);
+    // Wenn hier nichts ankommt, muss der Grund im Protokoll stehen und
+    // nicht erraten werden muessen.
+    const flankenLage = spielbareLage(30);
+    const flankenIch = flankenLage.st.players[flankenLage.st.userPlayerId];
+    log(`Ausgangslage: Verein ${flankenIch.clubId
+      ? flankenLage.st.clubs[flankenIch.clubId]?.name : 'keiner'}, `
+      + `${flankenLage.spiele.length} offene Spiele, `
+      + `${flankenIch.injury ? 'verletzt' : 'fit'}, Sperre ${flankenIch.suspension}, `
+      + `${flankenLage.spiele.filter((m) => prepareUserMatch(flankenLage.st, m.id, true)).length} davon spielbar`);
+    const plaetze = new Map<string, number>();
+    let flankenAussen = 0;
+    let flankenMitte = 0;
+    flankenLage.spiele.forEach((m, k) => {
+      const vorbereitet = prepareUserMatch(flankenLage.st, m.id, true);
       if (!vorbereitet) return;
+      const meiner = [...vorbereitet.setup.homeLineup.starters,
+        ...vorbereitet.setup.awayLineup.starters]
+        .find((o) => o.playerId === flankenLage.st.userPlayerId);
+      const platz = meiner ? meiner.position : 'Bank';
+      plaetze.set(platz, (plaetze.get(platz) ?? 0) + 1);
+      // Die Aufstellung ist Sache des Trainers - hier darf sie die
+      // Messung nicht ersetzen. Der Trainer stellte den Spieler in
+      // allen dreissig Partien als Mittelstuermer auf; die Pruefung mass
+      // damit seine Laune und nicht die Regel. Jede zweite Partie wird
+      // der Spieler deshalb bewusst nach aussen gestellt.
+      if (meiner && k % 2 === 1) meiner.position = k % 4 === 1 ? 'RA' : 'LA';
       const r = new Rng(44000 + k * 733);
       const e = new MatchEngine({
         ...vorbereitet.setup, highlightMode: 'own', rng: r,
       });
       e.runToEnd((c) => {
         szenenGesamt++;
-        if (c.kind === 'cross') flankenGesamt++;
+        if (c.kind === 'cross') {
+          flankenGesamt++;
+          if (k % 2 === 1) flankenAussen++; else flankenMitte++;
+        }
         return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
       });
       e.finish();
     });
     log(`Im Spiel: ${flankenGesamt} Flankenszenen unter ${szenenGesamt} Szenen`);
-    check('Flankenszenen entstehen im laufenden Spiel', flankenGesamt > 0,
-      `${flankenGesamt} von ${szenenGesamt}`);
+    log(`Aufgestellt als: ${[...plaetze].map(([p, n]) => `${p} ${n}x`).join(', ')}`);
+    check('Flankenszenen entstehen im laufenden Spiel',
+      szenenGesamt > 0 && flankenGesamt > 0,
+      szenenGesamt === 0 ? `keine Szenen - nicht messbar`
+        : `${flankenGesamt} von ${szenenGesamt}`);
+    // Und die Position muss dabei etwas ausmachen, sonst waere die
+    // Tabelle oben wirkungslos.
+    check('Aussen wird oefter geflankt als in der Mitte',
+      flankenAussen > flankenMitte || szenenGesamt === 0,
+      `außen ${flankenAussen}, Mitte ${flankenMitte}`);
     // Und die Flankenstaerke muss den Unterschied machen.
     const lage = (druck: number) => ({
       id: 'fl', kind: 'cross' as const, minute: 40, title: 'F', hint: '',
@@ -3285,6 +3368,91 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       + `aus ${keeper.spiele} Spielen`);
     check('Der Torwart trifft nicht', keeper.spiele > 0 && keeper.tore === 0,
       `${keeper.tore} in ${keeper.spiele} Spielen`);
+  }
+  // --- Die Rueckkehr aus einer Verletzung (Abschnitt 51) -----------------
+  //
+  // Ein Kreuzbandriss kostet dauerhaft drei Punkte Antritt, drei Tempo und
+  // zwei Beweglichkeit. Abgezogen wurde das immer schon - erzaehlt hat es
+  // niemand. `applyPermanentDamage` kennt den Spielstand gar nicht, konnte
+  // also nichts melden, und der Spieler stand ohne Erklaerung langsamer da.
+  log('\n--- Die Rueckkehr aus einer Verletzung ---');
+  {
+    /** Setzt eine Verletzung und laesst sie ausheilen. */
+    const heileAus = (tage: number) => {
+      const gH = structuredClone(game);
+      const uH = gH.players[gH.userPlayerId];
+      uH.injury = null;
+      const rH = new Rng(2468);
+      injuryForDays(rH, uH, tage);
+      const art = uH.injury!.name;
+      const vorher = { ...uH.attrs };
+      const idsVorher = new Set(gH.news.map((n) => n.id));
+      const datumVorher = gH.date;
+      const chronikVorher = gH.careerEvents.length;
+      // So viele Tage weiter, bis die Verletzung ausgeheilt ist.
+      //
+      // An einem eigenen Spieltag kehrt `advanceDay` sofort zurueck, ohne
+      // das Datum weiterzustellen: der Kalender wartet darauf, dass der
+      // Nutzer das Spiel spielt. Das Spiel muss also wirklich abgespielt
+      // werden. Ein blosses Zuruecksetzen von `pendingMatchId` half nicht -
+      // der naechste Aufruf fand dieselbe ungespielte Partie wieder und die
+      // Schleife stand bis zum Anschlag auf demselben Tag.
+      let guard = 0;
+      while (uH.injury && guard++ < (tage + 60) * 3) {
+        const tag = advanceDay(gH);
+        if (tag.matchToPlay) {
+          const ausgang = simulateUserMatch(gH, tag.matchToPlay);
+          if (ausgang) finishUserMatch(gH, tag.matchToPlay, ausgang);
+          else gH.matches[tag.matchToPlay].played = true;
+          gH.pendingMatchId = null;
+        }
+      }
+      const verloren = (Object.keys(vorher) as (keyof typeof vorher)[])
+        .filter((k) => uH.attrs[k] < vorher[k]);
+      return {
+        art,
+        verloren,
+        neueNachrichten: gH.news.filter((n) => !idsVorher.has(n.id)),
+        neueChronik: gH.careerEvents.length - chronikVorher,
+        nochVerletzt: !!uH.injury,
+        tage: Math.round((Date.parse(gH.date) - Date.parse(datumVorher))
+          / 86400000),
+      };
+    };
+
+    // Eine schwere Verletzung: bleibender Schaden und eine Meldung darueber.
+    const schwer = heileAus(220);
+    log(`Heilung: ${schwer.tage} Tage vergangen, `
+      + `${schwer.nochVerletzt ? 'noch verletzt' : 'ausgeheilt'}, `
+      + `${schwer.neueNachrichten.length} neue Nachrichten`);
+    log(`Nach ${schwer.art}: ${schwer.verloren.length} Attribute dauerhaft `
+      + `schwaecher (${schwer.verloren.join(', ') || 'keine'})`);
+    check('Eine schwere Verletzung hinterlaesst bleibenden Schaden',
+      !schwer.nochVerletzt && schwer.verloren.length > 0,
+      schwer.verloren.join(', ') || 'kein Verlust');
+
+    const meldung = schwer.neueNachrichten.find(
+      (n) => n.category === 'injury' && /nicht derselbe|not the same/.test(n.headline));
+    check('Und der Spieler erfaehrt davon', !!meldung,
+      meldung ? meldung.headline : 'keine Meldung');
+    // Die Nachricht muss die verlorenen Werte auch benennen, sonst bleibt
+    // der Spieler ohne Erklaerung.
+    check('Die Meldung benennt die verlorenen Werte',
+      !!meldung && schwer.verloren.some((k) => meldung.body.includes(t(ATTR_LABELS[k]))),
+      meldung ? meldung.body.slice(0, 70) : '-');
+    check('Bleibender Schaden kommt in die Chronik', schwer.neueChronik > 0,
+      `${schwer.neueChronik}`);
+
+    // Eine leichte Blessur: Meldung ja, bleibender Schaden nein.
+    const leicht = heileAus(6);
+    log(`Nach ${leicht.art}: ${leicht.verloren.length} Attribute dauerhaft schwaecher`);
+    check('Eine leichte Blessur hinterlaesst nichts',
+      leicht.verloren.length === 0,
+      leicht.verloren.join(', ') || 'nichts');
+    const leichteMeldung = leicht.neueNachrichten.find(
+      (n) => n.category === 'injury' && /Zurück im Training|Back in training/.test(n.headline));
+    check('Auch die Rueckkehr ohne Folgen wird gemeldet', !!leichteMeldung,
+      leichteMeldung ? leichteMeldung.headline : 'keine Meldung');
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

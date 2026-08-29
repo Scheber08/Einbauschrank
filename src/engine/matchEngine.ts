@@ -150,6 +150,13 @@ const ATTACK_PROB = 0.40;
  *
  * Zentrale Plaetze bekommen bewusst einen kleinen Wert statt null: Auch
  * ein Zehner bringt gelegentlich einen Ball von halbrechts herein.
+ *
+ * Innenverteidiger und Mittelstuermer stehen bewusst gar nicht in der
+ * Liste. Gemessen: wer dreissig Partien als Stuermer bestreitet, sieht
+ * keine einzige Flankenszene - die Situation gehoert dann eben nicht zu
+ * seinem Spiel. Das ist Absicht und keine Luecke: die Plaetze sollen sich
+ * unterschiedlich anfuehlen, und der Stuermer bekommt seine eigenen
+ * Szenen am Ende der Flanke statt an ihrem Anfang.
  */
 export const CROSS_CHANCE_TABELLE: Partial<Record<string, number>> = {
   LA: 0.45, RA: 0.45, LV: 0.26, RV: 0.26, OM: 0.06, ZM: 0.03,

@@ -726,6 +726,12 @@ export interface GameState {
 
   /** Zaehler fuer fortlaufende IDs. */
   nextId: number;
+  /**
+   * Eigener Zaehler fuer Nachrichten und Chronik. Getrennt, weil aus
+   * Spiel-Ids Wetter und Schiedsrichter abgeleitet werden - Text darf den
+   * Spielplan nicht verschieben. Fehlt in aelteren Spielstaenden.
+   */
+  nextTextId?: number;
 }
 
 /** Abschluss der Spielerlaufbahn. */

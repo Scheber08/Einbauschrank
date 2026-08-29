@@ -338,6 +338,20 @@ function baueVerletzung(player: Player, def: InjuryDef, days: number): Injury {
   return injury;
 }
 
+/**
+ * Was eine ueberstandene Verletzung hinterlaesst.
+ *
+ * `advancePlayerDay` meldet sie am Tag der Genesung zurueck. Ohne diese
+ * Rueckmeldung blieb der bleibende Schaden unsichtbar - die Funktion
+ * kennt den Spielstand nicht und kann selbst nichts erzaehlen.
+ */
+export interface Genesung {
+  name: string;
+  severity: 'leicht' | 'mittel' | 'schwer';
+  totalDays: number;
+  permanentLoss?: Partial<Record<AttrKey, number>>;
+}
+
 /** Wendet dauerhafte Attributverluste einer schweren Verletzung an. */
 export function applyPermanentDamage(player: Player, injury: Injury) {
   if (!injury.permanentLoss) return;
@@ -358,17 +372,28 @@ export function applyPermanentDamage(player: Player, injury: Injury) {
 export function advancePlayerDay(
   rng: Rng, player: Player, hadMatch: boolean,
   lebensstil = 1, zusatzMuede = 0,
-) {
+): Genesung | null {
   if (player.injury) {
     player.injury.daysOut--;
     if (player.injury.daysOut <= 0) {
-      applyPermanentDamage(player, player.injury);
+      const ueberstanden = player.injury;
+      applyPermanentDamage(player, ueberstanden);
       player.injury = null;
       player.fitness = clamp(player.fitness, 55, 78);
       player.sharpness = clamp(player.sharpness - 18, 10, 100);
       player.morale = clamp(player.morale + 8, 0, 100);
+      // Zurueckmelden, damit der Aufrufer davon erzaehlen kann. Der
+      // bleibende Schaden wurde bis hierher lautlos abgezogen: nach einem
+      // Kreuzbandriss war der Spieler drei Punkte langsamer, ohne dass es
+      // irgendwo stand.
+      return {
+        name: ueberstanden.name,
+        severity: ueberstanden.severity,
+        totalDays: ueberstanden.totalDays,
+        permanentLoss: ueberstanden.permanentLoss,
+      };
     }
-    return;
+    return null;
   }
 
   if (!hadMatch) {
@@ -382,6 +407,7 @@ export function advancePlayerDay(
   }
   // Spielpraxis geht ohne Einsaetze langsam zurueck.
   player.sharpness = clamp(player.sharpness - 0.35, 0, 100);
+  return null;
 }
 
 /** Form und Selbstvertrauen nach einem Einsatz (Konzept Abschnitt 38). */

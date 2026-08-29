@@ -172,6 +172,9 @@ function migrate(state: GameState): GameState {
     if (nation !== player.nationality) player.nationality = nation;
   }
   state.nationalAssists ??= 0;
+  // Der Textzaehler beginnt hinter dem bisherigen Stand, damit alte und
+  // neue Nachrichten keine gleichen Ids bekommen.
+  state.nextTextId ??= state.nextId;
   return state;
 }
 
