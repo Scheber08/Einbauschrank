@@ -229,8 +229,8 @@ export default function SquadTab() {
           </table>
         </div>
         <p className="tiny dim" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
-          Startelf und Bank sind die aktuelle Einschaetzung des Trainers. Sie kann sich
-          durch Form, Fitness und deine Trainerbeziehung von Spiel zu Spiel aendern.
+          Startelf und Bank sind die aktuelle Einschätzung des Trainers. Sie kann sich
+          durch Form, Fitness und deine Trainerbeziehung von Spiel zu Spiel ändern.
         </p>
       </Panel>
     </>
@@ -248,7 +248,7 @@ function RelationshipsPanel() {
   return (
     <Panel title={t('squad.relations')}>
       <p className="tiny dim" style={{ marginTop: 0 }}>
-        Gute Freunde bieten sich im Spiel haeufiger an, ein starkes Umfeld hebt deine Moral.
+        Gute Freunde bieten sich im Spiel häufiger an, ein starkes Umfeld hebt deine Moral.
         Beziehungen entwickeln sich mit gemeinsamer Spielzeit.
       </p>
       <div className="grid two">

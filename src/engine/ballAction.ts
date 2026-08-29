@@ -706,11 +706,11 @@ function timingQuality(deviation: number, window: number): number {
  */
 function timingFeedback(offset: number, window: number, quality: number): string {
   const pct = Math.round(quality * 100);
-  if (offset > window) return `Timing ${pct} Prozent - deutlich zu spaet.`;
-  if (offset < -window) return `Timing ${pct} Prozent - deutlich zu frueh.`;
+  if (offset > window) return `Timing ${pct} Prozent - deutlich zu spät.`;
+  if (offset < -window) return `Timing ${pct} Prozent - deutlich zu früh.`;
   if (quality >= 0.95) return `Timing ${pct} Prozent - auf den Punkt.`;
   if (quality >= 0.7) return `Timing ${pct} Prozent - fast auf den Punkt.`;
-  const richtung = offset > 0 ? 'etwas zu spaet' : 'etwas zu frueh';
+  const richtung = offset > 0 ? 'etwas zu spät' : 'etwas zu früh';
   return `Timing ${pct} Prozent - ${richtung}.`;
 }
 
@@ -747,11 +747,11 @@ export function resolveDuel(
   if (timing.offset > window) {
     // Zu spaet: der Gegner ist schon vorbei, es folgt meist ein Foul.
     return rng.chance(clamp(0.65 - player.attrs.discipline / 400, 0.3, 0.85))
-      ? { outcome: 'foulCommitted', quality, detail: `Zu spaet gekommen. ${timingText}` }
-      : { outcome: 'duelLost', quality, detail: `Zu spaet gekommen. ${timingText}` };
+      ? { outcome: 'foulCommitted', quality, detail: `Zu spät gekommen. ${timingText}` }
+      : { outcome: 'duelLost', quality, detail: `Zu spät gekommen. ${timingText}` };
   }
   if (timing.offset < -window) {
-    return { outcome: 'duelLost', quality, detail: `Zu frueh angegangen. ${timingText}` };
+    return { outcome: 'duelLost', quality, detail: `Zu früh angegangen. ${timingText}` };
   }
   // Im Zeitfenster, aber der Gegenspieler behauptet den Ball.
   return {
@@ -851,13 +851,13 @@ export function resolveDribble(
   if (rng.chance(0.22)) {
     return {
       outcome: 'foulSuffered', quality,
-      detail: `Der Gegner kommt zu spaet - Freistoss. ${timingText}`,
+      detail: `Der Gegner kommt zu spät - Freistoß. ${timingText}`,
     };
   }
   return {
     outcome: 'dribbleLost', quality,
     detail: `${dev > window
-      ? (timing.offset > 0 ? 'Zu spaet angesetzt' : 'Zu frueh angesetzt')
+      ? (timing.offset > 0 ? 'Zu spät angesetzt' : 'Zu früh angesetzt')
       : 'Der Verteidiger liest die Bewegung'}. ${timingText}`,
   };
 }

@@ -92,8 +92,8 @@ export default function TrainingTab() {
       <Panel title={t('training.focus')}>
         <p className="small muted">
           Trainiert wird die ganze Woche, ausgewertet am Freitag im Abschlusstraining.
-          Wie schnell du dich entwickelst, haengt von Alter, Potenzial, Trainingsqualitaet
-          des Vereins, Einsatzzeiten und Professionalitaet ab.
+          Wie schnell du dich entwickelst, hängt von Alter, Potenzial, Trainingsqualität
+          des Vereins, Einsatzzeiten und Professionalität ab.
         </p>
         <div className="chip-row">
           {FOCUS_ORDER.map((focus) => (

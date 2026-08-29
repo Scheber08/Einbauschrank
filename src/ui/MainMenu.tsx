@@ -67,7 +67,7 @@ export default function MainMenu() {
   }
 
   async function handleDelete(save: SaveMeta) {
-    if (!window.confirm(`Spielstand "${save.saveName}" wirklich loeschen?`)) return;
+    if (!window.confirm(`Spielstand "${save.saveName}" wirklich löschen?`)) return;
     await deleteSave(save.saveId);
     await refresh();
     showToast(t('menu.saveDeleted'), 'info');

@@ -398,7 +398,7 @@ export default function MatchScreen() {
             <p className="small muted">
               Der Trainer setzt dieses Mal auf andere. Arbeite im Training an deinen
               Werten, halte die Fitness hoch und verbessere die Trainerbeziehung -
-              dann rueckst du in den Kader. Das Spiel kannst du simulieren lassen.
+              dann rückst du in den Kader. Das Spiel kannst du simulieren lassen.
             </p>
           )}
 
@@ -412,8 +412,8 @@ export default function MatchScreen() {
               </div>
               {user.fitness < 65 && (
                 <p className="tiny" style={{ color: 'var(--warn)', margin: '0.1rem 0 0' }}>
-                  Wenig Fitness - mit „Kraefte schonen" haelst du laenger durch, sonst
-                  laesst die Leistung gegen Spielende nach.
+                  Wenig Fitness - mit „Kräfte schonen" hältst du länger durch, sonst
+                  lässt die Leistung gegen Spielende nach.
                 </p>
               )}
               {user.sharpness < 55 && user.fitness >= 65 && (
@@ -439,7 +439,7 @@ export default function MatchScreen() {
             <button style={{ textAlign: 'left', padding: '0.8rem' }} onClick={() => start('simulate')}>
               <div style={{ fontWeight: 680 }}>{t('match.simulateAll')}</div>
               <div className="tiny muted">
-                Das Spiel wird berechnet. Du erhaeltst Ergebnis, Bewertung und Statistik.
+                Das Spiel wird berechnet. Du erhältst Ergebnis, Bewertung und Statistik.
               </div>
             </button>
             <button className="primary" style={{ textAlign: 'left', padding: '0.8rem' }}
@@ -447,7 +447,7 @@ export default function MatchScreen() {
               onClick={() => start('ownHighlights')}>
               <div style={{ fontWeight: 680 }}>{t('match.ownHighlightsOnly')}</div>
               <div className="tiny" style={{ opacity: 0.85 }}>
-                Der zentrale Modus: Du spielst jede Schluesselszene deines Spielers selbst.
+                Der zentrale Modus: Du spielst jede Schlüsselszene deines Spielers selbst.
               </div>
             </button>
             <button style={{ textAlign: 'left', padding: '0.8rem' }}
@@ -455,8 +455,8 @@ export default function MatchScreen() {
               onClick={() => start('allHighlights')}>
               <div style={{ fontWeight: 680 }}>{t('match.allScenes')}</div>
               <div className="tiny muted">
-                Wie oben, aber du bist auch ohne Ball gefragt: mehr Zweikaempfe und
-                Klaerungen gegnerischer Grosschancen.
+                Wie oben, aber du bist auch ohne Ball gefragt: mehr Zweikämpfe und
+                Klärungen gegnerischer Großchancen.
               </div>
             </button>
           </div>
@@ -576,7 +576,7 @@ export default function MatchScreen() {
               <div style={{ marginTop: '1rem' }}>
                 {outcome.penalties && (
                   <p className="pill warn">
-                    Elfmeterschiessen {outcome.penalties[0]}:{outcome.penalties[1]}
+                    Elfmeterschießen {outcome.penalties[0]}:{outcome.penalties[1]}
                   </p>
                 )}
                 {outcome.motmId === game.userPlayerId && (
@@ -584,7 +584,7 @@ export default function MatchScreen() {
                 )}
                 {outcome.userInputQuality !== null && (
                   <p className="tiny dim">
-                    Ausfuehrungsqualitaet deiner Aktionen:{' '}
+                    Ausführungsqualität deiner Aktionen:{' '}
                     {Math.round(outcome.userInputQuality * 100)}%
                   </p>
                 )}
@@ -748,9 +748,9 @@ function InjuryModal(
           <span className={`pill ${sevTone}`}>{decision.severity}</span>
         </div>
         <p className="muted">
-          Du bist angeschlagen. Der Betreuer schaetzt bei sofortiger Auswechslung
-          etwa {decision.estimatedDays} Tage Pause. Weiterspielen ist moeglich,
-          riskiert aber eine Verschlimmerung - und du bist geschwaecht.
+          Du bist angeschlagen. Der Betreuer schätzt bei sofortiger Auswechslung
+          etwa {decision.estimatedDays} Tage Pause. Weiterspielen ist möglich,
+          riskiert aber eine Verschlimmerung - und du bist geschwächt.
         </p>
         <div className="grid two" style={{ marginTop: '0.6rem' }}>
           <button className="primary" style={{ textAlign: 'left', padding: '0.7rem 0.85rem' }}
@@ -772,7 +772,7 @@ function InjuryModal(
         {!decision.canSubstitute && (
           <p className="tiny dim" style={{ marginTop: '0.5rem' }}>
             Alle Wechsel sind aufgebraucht. Ein Ausscheiden liesse dein Team in
-            Unterzahl zurueck.
+            Unterzahl zurück.
           </p>
         )}
       </div>

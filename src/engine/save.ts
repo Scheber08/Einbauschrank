@@ -218,7 +218,7 @@ export async function exportSave(saveId: string): Promise<string | null> {
 export async function importSave(json: string): Promise<SaveMeta | null> {
   const parsed = entpackeAttribute(JSON.parse(json) as GameState);
   if (!parsed?.saveId || !parsed.players || !parsed.userPlayerId) {
-    throw new Error('Die Datei enthaelt keinen gueltigen Spielstand.');
+    throw new Error('Die Datei enthält keinen gültigen Spielstand.');
   }
   parsed.saveId = `save-import-${Date.now().toString(36)}`;
   parsed.saveName = `${parsed.saveName} (Import)`;

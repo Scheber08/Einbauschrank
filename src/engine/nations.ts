@@ -43,7 +43,7 @@ export interface Nation {
 export const NATIONS: Nation[] = [
   // --- Europa ---------------------------------------------------------
   { id: 'de', name: 'Deutschland', region: 'Europa', strength: 78, namePool: 'falkenland', gameCountry: 'falkenland' },
-  { id: 'at', name: 'Oesterreich', region: 'Europa', strength: 58, namePool: 'falkenland' },
+  { id: 'at', name: 'Österreich', region: 'Europa', strength: 58, namePool: 'falkenland' },
   { id: 'ch', name: 'Schweiz', region: 'Europa', strength: 62, namePool: 'falkenland' },
   { id: 'en', name: 'England', region: 'Europa', strength: 79, namePool: 'albion', gameCountry: 'albion' },
   { id: 'sco', name: 'Schottland', region: 'Europa', strength: 55, namePool: 'albion' },
@@ -55,7 +55,7 @@ export const NATIONS: Nation[] = [
   { id: 'fr', name: 'Frankreich', region: 'Europa', strength: 80, namePool: 'gallia', gameCountry: 'gallia' },
   { id: 'be', name: 'Belgien', region: 'Europa', strength: 72, namePool: 'gallia' },
   { id: 'nl', name: 'Niederlande', region: 'Europa', strength: 74, namePool: 'falkenland' },
-  { id: 'dk', name: 'Daenemark', region: 'Europa', strength: 66, namePool: 'falkenland' },
+  { id: 'dk', name: 'Dänemark', region: 'Europa', strength: 66, namePool: 'falkenland' },
   { id: 'se', name: 'Schweden', region: 'Europa', strength: 62, namePool: 'falkenland' },
   { id: 'no', name: 'Norwegen', region: 'Europa', strength: 60, namePool: 'falkenland' },
   { id: 'fi', name: 'Finnland', region: 'Europa', strength: 48, namePool: 'falkenland' },
@@ -69,8 +69,8 @@ export const NATIONS: Nation[] = [
   { id: 'ba', name: 'Bosnien und Herzegowina', region: 'Europa', strength: 55, namePool: 'calcio' },
   { id: 'si', name: 'Slowenien', region: 'Europa', strength: 55, namePool: 'calcio' },
   { id: 'gr', name: 'Griechenland', region: 'Europa', strength: 58, namePool: 'calcio' },
-  { id: 'tr', name: 'Tuerkei', region: 'Europa', strength: 62, namePool: 'calcio' },
-  { id: 'ro', name: 'Rumaenien', region: 'Europa', strength: 54, namePool: 'calcio' },
+  { id: 'tr', name: 'Türkei', region: 'Europa', strength: 62, namePool: 'calcio' },
+  { id: 'ro', name: 'Rumänien', region: 'Europa', strength: 54, namePool: 'calcio' },
   { id: 'bg', name: 'Bulgarien', region: 'Europa', strength: 48, namePool: 'calcio' },
   { id: 'ua', name: 'Ukraine', region: 'Europa', strength: 62, namePool: 'falkenland' },
   { id: 'ru', name: 'Russland', region: 'Europa', strength: 60, namePool: 'falkenland' },
@@ -80,16 +80,16 @@ export const NATIONS: Nation[] = [
   { id: 'me', name: 'Montenegro', region: 'Europa', strength: 46, namePool: 'calcio' },
 
   // --- Suedamerika ----------------------------------------------------
-  { id: 'br', name: 'Brasilien', region: 'Suedamerika', strength: 78, namePool: 'iberia', bias: { dribbling: 5, ballControl: 4, firstTouch: 4 } },
-  { id: 'ar', name: 'Argentinien', region: 'Suedamerika', strength: 78, namePool: 'iberia', bias: { dribbling: 4, decisions: 3, composure: 4 } },
-  { id: 'uy', name: 'Uruguay', region: 'Suedamerika', strength: 68, namePool: 'iberia', bias: { bravery: 4, tackling: 3 } },
-  { id: 'co', name: 'Kolumbien', region: 'Suedamerika', strength: 66, namePool: 'iberia', bias: { agility: 3, ballControl: 3 } },
-  { id: 'cl', name: 'Chile', region: 'Suedamerika', strength: 60, namePool: 'iberia' },
-  { id: 'pe', name: 'Peru', region: 'Suedamerika', strength: 56, namePool: 'iberia' },
-  { id: 've', name: 'Venezuela', region: 'Suedamerika', strength: 52, namePool: 'iberia' },
-  { id: 'ec', name: 'Ecuador', region: 'Suedamerika', strength: 60, namePool: 'iberia' },
-  { id: 'py', name: 'Paraguay', region: 'Suedamerika', strength: 56, namePool: 'iberia' },
-  { id: 'bo', name: 'Bolivien', region: 'Suedamerika', strength: 42, namePool: 'iberia' },
+  { id: 'br', name: 'Brasilien', region: 'Südamerika', strength: 78, namePool: 'iberia', bias: { dribbling: 5, ballControl: 4, firstTouch: 4 } },
+  { id: 'ar', name: 'Argentinien', region: 'Südamerika', strength: 78, namePool: 'iberia', bias: { dribbling: 4, decisions: 3, composure: 4 } },
+  { id: 'uy', name: 'Uruguay', region: 'Südamerika', strength: 68, namePool: 'iberia', bias: { bravery: 4, tackling: 3 } },
+  { id: 'co', name: 'Kolumbien', region: 'Südamerika', strength: 66, namePool: 'iberia', bias: { agility: 3, ballControl: 3 } },
+  { id: 'cl', name: 'Chile', region: 'Südamerika', strength: 60, namePool: 'iberia' },
+  { id: 'pe', name: 'Peru', region: 'Südamerika', strength: 56, namePool: 'iberia' },
+  { id: 've', name: 'Venezuela', region: 'Südamerika', strength: 52, namePool: 'iberia' },
+  { id: 'ec', name: 'Ecuador', region: 'Südamerika', strength: 60, namePool: 'iberia' },
+  { id: 'py', name: 'Paraguay', region: 'Südamerika', strength: 56, namePool: 'iberia' },
+  { id: 'bo', name: 'Bolivien', region: 'Südamerika', strength: 42, namePool: 'iberia' },
 
   // --- Nord- und Mittelamerika ---------------------------------------
   { id: 'us', name: 'Vereinigte Staaten', region: 'Nordamerika', strength: 62, namePool: 'albion' },
@@ -104,15 +104,15 @@ export const NATIONS: Nation[] = [
   { id: 'ma', name: 'Marokko', region: 'Afrika', strength: 68, namePool: 'gallia' },
   { id: 'dz', name: 'Algerien', region: 'Afrika', strength: 62, namePool: 'gallia' },
   { id: 'tn', name: 'Tunesien', region: 'Afrika', strength: 58, namePool: 'gallia' },
-  { id: 'eg', name: 'Aegypten', region: 'Afrika', strength: 60, namePool: 'gallia' },
+  { id: 'eg', name: 'Ägypten', region: 'Afrika', strength: 60, namePool: 'gallia' },
   { id: 'ng', name: 'Nigeria', region: 'Afrika', strength: 64, namePool: 'albion', bias: { pace: 4, strength: 4 } },
   { id: 'gh', name: 'Ghana', region: 'Afrika', strength: 60, namePool: 'albion', bias: { strength: 4, stamina: 3 } },
   { id: 'sn', name: 'Senegal', region: 'Afrika', strength: 66, namePool: 'gallia', bias: { pace: 4, strength: 3 } },
-  { id: 'ci', name: 'Elfenbeinkueste', region: 'Afrika', strength: 62, namePool: 'gallia', bias: { strength: 4 } },
+  { id: 'ci', name: 'Elfenbeinküste', region: 'Afrika', strength: 62, namePool: 'gallia', bias: { strength: 4 } },
   { id: 'cm', name: 'Kamerun', region: 'Afrika', strength: 60, namePool: 'gallia', bias: { strength: 3 } },
   { id: 'ml', name: 'Mali', region: 'Afrika', strength: 56, namePool: 'gallia' },
   { id: 'cd', name: 'DR Kongo', region: 'Afrika', strength: 54, namePool: 'gallia' },
-  { id: 'za', name: 'Suedafrika', region: 'Afrika', strength: 52, namePool: 'albion' },
+  { id: 'za', name: 'Südafrika', region: 'Afrika', strength: 52, namePool: 'albion' },
   { id: 'bf', name: 'Burkina Faso', region: 'Afrika', strength: 54, namePool: 'gallia' },
   { id: 'gn', name: 'Guinea', region: 'Afrika', strength: 52, namePool: 'gallia' },
   { id: 'cv', name: 'Kap Verde', region: 'Afrika', strength: 48, namePool: 'iberia' },
@@ -120,7 +120,7 @@ export const NATIONS: Nation[] = [
 
   // --- Asien und Ozeanien --------------------------------------------
   { id: 'jp', name: 'Japan', region: 'Asien', strength: 66, namePool: 'calcio', bias: { teamwork: 4, discipline: 5 } },
-  { id: 'kr', name: 'Suedkorea', region: 'Asien', strength: 64, namePool: 'calcio', bias: { stamina: 4, discipline: 4 } },
+  { id: 'kr', name: 'Südkorea', region: 'Asien', strength: 64, namePool: 'calcio', bias: { stamina: 4, discipline: 4 } },
   { id: 'cn', name: 'China', region: 'Asien', strength: 44, namePool: 'calcio' },
   { id: 'au', name: 'Australien', region: 'Ozeanien', strength: 58, namePool: 'albion', bias: { stamina: 3 } },
   { id: 'nz', name: 'Neuseeland', region: 'Ozeanien', strength: 44, namePool: 'albion' },
@@ -139,7 +139,7 @@ export const NATION_BY_ID: Record<string, Nation> = Object.fromEntries(
 
 /** Nationen nach Erdteil, fuer die Auswahl bei der Spielerstellung. */
 export function nationsByRegion(): { region: string; nations: Nation[] }[] {
-  const order = ['Europa', 'Suedamerika', 'Nordamerika', 'Afrika', 'Asien', 'Ozeanien'];
+  const order = ['Europa', 'Südamerika', 'Nordamerika', 'Afrika', 'Asien', 'Ozeanien'];
   return order
     .map((region) => ({ region, nations: NATIONS.filter((n) => n.region === region) }))
     .filter((g) => g.nations.length > 0);

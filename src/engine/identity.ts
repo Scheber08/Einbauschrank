@@ -82,8 +82,8 @@ const BRAND_SUFFIX = [
 ];
 /** Kleinere Vereine tragen bodenstaendige Partner auf der Brust. */
 const LOCAL_TRADES = [
-  'Baustoffe', 'Autohaus', 'Baeckerei', 'Getraenke', 'Elektro', 'Dachbau',
-  'Moebelhaus', 'Fahrschule', 'Gartenbau', 'Metzgerei',
+  'Baustoffe', 'Autohaus', 'Bäckerei', 'Getränke', 'Elektro', 'Dachbau',
+  'Möbelhaus', 'Fahrschule', 'Gartenbau', 'Metzgerei',
 ];
 const LOCAL_NAMES = [
   'Bergmann', 'Hoffmann', 'Wieland', 'Kranz', 'Sattler', 'Reinhard',

@@ -14,7 +14,10 @@
  * Mannschaft draufsatteln.
  */
 
+import { clamp } from './rng';
 import type { Rng } from './rng';
+import type { Challenge } from './matchTypes';
+import type { DifficultySettings } from './types';
 
 /** Gewicht der ersten Minute. */
 const START = 0.70;
@@ -108,4 +111,29 @@ function clampWert(v: number): number {
 
 function clampTempo(v: number): number {
   return Math.max(0.55, Math.min(1.6, v));
+}
+
+/**
+ * Wie viele Sekunden bleiben, bis der Gegner da ist.
+ * 0 bedeutet: keine Hetze - bei ruhendem Ball wartet der Gegner ebenfalls.
+ *
+ * Ohne diese Uhr liesse sich jede Szene beliebig lange auspendeln; genau das
+ * nimmt einer Grosschance die Spannung. Der Wert ist bewusst grosszuegig -
+ * es geht um Druck, nicht um Hektik.
+ *
+ * Steht hier und nicht in der Oberflaeche: wie lange man Zeit hat, ist
+ * eine Spielregel. In einer React-Datei kam kein Rauchtest daran.
+ */
+export function pressureSeconds(challenge: Challenge, difficulty: DifficultySettings): number {
+  if (challenge.kind === 'penalty' || challenge.kind === 'freeKick') return 0;
+  // Die Uhr laeuft ueber die ganze Szene, also ueber Richtung, Kraft und
+  // Ballkontakt zusammen.
+  //
+  // Sie ist grosszuegiger als frueher, weil das Ablaufen jetzt teuer ist:
+  // Vorher wurde mit dem gespielt, was gerade eingestellt war - ein
+  // ueberhasteter Abschluss, aber immerhin einer. Jetzt ist der Ball weg.
+  // Wer bestraft wird, muss vorher auch wirklich Zeit gehabt haben.
+  // Wer mehr Hektik will, senkt BASE; wer mehr Ruhe will, erhoeht sie.
+  const BASE = 12;
+  return clamp((BASE - challenge.pressure * 3.4) / difficulty.meterSpeed, 5.5, 17);
 }

@@ -1745,6 +1745,21 @@ export class MatchEngine {
 
     const st = this.statOf(userId, userSide, user.slot);
 
+    // Zu lange gezoegert: der Ball ist weg. Das gilt fuer jede Szenenart
+    // und wird deshalb hier abgefangen - nicht in den einzelnen
+    // Auswertungen, die sonst einen Schuss oder Pass verbuchen wuerden,
+    // den es nie gab.
+    if (result.outcome === 'ballLost') {
+      st.possessionLost++;
+      this.emit(evts, {
+        minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
+        text: tVariant('live.tooSlow', this.rng.next(), { player: this.name(user.player.id) }),
+      });
+      if (this.minute >= this.fullTime && !this.finished) this.handleFullTime(evts);
+      this.events.push(...evts);
+      return evts;
+    }
+
     switch (ctx.type) {
       case 'shot': case 'longShot': case 'header': case 'oneOnOne':
         this.applyShotResult(result, ctx, user, st, evts);

@@ -194,7 +194,7 @@ export function scheduleRelegation(state: GameState, rng: Rng, countryId: Id) {
     });
     addMatch(state, {
       id: makeId(state, 'm'), competitionId: compId, season: state.season,
-      matchday: 2, roundName: `Relegation ${upper.short}/${lower.short} Rueckspiel`,
+      matchday: 2, roundName: `Relegation ${upper.short}/${lower.short} Rückspiel`,
       date: secondLeg, homeClubId: upperClub, awayClubId: lowerClub,
       homeScore: null, awayScore: null, played: false,
     });

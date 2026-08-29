@@ -87,7 +87,7 @@ function collect(): Record<string, RealCountryData> {
   const out: Record<string, RealCountryData> = {};
   for (const [path, data] of Object.entries(modules)) {
     if (!data || typeof data.country !== 'string' || !Array.isArray(data.leagues)) {
-      console.warn(`[realData] ${path} uebersprungen: country oder leagues fehlt.`);
+      console.warn(`[realData] ${path} übersprungen: country oder leagues fehlt.`);
       continue;
     }
     out[data.country] = data;

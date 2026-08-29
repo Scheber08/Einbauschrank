@@ -65,6 +65,9 @@ export interface Challenge {
 }
 
 export type ChallengeOutcome =
+  // `ballLost`: der Spieler hat zu lange gebraucht. Kein Abschluss, kein
+  // Pass - der Gegner hat den Ball. Gilt fuer jede Szenenart.
+  | 'ballLost'
   | 'goal' | 'saved' | 'offTarget' | 'blocked' | 'post'
   | 'assist' | 'passCompleted' | 'passLost'
   | 'dribbleWon' | 'dribbleLost' | 'foulSuffered'

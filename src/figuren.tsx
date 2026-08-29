@@ -129,17 +129,17 @@ const bloecke: { name: string; block: {
     crossing: { x: 1.2, z: 0.5 }, distance: 18,
   },
   {
-    name: 'Huefthoehe, weit aussen',
+    name: 'Hüfthöhe, weit außen',
     block: { x: -3.1, y: 9, z: 0.9, kind: 'defender' },
     crossing: { x: -2.6, z: 1.1 }, distance: 22,
   },
   {
-    name: 'hoch, dicht am Schuetzen',
+    name: 'hoch, dicht am Schützen',
     block: { x: 1.4, y: 14, z: 1.7, kind: 'defender' },
     crossing: { x: 2.2, z: 1.9 }, distance: 20,
   },
   {
-    name: 'Mauer beim Freistoss',
+    name: 'Mauer beim Freistoß',
     block: { x: -1.2, y: 9.15, z: 0.45, kind: 'wall' },
     crossing: { x: -2.0, z: 0.8 }, distance: 20,
   },
@@ -148,7 +148,7 @@ const bloecke: { name: string; block: {
 function App() {
   return (
     <>
-      <h2>Torhueter — Frontansicht (SVG)</h2>
+      <h2>Torhüter — Frontansicht (SVG)</h2>
       <div className="grid">
         {dives.map((d) => <GoalCell key={d.label} {...d} />)}
       </div>

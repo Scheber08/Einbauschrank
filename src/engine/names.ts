@@ -32,21 +32,21 @@ export const NAME_POOLS: Record<string, NamePool> = {
       'Habicht', 'Immhoff', 'Jansen', 'Kaltenbach', 'Lehnhardt', 'Moorbach',
       'Neuhaus', 'Ostermann', 'Pfeilstein', 'Quandt', 'Reitmeier', 'Sturmberg',
       'Tannhoff', 'Uhlig', 'Vetterlein', 'Waldschmidt', 'Zeidler', 'Bergmann',
-      'Krauss', 'Wendland', 'Osterloh', 'Nordmann', 'Reichl', 'Schoenfeld',
+      'Krauss', 'Wendland', 'Osterloh', 'Nordmann', 'Reichl', 'Schönfeld',
       'Falkner', 'Hartmann', 'Steinbach', 'Wieland', 'Reinhardt', 'Kohlmann',
       'Baumgart', 'Lindner', 'Grothe', 'Vogelsang', 'Ebert', 'Sandberg',
-      'Kastner', 'Meinhardt', 'Rothbauer', 'Wintersen', 'Duerrhoff', 'Espenlaub',
-      'Gerlach', 'Holtmann', 'Isenbeck', 'Kerner', 'Lauterbach', 'Muehlberg',
+      'Kastner', 'Meinhardt', 'Rothbauer', 'Wintersen', 'Dürrhoff', 'Espenlaub',
+      'Gerlach', 'Holtmann', 'Isenbeck', 'Kerner', 'Lauterbach', 'Mühlberg',
       'Nagelschmidt', 'Oberweis', 'Petersen', 'Rammelsberg', 'Seewald', 'Trautner',
       'Amsel', 'Birkholz', 'Cordes', 'Drewes', 'Eggersglues', 'Falkenrath',
-      'Hoevelmann', 'Isernhagen', 'Jaspers', 'Kienbaum', 'Lohmeyer', 'Marquardt',
-      'Niebuhr', 'Oldenburg', 'Pflueger', 'Quirin', 'Rothaug', 'Siebenhaar',
-      'Trittau', 'Ummen', 'Voigtlaender', 'Wattenscheid', 'Zieseniss', 'Ahlgrimm',
-      'Brockhaus', 'Duennebier', 'Ellerbrock', 'Fassbender', 'Grothues', 'Hillebrand',
-      'Kettenbach', 'Luetkemeyer', 'Mohrbach', 'Nienkaemper', 'Pralle', 'Reddemann',
-      'Suedkamp', 'Thelen', 'Wolterding',
+      'Hövelmann', 'Isernhagen', 'Jaspers', 'Kienbaum', 'Lohmeyer', 'Marquardt',
+      'Niebuhr', 'Oldenburg', 'Pflüger', 'Quirin', 'Rothaug', 'Siebenhaar',
+      'Trittau', 'Ummen', 'Voigtländer', 'Wattenscheid', 'Zieseniss', 'Ahlgrimm',
+      'Brockhaus', 'Dünnebier', 'Ellerbrock', 'Fassbender', 'Grothues', 'Hillebrand',
+      'Kettenbach', 'Lütkemeyer', 'Mohrbach', 'Nienkämper', 'Pralle', 'Reddemann',
+      'Südkamp', 'Thelen', 'Wolterding',
       // Ein paar schrullige darunter - selten genug, dass sie auffallen.
-      'Zwiebelmann', 'Federleicht', 'Sonntagskind', 'Klingelhoefer',
+      'Zwiebelmann', 'Federleicht', 'Sonntagskind', 'Klingelhöfer',
       'Nebelschick', 'Wunderlich', 'Sausewind', 'Krautgartner',
       'Morgenroth', 'Pusteblume', 'Donnerhack', 'Kuchenbecker',
     ],
@@ -57,8 +57,8 @@ export const NAME_POOLS: Record<string, NamePool> = {
       'Ellerbach', 'Hafenau', 'Dornstadt', 'Kranichberg', 'Marbeck', 'Ossenfurt',
       'Pirkheim', 'Quellenau', 'Rehbrunn', 'Sonnenfels', 'Tiefental', 'Ulrichshain',
       'Vogelsbach', 'Wehrhagen', 'Zellerbrunn', 'Ammersfeld', 'Blankenau', 'Cranzberg',
-      'Duernstein', 'Erlenkamp', 'Freiberg', 'Grimmental', 'Hollerbach', 'Innau',
-      'Jagsthausen', 'Klingenau', 'Lauterfeld', 'Muehlenstadt', 'Neuwiese', 'Oberrain',
+      'Dürnstein', 'Erlenkamp', 'Freiberg', 'Grimmental', 'Hollerbach', 'Innau',
+      'Jagsthausen', 'Klingenau', 'Lauterfeld', 'Mühlenstadt', 'Neuwiese', 'Oberrain',
       'Perlbach', 'Rauental', 'Schwarzenau', 'Talheim', 'Uttenhain', 'Vierbrunn',
       'Wildbach', 'Zwieselau', 'Aschenfeld', 'Bruckstadt', 'Cornau', 'Dahlenberg',
     ],
@@ -380,12 +380,12 @@ export const STADIUM_WORDS = [
 
 /** Orte, nach denen traditionsreiche Stadien benannt sind ("Stadion an der ..."). */
 export const STADIUM_PLACES = [
-  'Bergstrasse', 'Alten Foersterei', 'Hafenmole', 'Muehlenaue', 'Kastanienallee',
-  'Alten Ziegelei', 'Talbruecke', 'Weinsteige', 'Nordkurve', 'Schleuse',
+  'Bergstraße', 'Alten Försterei', 'Hafenmole', 'Mühlenaue', 'Kastanienallee',
+  'Alten Ziegelei', 'Talbrücke', 'Weinsteige', 'Nordkurve', 'Schleuse',
 ];
 
 /** Eigenstaendige Stadionnamen ohne Stadtbezug. */
 export const STADIUM_STANDALONE = [
-  'Waldstadion', 'Stadion am Hohen Wall', 'Gruenwaldstadion', 'Sportpark Suedhang',
-  'Rheinauepark', 'Stadion Rote Erde', 'Weserkampfbahn', 'Stadion Alte Foersterei',
+  'Waldstadion', 'Stadion am Hohen Wall', 'Grünwaldstadion', 'Sportpark Südhang',
+  'Rheinauepark', 'Stadion Rote Erde', 'Weserkampfbahn', 'Stadion Alte Försterei',
 ];

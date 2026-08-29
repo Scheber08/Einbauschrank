@@ -50,7 +50,7 @@ export default function PlayerAvatar(
 
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className="avatar-svg"
-      role="img" aria-label={name ? `Portraet ${name}` : 'Spielerportraet'}>
+      role="img" aria-label={name ? `Porträt ${name}` : 'Spielerporträt'}>
       <defs>
         <clipPath id="avatar-clip"><circle cx="50" cy="50" r="49" /></clipPath>
       </defs>

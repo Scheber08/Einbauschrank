@@ -17,6 +17,7 @@ import { DEFENSIVER_TEST, matchFormation } from './engine/formation';
 import {
   formatKickoff, kickoffAuslastung, matchKickoff,
 } from './engine/kickoff';
+import { pressureSeconds } from './engine/tempo';
 import { minutenGewicht, zieheTorminute } from './engine/tempo';
 import { advanceSeason, advanceUntil } from './state/actions';
 import { getState, setState } from './state/store';
@@ -115,9 +116,9 @@ function run() {
   const erwarteteLigen = COUNTRIES.reduce(
     (a, c) => a + leagueLayout(c.id).length, 0);
   const erwarteteVereine = erwarteteLigen * 20;
-  check(`${erwarteteVereine} Vereine erzeugt (${COUNTRIES.length} Laender)`,
+  check(`${erwarteteVereine} Vereine erzeugt (${COUNTRIES.length} Länder)`,
     clubCount === erwarteteVereine, `${clubCount}`);
-  check('Genug Spieler fuer alle Kader',
+  check('Genug Spieler für alle Kader',
     playerCount > erwarteteVereine * 22, `${playerCount}`);
   check('Spielplan passt zur Zahl der Ligen',
     matchCount >= erwarteteLigen * 340, `${matchCount} bei ${erwarteteLigen} Ligen`);
@@ -134,11 +135,11 @@ function run() {
   const fehlend = COUNTRIES.filter(
     (c) => leaguesOfCountry(game, c.id).length !== leagueLayout(c.id).length);
   check('Jedes Land hat seine Ligen', fehlend.length === 0,
-    fehlend.map((c) => c.name).join(', ') || 'alle vollstaendig');
+    fehlend.map((c) => c.name).join(', ') || 'alle vollständig');
 
   const user = game.players[game.userPlayerId];
   const club = userClub(game);
-  log(`Spieler: ${user.firstName} ${user.lastName}, Staerke ${computeOverall(user.attrs, user.position)}, `
+  log(`Spieler: ${user.firstName} ${user.lastName}, Stärke ${computeOverall(user.attrs, user.position)}, `
     + `Potenzial ${user.potential}, Verein ${club?.name}`);
   check('Spieler hat einen Verein', !!club);
   check('Spieler hat einen Vertrag', !!user.contract);
@@ -245,7 +246,7 @@ function run() {
     }
     log(`\n--- Nationalmannschaft und WNC ---`);
     log(`Saison ${gN.season}, WNC-Ereignisse: ${wncSeen}, Historie: ${gN.wncHistory.length}, `
-      + `nominiert: ${gN.nationalNominated}, Laenderspiele: ${gN.nationalCaps}, Tore: ${gN.nationalGoals}`);
+      + `nominiert: ${gN.nationalNominated}, Länderspiele: ${gN.nationalCaps}, Tore: ${gN.nationalGoals}`);
     check('Ein World Nations Cup wurde gespielt', gN.wncHistory.length >= 1, `${gN.wncHistory.length}`);
     if (gN.wncHistory.length > 0) {
       const w = gN.wncHistory[0];
@@ -256,9 +257,9 @@ function run() {
         `${w.championName} / ${w.runnerUpName}`);
     }
     check('Starker Spieler wird nominiert', gN.nationalNominated, `${gN.nationalNominated}`);
-    check('Nominierter Spieler sammelt Laenderspiele', gN.nationalCaps > 0, `${gN.nationalCaps}`);
+    check('Nominierter Spieler sammelt Länderspiele', gN.nationalCaps > 0, `${gN.nationalCaps}`);
     check('Nation ohne Ligasystem nimmt am WNC teil', gN.nationalCaps > 0,
-      `Nigeria, ${gN.nationalCaps} Einsaetze`);
+      `Nigeria, ${gN.nationalCaps} Einsätze`);
   }
 
   // --- Continental Champions Cup (Abschnitt 10) -----------------------
@@ -280,7 +281,7 @@ function run() {
       champions += club.history.filter((h) => h.note === 'Continental Champions Cup-Sieger').length;
     }
     log(`Bisherige Champions-Cup-Sieger verzeichnet: ${champions}`);
-    check('Der Champions Cup kuert Sieger', champions >= 1, `${champions}`);
+    check('Der Champions Cup kürt Sieger', champions >= 1, `${champions}`);
   }
 
   // --- Spielerstatistiken ---------------------------------------------
@@ -288,7 +289,7 @@ function run() {
   log(`\nEigene Bilanz: ${totals.appearances} Spiele, ${totals.goals} Tore, `
     + `${totals.assists} Vorlagen, Note ${(totals.appearances ? totals.ratingSum / totals.appearances : 0).toFixed(2)}`);
   check('Spieler kam zum Einsatz', totals.appearances > 0, `${totals.appearances}`);
-  check('Bewertungen im gueltigen Bereich',
+  check('Bewertungen im gültigen Bereich',
     game.userMatchStats.every((s) => s.rating >= 1 && s.rating <= 10));
   check('Minuten plausibel',
     game.userMatchStats.every((s) => s.minutes >= 0 && s.minutes <= 125));
@@ -307,8 +308,8 @@ function run() {
       if (k.count === 0 && k.best !== 0) ungueltig++;
       if (k.count > 0) mitKonkurrenz++;
     }
-    log(`${klubs.length} Vereine geprueft, ${mitKonkurrenz} mit Konkurrenz auf ${user.position}`);
-    check('Rangberechnung bleibt im gueltigen Bereich', ungueltig === 0, `${ungueltig} Ausreisser`);
+    log(`${klubs.length} Vereine geprüft, ${mitKonkurrenz} mit Konkurrenz auf ${user.position}`);
+    check('Rangberechnung bleibt im gültigen Bereich', ungueltig === 0, `${ungueltig} Ausreisser`);
     // Ohne Konkurrenz waere die Auskunft wertlos - es muss welche geben.
     check('Es gibt Vereine mit Konkurrenz auf der Position', mitKonkurrenz > 5,
       `${mitKonkurrenz} von ${klubs.length}`);
@@ -356,8 +357,8 @@ function run() {
     }
     check('Verletzungsdauer bleibt erhalten und passt zur Schwere', unpassend === 0,
       `${unpassend} Abweichungen`);
-    check('Bleibender Schaden nur bei langen Ausfaellen', falscherSchaden === 0,
-      `${falscherSchaden} Faelle`);
+    check('Bleibender Schaden nur bei langen Ausfällen', falscherSchaden === 0,
+      `${falscherSchaden} Fälle`);
   }
 
   // --- Sprachkataloge --------------------------------------------------
@@ -366,22 +367,22 @@ function run() {
     log('--- Sprachkataloge ---');
     const deKeys = Object.keys(DE);
     const enKeys = Object.keys(EN);
-    log(`Schluessel: ${deKeys.length} deutsch, ${enKeys.length} englisch`);
+    log(`Schlüssel: ${deKeys.length} deutsch, ${enKeys.length} englisch`);
 
     // Ein Schluessel, den nur eine Sprache kennt, faellt im Spiel stumm auf
     // Deutsch zurueck - das faellt beim Spielen kaum auf und bleibt liegen.
     const fehltEn = deKeys.filter((k) => !(k in EN));
     const fehltDe = enKeys.filter((k) => !(k in DE));
-    check('Englischer Katalog ist vollstaendig', fehltEn.length === 0,
+    check('Englischer Katalog ist vollständig', fehltEn.length === 0,
       fehltEn.slice(0, 8).join(', '));
-    check('Kein englischer Schluessel ohne deutsches Gegenstueck', fehltDe.length === 0,
+    check('Kein englischer Schlüssel ohne deutsches Gegenstück', fehltDe.length === 0,
       fehltDe.slice(0, 8).join(', '));
 
     // Platzhalter muessen auf beiden Seiten dieselben sein, sonst steht in
     // einer Sprache '{name}' im Text.
     const platzhalter = (s: string) => (s.match(/{w+}/g) ?? []).slice().sort().join(",");
     const schief = deKeys.filter((k) => k in EN && platzhalter(DE[k]) !== platzhalter(EN[k]));
-    check('Platzhalter stimmen ueberein', schief.length === 0, schief.slice(0, 8).join(', '));
+    check('Platzhalter stimmen überein', schief.length === 0, schief.slice(0, 8).join(', '));
 
     // Leere Texte wuerden als leere Beschriftung durchrutschen.
     const leer = [...deKeys.filter((k) => !DE[k].trim()), ...enKeys.filter((k) => !EN[k].trim())];
@@ -419,14 +420,14 @@ function run() {
           engste = Math.min(engste, Math.hypot(dx, dy));
         }
       }
-      check(`${name}: keine Ueberdeckung`, engste > 0.1, `engster Abstand ${engste.toFixed(3)}`);
+      check(`${name}: keine Überdeckung`, engste > 0.1, `engster Abstand ${engste.toFixed(3)}`);
     }
 
     // Unbekannte Namen duerfen nicht zu Chaos fuehren, sondern fallen auf die
     // Einteilung nach Positionskuerzeln zurueck.
     const wirr = place(FORMATION_SLOTS['4-4-2'].map((position, i) =>
       ({ playerId: `y${i}`, position })), 'Kraut-und-Rueben');
-    check('Unbekannte Formation faellt sauber zurueck',
+    check('Unbekannte Formation fällt sauber zurück',
       wirr.length === 11 && wirr.every((p) => p.x >= 0.08 && p.x <= 0.92),
       `${wirr.length} platziert`);
   }
@@ -435,9 +436,9 @@ function run() {
   {
     const marken = game.careerEvents.filter((e) => e.type === 'milestone');
     log(`
-Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
+Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     // Ohne laufende Marken schwieg die Chronik nach den Premieren jahrelang.
-    check('Chronik fuehrt laufende Marken', marken.length > 0,
+    check('Chronik führt laufende Marken', marken.length > 0,
       marken.map((e) => e.title).join(', ') || 'keine');
 
     // Kein Eintrag darf mit einem unbekannten Typ enden - sonst zeigt die
@@ -452,16 +453,16 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const endJahr = user.contract ? Number(user.contract.until.slice(0, 4)) : null;
     log(`Vertrag: ${user.contract ? `bis ${endJahr}, ${user.contract.salary} Euro/Woche` : "keiner"}`
       + ` (Saison ${game.season})`);
-    check('Kein abgelaufener Vertrag laeuft weiter',
+    check('Kein abgelaufener Vertrag läuft weiter',
       endJahr === null || endJahr > game.season,
       `Ende ${endJahr}, Saison ${game.season}`);
   }
 
   const newAbility = computeOverall(user.attrs, user.position);
   const age = game.season - Number(user.birthDate.slice(0, 4));
-  log(`Entwicklung: Staerke ${startAbility} -> ${newAbility} (+${newAbility - startAbility}), `
+  log(`Entwicklung: Stärke ${startAbility} -> ${newAbility} (+${newAbility - startAbility}), `
     + `Potenzial ${user.potential}, Alter ${age}`);
-  check('Spieler entwickelt sich spuerbar', newAbility - startAbility >= 9,
+  check('Spieler entwickelt sich spürbar', newAbility - startAbility >= 9,
     `+${newAbility - startAbility} in ${seasonsToPlay} Saisons`);
   check('Spieler bleibt unter seinem Potenzial', newAbility <= user.potential + 1,
     `${newAbility} von ${user.potential}`);
@@ -481,9 +482,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     .sort((a, b) => b.goals - a.goals)[0];
   if (topScorerSeason) {
     const p = game.players[topScorerSeason.playerId];
-    log(`Bester Torjaeger der ersten Liga: ${p?.firstName} ${p?.lastName} `
+    log(`Bester Torjäger der ersten Liga: ${p?.firstName} ${p?.lastName} `
       + `mit ${topScorerSeason.goals} Toren in ${topScorerSeason.appearances} Spielen`);
-    check('Torjaegerzahl plausibel', topScorerSeason.goals >= 8 && topScorerSeason.goals <= 45,
+    check('Torjägerzahl plausibel', topScorerSeason.goals >= 8 && topScorerSeason.goals <= 45,
       `${topScorerSeason.goals}`);
   }
 
@@ -511,14 +512,14 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   const pendingInjury = user.injury;
   if (pendingInjury) {
     log(`(Verletzung "${pendingInjury.name}" mit ${pendingInjury.daysOut} Tagen `
-      + 'fuer den Highlight-Test ausgeblendet)');
+      + 'für den Highlight-Test ausgeblendet)');
     user.injury = null;
     user.fitness = 92;
   }
 
   // Ausgangslage protokollieren, damit fehlende Einsatzzeit erklaerbar ist.
   const nowClub = user.clubId ? game.clubs[user.clubId] : null;
-  log(`Status: ${nowClub?.name ?? 'vereinslos'}, Staerke ${computeOverall(user.attrs, user.position)}, `
+  log(`Status: ${nowClub?.name ?? 'vereinslos'}, Stärke ${computeOverall(user.attrs, user.position)}, `
     + `Rolle ${user.contract?.role ?? '-'}, Form ${Math.round(user.form)}, `
     + `Fitness ${Math.round(user.fitness)}, `
     + `${user.injury ? `verletzt (${t(user.injury.name)}, ${user.injury.daysOut} Tage)` : 'fit'}, `
@@ -579,12 +580,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   check('Der Spieler bekommt eigene Situationen', totalChallenges > 0, `${totalChallenges}`);
   check('Schussszenen kommen vor', (kinds.get('shot') ?? 0) + (kinds.get('longShot') ?? 0)
     + (kinds.get('header') ?? 0) + (kinds.get('oneOnOne') ?? 0) > 0);
-  check('Dribblings werden ausgeloest (Abschnitt 24)', (kinds.get('dribble') ?? 0) > 0,
+  check('Dribblings werden ausgelöst (Abschnitt 24)', (kinds.get('dribble') ?? 0) > 0,
     `${kinds.get('dribble') ?? 0}`);
 
   // Standards uebernimmt nur, wer zu den besten Schuetzen gehoert.
   // Das ist der Weg "Freistossspezialist werden" aus Abschnitt 19.
-  log(`Freistoesse als Schuetze: ${kinds.get('freeKick') ?? 0} `
+  log(`Freistöße als Schütze: ${kinds.get('freeKick') ?? 0} `
     + `(eigener Freistosswert ${user.attrs.freeKicks})`);
   const savedFreeKicks = user.attrs.freeKicks;
   user.attrs.freeKicks = 92;
@@ -602,8 +603,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     });
   });
   user.attrs.freeKicks = savedFreeKicks;
-  log(`Nach gezieltem Freistosstraining (Wert 92): ${specialistFreeKicks} Freistoesse in ${fkPool.length} Spielen`);
-  check('Freistossspezialist tritt selbst an (Abschnitt 19 und 22)', specialistFreeKicks > 0,
+  log(`Nach gezieltem Freistosstraining (Wert 92): ${specialistFreeKicks} Freistöße in ${fkPool.length} Spielen`);
+  check('Freistoßspezialist tritt selbst an (Abschnitt 19 und 22)', specialistFreeKicks > 0,
     `${specialistFreeKicks}`);
   check('Nicht zu viele Unterbrechungen pro Spiel',
     totalChallenges / Math.max(1, interactiveMatches) < 9,
@@ -632,7 +633,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   const allTotal = [...allKinds.values()].reduce((a, b) => a + b, 0);
   log(`Modus "own": ${totalChallenges} Situationen, davon ${ownDefensive} defensiv`);
   log(`Modus "all": ${allTotal} Situationen, davon ${allDefensive} defensiv `
-    + `(${allKinds.get('block') ?? 0} Klaerungen)`);
+    + `(${allKinds.get('block') ?? 0} Klärungen)`);
   // Der Testspieler ist Stuermer; fuer ihn ist die defensive Einbindung
   // naturgemaess klein (Wahrscheinlichkeit 0,14 gegenueber 0,82 bei
   // Verteidigern), ein Vergleich einzelner Zweikaempfe misst darum nur
@@ -672,21 +673,21 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     if (!prepared) return;
     const rngA = new Rng(70001 + k * 6113);
     const eAll = new MatchEngine({ ...prepared.setup, highlightMode: 'all', rng: rngA });
-    eAll.runToEnd((c) => { if (c.kind === 'duel' && c.title === 'Klaerung') ivBlocks++;
+    eAll.runToEnd((c) => { if (c.kind === 'duel' && c.title === t('me.ch.clearance.title')) ivBlocks++;
       return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngA); });
     eAll.finish();
     const rngO = new Rng(70001 + k * 6113);
     const eOwn = new MatchEngine({ ...prepared.setup, highlightMode: 'own', rng: rngO });
-    eOwn.runToEnd((c) => { if (c.kind === 'duel' && c.title === 'Klaerung') ivOwnBlocks++;
+    eOwn.runToEnd((c) => { if (c.kind === 'duel' && c.title === t('me.ch.clearance.title')) ivOwnBlocks++;
       return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, rngO); });
     eOwn.finish();
   });
   user.position = savedPos;
   Object.assign(user.attrs, savedAttrs);
-  log(`Als Innenverteidiger: ${ivBlocks} Klaerungen im Modus "all", ${ivOwnBlocks} im Modus "own"`);
-  check('Klaerungen gegnerischer Grosschancen entstehen im Modus "all"',
+  log(`Als Innenverteidiger: ${ivBlocks} Klärungen im Modus "all", ${ivOwnBlocks} im Modus "own"`);
+  check('Klärungen gegnerischer Großchancen entstehen im Modus "all"',
     ivBlocks > 0, `all ${ivBlocks}`);
-  check('Klaerungen treten niemals im Modus "own" auf',
+  check('Klärungen treten niemals im Modus "own" auf',
     ivOwnBlocks === 0, `own ${ivOwnBlocks}`);
 
   // --- Spielausrichtung (Mentalitaet) ---------------------------------
@@ -742,12 +743,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   log(`Nach vorne:      ${atk.attack} offensiv, ${atk.defend} defensiv, Fitness bei Min 40 ${atk.fitness.toFixed(1)}`);
   log(`Ausbalanciert:   ${bal.attack} offensiv, ${bal.defend} defensiv, Fitness bei Min 40 ${bal.fitness.toFixed(1)}`);
   log(`Defensiv:        ${con.attack} offensiv, ${con.defend} defensiv, Fitness bei Min 40 ${con.fitness.toFixed(1)}`);
-  log(`Kraefte schonen: ${rest.attack} offensiv, ${rest.defend} defensiv, Fitness bei Min 40 ${rest.fitness.toFixed(1)}`);
+  log(`Kräfte schonen: ${rest.attack} offensiv, ${rest.defend} defensiv, Fitness bei Min 40 ${rest.fitness.toFixed(1)}`);
   check('Nach vorne bringt mehr Offensivszenen als Defensiv',
     atk.attack > con.attack, `${atk.attack} gegen ${con.attack}`);
   check('Defensiv bringt mehr Defensivszenen als Nach vorne',
     con.defend > atk.defend, `${con.defend} gegen ${atk.defend}`);
-  check('Kraefte schonen verbraucht weniger Fitness als Nach vorne',
+  check('Kräfte schonen verbraucht weniger Fitness als Nach vorne',
     rest.fitness > atk.fitness, `${rest.fitness.toFixed(1)} gegen ${atk.fitness.toFixed(1)}`);
 
   // --- Halbzeitentscheidung (Konzept Abschnitt 18) --------------------
@@ -785,8 +786,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   log(`Halbzeitszene trat auf: ${push.sawHalftime}/${push.games} Spiele`);
   const pushTotal = push.ownShots + push.oppShots;
   const holdTotal = hold.ownShots + hold.oppShots;
-  log(`Volle Offensive:     2. Haelfte ${push.ownShots} eigene, ${push.oppShots} gegnerische (${pushTotal} gesamt)`);
-  log(`Kompakt verteidigen: 2. Haelfte ${hold.ownShots} eigene, ${hold.oppShots} gegnerische (${holdTotal} gesamt)`);
+  log(`Volle Offensive:     2. Hälfte ${push.ownShots} eigene, ${push.oppShots} gegnerische (${pushTotal} gesamt)`);
+  log(`Kompakt verteidigen: 2. Hälfte ${hold.ownShots} eigene, ${hold.oppShots} gegnerische (${holdTotal} gesamt)`);
   check('Halbzeitszene tritt bei interaktiven Spielen auf',
     push.sawHalftime > push.games * 0.8, `${push.sawHalftime}/${push.games}`);
 
@@ -809,10 +810,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   const holdMods = modsFor('hold');
   log(`Volle Offensive setzt Angriff x${pushMods.attack.toFixed(2)}, Abwehr x${pushMods.defence.toFixed(2)}`);
   log(`Kompakt setzt Angriff x${holdMods.attack.toFixed(2)}, Abwehr x${holdMods.defence.toFixed(2)}`);
-  check('Volle Offensive staerkt den Angriff und schwaecht die Abwehr',
+  check('Volle Offensive stärkt den Angriff und schwächt die Abwehr',
     pushMods.attack > 1 && pushMods.defence < 1,
     `A ${pushMods.attack.toFixed(2)}, D ${pushMods.defence.toFixed(2)}`);
-  check('Kompakt staerkt die Abwehr und schwaecht den Angriff',
+  check('Kompakt stärkt die Abwehr und schwächt den Angriff',
     holdMods.defence > 1 && holdMods.attack < 1,
     `A ${holdMods.attack.toFixed(2)}, D ${holdMods.defence.toFixed(2)}`);
 
@@ -842,7 +843,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   }
 
   const injuryMatch = upcoming.find((m) => !!prepareStarting(m.id));
-  check('Ein Spiel fuer den Verletzungstest gefunden', !!injuryMatch);
+  check('Ein Spiel für den Verletzungstest gefunden', !!injuryMatch);
   if (injuryMatch) {
     // "Auswechseln lassen" ergibt exakt die geschaetzte Ausfalldauer.
     const off = (() => {
@@ -855,7 +856,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       return out.injuries.filter((i) => i.playerId === user.id);
     })();
     log(`Auswechseln lassen: ${off.length} Verletzung(en), Tage ${off.map((i) => i.days).join(',')}`);
-    check('Auswechseln ergibt die geschaetzte Ausfalldauer',
+    check('Auswechseln ergibt die geschätzte Ausfalldauer',
       off.length === 1 && off[0].days === 20, `${off.map((i) => i.days).join(',')}`);
 
     // "Weiterspielen" ueber viele Versuche: mal glimpflich, mal schlimmer.
@@ -883,7 +884,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     check('Weiterspielen geht meistens glimpflich aus', mild > worse, `${mild} zu ${worse}`);
     check('Weiterspielen kann sich verschlimmern', worse > 0, `${worse}`);
   } else {
-    log('Kein Spiel mit dem Nutzer in der Startelf gefunden - Verletzungstest uebersprungen.');
+    log('Kein Spiel mit dem Nutzer in der Startelf gefunden - Verletzungstest übersprungen.');
   }
 
   // --- Interviews (Konzept Abschnitt 39) ------------------------------
@@ -902,7 +903,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       check('Interview bietet drei Antworten', iv.options.length === 3, `${iv.options.length}`);
       const hasTones = ['humble', 'confident', 'provocative'].every(
         (id) => iv!.options.some((o) => o.id === id));
-      check('Interview enthaelt alle drei Tonlagen', hasTones);
+      check('Interview enthält alle drei Tonlagen', hasTones);
 
       // Wirkung der bescheidenen gegen die provokante Antwort auf die Trainerbeziehung.
       // Basiswerte in die Mitte setzen, damit die Effekte nicht an 0 oder 100 anstossen.
@@ -928,7 +929,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         `Trainer ${afterProv.coach.toFixed(0)}, Image ${afterProv.image.toFixed(0)}`);
     }
   } else {
-    log('Kein gespieltes Nutzerspiel gefunden - Interviewtest uebersprungen.');
+    log('Kein gespieltes Nutzerspiel gefunden - Interviewtest übersprungen.');
   }
 
   // --- Oeffentliches Bild wirkt sich aus (Abschnitt 31) ----------------
@@ -937,7 +938,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   // und die Seitenleiste zeigt ihn als Balken. Gelesen wurde er aber lange
   // nirgends - er war eine Waehrung ohne Ware. Dieser Test haelt fest, dass er
   // wirkt: Er darf ruhig schwach wirken, aber nicht gar nicht.
-  log('\n--- Oeffentliches Bild ---');
+  log('\n--- Öffentliches Bild ---');
   {
     const gI = createNewGame({
       saveName: 'Imagetest', seed: 24680, difficulty: 'normal',
@@ -969,7 +970,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const gut = quote(90);
     log(`Nominierungsquote: Image 10 -> ${(schlecht * 100).toFixed(0)} Prozent, `
       + `Image 90 -> ${(gut * 100).toFixed(0)} Prozent`);
-    check('Ein guter Ruf senkt die Huerde zur Nationalmannschaft',
+    check('Ein guter Ruf senkt die Hürde zur Nationalmannschaft',
       gut > schlecht,
       `${(schlecht * 100).toFixed(0)} gegen ${(gut * 100).toFixed(0)} Prozent`);
     check('Der Ruf ersetzt aber keine Leistung', gut - schlecht < 0.35,
@@ -1002,7 +1003,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       `${proSpiel.toFixed(1)} Minuten`);
     check('Aber es wird auch nicht wild gewechselt', proSpiel > 60,
       `${proSpiel.toFixed(1)} Minuten`);
-    check('Auch Ersatzspieler kommen zu Einsaetzen', einwechsler > 0,
+    check('Auch Ersatzspieler kommen zu Einsätzen', einwechsler > 0,
       `${einwechsler} Spieler`);
   }
   // --- Beide Simulationstiefen im Gleichgewicht (Abschnitt 20) ---------
@@ -1064,9 +1065,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         const fremd = fremdTore / fremdSpiele;
         const punkteEigen = eigenPunkte / eigenSpiele;
         const punkteFremd = fremdPunkte / fremdTeilnahmen;
-        log(`Tore pro Spiel: eigener Verein ${eigen.toFixed(2)}, uebrige Liga ${fremd.toFixed(2)}`);
+        log(`Tore pro Spiel: eigener Verein ${eigen.toFixed(2)}, übrige Liga ${fremd.toFixed(2)}`);
         log(`Punkte pro Spiel: eigener Verein ${punkteEigen.toFixed(2)}, `
-          + `aehnlich starke Vereine ${punkteFremd.toFixed(2)} aus ${fremdTeilnahmen} Teilnahmen`);
+          + `ähnlich starke Vereine ${punkteFremd.toFixed(2)} aus ${fremdTeilnahmen} Teilnahmen`);
         check('Die volle Simulation bleibt nah an der leichten',
           eigen < fremd * 1.6, `${eigen.toFixed(2)} gegen ${fremd.toFixed(2)}`);
         // Nicht zugesichert, nur protokolliert: Ein einzelner Verein ueber
@@ -1079,7 +1080,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
           punkteEigen > 0.2 && punkteEigen < 2.8,
           `${punkteEigen.toFixed(2)}`);
       } else {
-        log('Zu wenige Ligaspiele fuer den Vergleich - uebersprungen.');
+        log('Zu wenige Ligaspiele für den Vergleich - übersprungen.');
       }
     }
   }
@@ -1111,8 +1112,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     if (rohe.size > 0) log(`Fehlende Texte: ${[...rohe].join(
 )}`);
     check('Der Ereignisvorrat ist breit genug', titel.size >= 10, `${titel.size}`);
-    check('Alle Ereignistexte sind uebersetzt', rohe.size === 0,
-      `${rohe.size} fehlende Schluessel`);
+    check('Alle Ereignistexte sind übersetzt', rohe.size === 0,
+      `${rohe.size} fehlende Schlüssel`);
     check('Jedes Ereignis stellt eine echte Wahl', ohneWahl.length === 0,
       `${ohneWahl.length} ohne Alternative`);
   }
@@ -1181,7 +1182,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
           nNeutral === 0 || nRivale > 0 || szenen < 25,
           `${nRivale} bei ${szenen} Szenen`);
       } else {
-        log('Zu wenige Passszenen fuer den Vergleich - uebersprungen.');
+        log('Zu wenige Passszenen für den Vergleich - übersprungen.');
       }
     }
   }
@@ -1214,10 +1215,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const jung = notenzielFuer('Ergaenzungsspieler');
     const stamm = notenzielFuer('Stammspieler');
     const schluessel = notenzielFuer('Schluesselspieler');
-    log(`Notenziel nach Rolle: Ergaenzung ${jung}, Stamm ${stamm}, Schluessel ${schluessel}`);
-    check('Das Notenziel haengt an der Rolle', jung < stamm && stamm < schluessel,
+    log(`Notenziel nach Rolle: Ergänzung ${jung}, Stamm ${stamm}, Schlüssel ${schluessel}`);
+    check('Das Notenziel hängt an der Rolle', jung < stamm && stamm < schluessel,
       `${jung} / ${stamm} / ${schluessel}`);
-    check('Auch das hoechste Ziel bleibt erreichbar', schluessel <= 6.9, `${schluessel}`);
+    check('Auch das höchste Ziel bleibt erreichbar', schluessel <= 6.9, `${schluessel}`);
 
     // Ein Mittelfeldspieler wird an Vorlagen gemessen, ein Stuermer an Toren.
     notenzielFuer('Stammspieler');
@@ -1228,7 +1229,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     uZ.position = 'ST';
     createObjectives(gZ);
     const artenSt = gZ.objectives.map((o) => o.kind);
-    check('Der Stuermer bekommt ein Torziel',
+    check('Der Stürmer bekommt ein Torziel',
       artenSt.includes('goals') && !artenSt.includes('assists'), artenSt.join(', '));
   }
   // --- Namensvielfalt (Abschnitt 5) ------------------------------------
@@ -1276,8 +1277,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     check('Kaum eine Liga hat zwei gleiche Namen',
       ligenMitDopplung <= Math.max(1, proLiga.size * 0.2),
       `${ligenMitDopplung} von ${proLiga.size}`);
-    check('Kein Nachname ueberwiegt', haeufigster < spieler.length * 0.01,
-      `haeufigster ${haeufigster}x`);
+    check('Kein Nachname überwiegt', haeufigster < spieler.length * 0.01,
+      `häufigster ${haeufigster}x`);
   }
   // --- Spielweise des Gegners (Abschnitt 28) ---------------------------
   //
@@ -1327,7 +1328,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         check('Der Unterschied bleibt im Rahmen', pressing < block * 1.5,
           `Faktor ${(pressing / block).toFixed(2)}`);
       } else {
-        log('Keine Szenen mit Druckwert - uebersprungen.');
+        log('Keine Szenen mit Druckwert - übersprungen.');
       }
     }
   }
@@ -1374,18 +1375,18 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       const voll = druckBei(platz, false);
       const neutral = druckBei(platz, true);
 
-      log(`Szenendruck auswaerts: leeres Rund ${leer.toFixed(3)}, `
+      log(`Szenendruck auswärts: leeres Rund ${leer.toFixed(3)}, `
         + `ausverkauft ${voll.toFixed(3)}, neutraler Platz ${neutral.toFixed(3)}`);
       if (leer > 0 && voll > 0) {
-        check('Volles Auswaertsrund macht mehr Druck', voll > leer,
+        check('Volles Auswärtsrund macht mehr Druck', voll > leer,
           `${voll.toFixed(3)} gegen ${leer.toFixed(3)}`);
         check('Der Zuschlag bleibt im Rahmen', voll - leer < 0.2,
           `+${(voll - leer).toFixed(3)}`);
-        check('Auf neutralem Platz traegt niemand ein Publikum',
+        check('Auf neutralem Platz trägt niemand ein Publikum',
           Math.abs(neutral - leer) < 0.05,
           `${neutral.toFixed(3)} gegen ${leer.toFixed(3)}`);
       } else {
-        log('Keine Szenen mit Druckwert - uebersprungen.');
+        log('Keine Szenen mit Druckwert - übersprungen.');
       }
 
       // Die Zuschauerzahl darf vor und nach dem Spiel nicht auseinanderlaufen.
@@ -1393,12 +1394,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       // zog die Abrechnung einen echten Wurf - zwei verschiedene Zahlen fuer
       // dieselbe Partie. Jetzt haengt der Wurf an der Partiekennung.
       const wurf = attendanceRoll(auswaerts.id);
-      check('Der Zuschauerwurf haengt an der Partie und wiederholt sich',
+      check('Der Zuschauerwurf hängt an der Partie und wiederholt sich',
         wurf === attendanceRoll(auswaerts.id) && wurf >= 0 && wurf < 1,
         wurf.toFixed(3));
       const andere = Object.values(game.matches)
         .slice(0, 200).map((m) => attendanceRoll(m.id));
-      check('Verschiedene Partien bekommen verschiedene Wuerfe',
+      check('Verschiedene Partien bekommen verschiedene Würfe',
         new Set(andere).size > 60, `${new Set(andere).size} von ${andere.length}`);
     }
   }
@@ -1430,13 +1431,13 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     log(`Januar: ${Object.entries(januar).map(([k, v]) => `${k} ${v}`).join(', ')}`);
     log(`Juli:   ${Object.entries(juli).map(([k, v]) => `${k} ${v}`).join(', ')}`);
 
-    check('Im Januar faellt Schnee, im Juli nicht',
+    check('Im Januar fällt Schnee, im Juli nicht',
       (januar.snow ?? 0) > 0 && (juli.snow ?? 0) === 0,
       `Januar ${januar.snow ?? 0}, Juli ${juli.snow ?? 0}`);
     check('Hitze gibt es im Juli, im Januar nicht',
       (juli.heat ?? 0) > 0 && (januar.heat ?? 0) === 0,
       `Juli ${juli.heat ?? 0}, Januar ${januar.heat ?? 0}`);
-    check('Ueber ein Jahr kommen mindestens sieben Wetterlagen vor',
+    check('Über ein Jahr kommen mindestens sieben Wetterlagen vor',
       new Set([...Object.keys(januar), ...Object.keys(juli),
         ...Object.keys(zaehle(4)), ...Object.keys(zaehle(10))]).size >= 7,
       `${new Set([...Object.keys(januar), ...Object.keys(juli),
@@ -1470,10 +1471,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       };
       const sonne = quoteBei('clear');
       const schnee = quoteBei('snow');
-      log(`Schuesse aufs Tor: bei Sonne ${(sonne * 100).toFixed(1)} %, `
+      log(`Schüsse aufs Tor: bei Sonne ${(sonne * 100).toFixed(1)} %, `
         + `bei Schneefall ${(schnee * 100).toFixed(1)} %`);
       if (sonne > 0 && schnee > 0) {
-        check('Im Schnee kommen weniger Schuesse aufs Tor', schnee < sonne,
+        check('Im Schnee kommen weniger Schüsse aufs Tor', schnee < sonne,
           `${(schnee * 100).toFixed(1)} % gegen ${(sonne * 100).toFixed(1)} %`);
         check('Das Wetter entscheidet die Partie nicht', schnee > sonne * 0.7,
           `Faktor ${(schnee / sonne).toFixed(2)}`);
@@ -1502,9 +1503,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       namen.add(r.name);
     }
     log(`Spielarten: ${Object.entries(stile).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-    check('Alle fuenf Spielarten kommen vor', Object.keys(stile).length === 5,
+    check('Alle fünf Spielarten kommen vor', Object.keys(stile).length === 5,
       `${Object.keys(stile).length}`);
-    check('Der unauffaellige Schiedsrichter bleibt der Normalfall',
+    check('Der unauffällige Schiedsrichter bleibt der Normalfall',
       (stile.balanced ?? 0) > partien.length * 0.35,
       `${stile.balanced ?? 0} von ${partien.length}`);
     check('Es gibt viele verschiedene Namen', namen.size > 40, `${namen.size}`);
@@ -1553,11 +1554,11 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
 
       for (const [name, w] of [
         ['unauffaellig', normal], ['kleinlich', streng],
-        ['laesst laufen', milde], ['publikumsnah', nah],
+        ['lässt laufen', milde], ['publikumsnah', nah],
       ] as [string, typeof normal][]) {
         log(`${name.padEnd(14)} ${w.fouls.toFixed(1)} Fouls, `
           + `${w.gelb.toFixed(1)} Gelb, ${w.rot.toFixed(2)} Rot, `
-          + `${(w.anteil * 100).toFixed(0)} % gegen die Gaeste`);
+          + `${(w.anteil * 100).toFixed(0)} % gegen die Gäste`);
       }
 
       check('Der Kleinliche pfeift mehr als der Milde',
@@ -1566,10 +1567,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       check('Der Kleinliche verwarnt mehr als der Milde',
         streng.gelb > milde.gelb,
         `${streng.gelb.toFixed(1)} gegen ${milde.gelb.toFixed(1)}`);
-      check('Der Unauffaellige liegt dazwischen',
+      check('Der Unauffällige liegt dazwischen',
         normal.gelb > milde.gelb && normal.gelb < streng.gelb,
         `${normal.gelb.toFixed(1)}`);
-      check('Der Publikumsnahe pfeift eher gegen die Gaeste',
+      check('Der Publikumsnahe pfeift eher gegen die Gäste',
         nah.anteil > normal.anteil + 0.08,
         `${(nah.anteil * 100).toFixed(0)} % gegen ${(normal.anteil * 100).toFixed(0)} %`);
       check('Auch er bleibt unter drei Vierteln', nah.anteil < 0.78,
@@ -1590,7 +1591,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       // ein so seltenes Ereignis wie einen Platzverweis zu wenig - dieselbe
       // Lehre wie bei der Punkteausbeute und beim Modusvergleich.
       const rotSchnitt = (normal.rot + streng.rot + milde.rot + nah.rot) / 4;
-      log(`Platzverweise je Spiel: ${rotSchnitt.toFixed(2)} im Mittel ueber `
+      log(`Platzverweise je Spiel: ${rotSchnitt.toFixed(2)} im Mittel über `
         + `alle vier Spielarten`);
       check('Der Milde stellt seltener vom Platz als der Kleinliche',
         milde.rot < streng.rot,
@@ -1616,9 +1617,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     // wie vorher. Das laesst sich genau pruefen statt nur zu messen.
     const gleich = { ...user.attrs } as Attributes;
     for (const k of ALL_ATTRS) gleich[k] = 70;
-    check('Tempo behaelt den Massstab', Math.abs(tempo(gleich) - 70) < 0.001,
+    check('Tempo behält den Maßstab', Math.abs(tempo(gleich) - 70) < 0.001,
       tempo(gleich).toFixed(3));
-    check('Zweikampfstaerke behaelt den Massstab',
+    check('Zweikampfstärke behält den Maßstab',
       Math.abs(defensiveSkill(gleich) - 70) < 0.001, defensiveSkill(gleich).toFixed(3));
 
     // Ganze Partien sind hier das falsche Messgeraet: der Testspieler ist
@@ -1660,7 +1661,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         { marking: 95, interception: 95, pressing: 95, defPositioning: 95 }, 'duel');
       log(`Zweikampf bei Deckung 30 gegen 95: ${(schwach * 100).toFixed(1)} % `
         + `gegen ${(stark * 100).toFixed(1)} %`);
-      check('Deckung und Abfangen entscheiden Zweikaempfe mit',
+      check('Deckung und Abfangen entscheiden Zweikämpfe mit',
         stark > schwach + 0.05,
         `${(stark * 100).toFixed(1)} % gegen ${(schwach * 100).toFixed(1)} %`);
 
@@ -1705,7 +1706,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const gleich = { ...user.attrs } as Attributes;
     for (const k of ALL_ATTRS) gleich[k] = 70;
     const lagen: KeeperSituation[] = ['shot', 'longShot', 'header', 'oneOnOne'];
-    check('Torwartstaerke behaelt in jeder Lage den Massstab',
+    check('Torwartstärke behält in jeder Lage den Maßstab',
       lagen.every((l) => Math.abs(keeperSkill(gleich, l) - 70) < 0.001),
       lagen.map((l) => keeperSkill(gleich, l).toFixed(1)).join(', '));
 
@@ -1717,12 +1718,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       crossHandling: 38, communication: 44, gkPositioning: 74,
       oneOnOne: 92, rushingOut: 90 } as Attributes;
 
-    log(`Flankenpfluecker: Kopfball ${keeperSkill(flanken, 'header').toFixed(1)}, `
+    log(`Flankenpflücker: Kopfball ${keeperSkill(flanken, 'header').toFixed(1)}, `
       + `Eins gegen eins ${keeperSkill(flanken, 'oneOnOne').toFixed(1)}`);
     log(`Eins-gegen-eins-Mann: Kopfball ${keeperSkill(duell, 'header').toFixed(1)}, `
       + `Eins gegen eins ${keeperSkill(duell, 'oneOnOne').toFixed(1)}`);
 
-    check('Der Flankenpfluecker ist bei Koepfen stark, im Duell schwach',
+    check('Der Flankenpflücker ist bei Köpfen stark, im Duell schwach',
       keeperSkill(flanken, 'header') > keeperSkill(flanken, 'oneOnOne') + 15,
       `${keeperSkill(flanken, 'header').toFixed(1)} gegen `
       + `${keeperSkill(flanken, 'oneOnOne').toFixed(1)}`);
@@ -1840,7 +1841,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
           if (p) Object.assign(p.attrs, werte);
         }
 
-        check('Beide Profile haben dieselbe Gesamtstaerke',
+        check('Beide Profile haben dieselbe Gesamtstärke',
           computeOverall(profilA, 'TW') === computeOverall(profilB, 'TW'),
           `${computeOverall(profilA, 'TW')} und ${computeOverall(profilB, 'TW')}`);
 
@@ -1849,7 +1850,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
             .filter((k) => w.faelle[k])
             .map((k) => `${k} ${(w.quote[k] * 100).toFixed(1)} % (${w.faelle[k]})`)
             .join(', ');
-        log(`Verwertung gegen den Flankenpfluecker:    ${zeige(gegenFlanken)}`);
+        log(`Verwertung gegen den Flankenpflücker:    ${zeige(gegenFlanken)}`);
         log(`Verwertung gegen den Eins-gegen-eins-Mann: ${zeige(gegenDuell)}`);
 
         // Dass die Formel spreizt, heisst noch nicht, dass die Spielmaschine
@@ -1870,9 +1871,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
           (w.quote.oneOnOne ?? 0) / Math.max(0.01, w.quote.header ?? 0);
         log(`Duell zu Kopfball: ${verhaeltnis(gegenFlanken).toFixed(2)} gegen `
           + `${verhaeltnis(gegenDuell).toFixed(2)}`);
-        log(`Koepfe und Duelle in der Stichprobe: `
+        log(`Köpfe und Duelle in der Stichprobe: `
           + `${gegenFlanken.faelle.header ?? 0} und ${gegenFlanken.faelle.oneOnOne ?? 0} `
-          + '- zu wenig fuer eine Zusicherung, nur protokolliert.');
+          + '- zu wenig für eine Zusicherung, nur protokolliert.');
       }
     }
   }
@@ -1896,9 +1897,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       // naechsten eigenen Spiel.
       const ohne = advanceUntil(ziel, { eigeneSimulieren: false });
       log(`Ohne eigene Spiele: ${ohne.days} Tage, Grund ${ohne.grund}`);
-      check('Der Sprung geht nie rueckwaerts', !isBefore(game.date, start),
+      check('Der Sprung geht nie rückwärts', !isBefore(game.date, start),
         `${start} -> ${game.date}`);
-      check('Der Sprung ueberschiesst das Ziel nicht',
+      check('Der Sprung überschießt das Ziel nicht',
         !isAfter(game.date, ziel), `${game.date} gegen ${ziel}`);
       check('Ohne Simulation bleiben eigene Spiele ungespielt',
         ohne.eigeneSpiele.length === 0, `${ohne.eigeneSpiele.length}`);
@@ -1925,7 +1926,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
           new Set(mit.eigeneSpiele.map((p) => p.matchId)).size
             === mit.eigeneSpiele.length);
       } else {
-        log('Keine eigenen Partien im Zeitraum - Teil uebersprungen.');
+        log('Keine eigenen Partien im Zeitraum - Teil übersprungen.');
       }
 
       // Der Trainingszuwachs kam aus einer Liste von Eintraegen, nicht aus
@@ -1934,11 +1935,11 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       // Geprueft am zweiten Sprung, der lang genug ist; ein eigener dritter
       // Sprung lief oft nur wenige Tage und die Zusicherung ins Leere.
       if (mit.days >= 14) {
-        check('Der Trainingszuwachs wird tatsaechlich gezaehlt',
+        check('Der Trainingszuwachs wird tatsächlich gezählt',
           mit.trainingsPlus > 0,
           `+${mit.trainingsPlus} in ${mit.days} Tagen`);
       } else {
-        log('Sprung zu kurz fuer eine Trainingswoche - Teil uebersprungen.');
+        log('Sprung zu kurz für eine Trainingswoche - Teil übersprungen.');
       }
 
       // Ein Ziel in der Vergangenheit darf nichts tun.
@@ -1954,9 +1955,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       const saison = advanceSeason();
       log(`Saisonsprung: ${saison.days} Tage, ${saison.eigeneSpiele.length} `
         + `eigene Partien, ${saison.tore} Tore, Grund ${saison.grund}, `
-        + `Staerke ${saison.staerkeVorher} auf ${saison.staerkeNachher}`);
+        + `Stärke ${saison.staerkeVorher} auf ${saison.staerkeNachher}`);
 
-      check('Der Saisonsprung deckt einen grossen Teil des Jahres ab',
+      check('Der Saisonsprung deckt einen großen Teil des Jahres ab',
         saison.days > 150, `${saison.days} Tage`);
       check('Er endet am Saisonende oder am Karriereende',
         saison.grund === 'saison' || saison.grund === 'ende'
@@ -1965,7 +1966,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       check('Ereignisse halten ihn nicht auf', saison.lifeEvent === null);
       check('Eigene Spiele halten ihn nicht auf', saison.matchToPlay === null);
       if (saison.eigeneSpiele.length > 10) {
-        check('Ueber eine Saison kommen viele eigene Partien zusammen',
+        check('Über eine Saison kommen viele eigene Partien zusammen',
           saison.eigeneSpiele.length >= 20, `${saison.eigeneSpiele.length}`);
         check('Alle simulierten Partien sind hinterher gespielt',
           saison.eigeneSpiele.every((p) => game.matches[p.matchId]?.played));
@@ -1977,7 +1978,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
 
       // Der Bogen der Laufbahn gehoert in den Bericht - sonst waere eine
       // ganze Saison ein schwarzes Loch.
-      check('Der Bericht traegt Staerke und Potenzial',
+      check('Der Bericht trägt Stärke und Potenzial',
         saison.staerkeVorher > 0 && saison.potenzialVorher > 0,
         `${saison.staerkeVorher}/${saison.potenzialVorher}`);
     } finally {
@@ -2000,7 +2001,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const schnitt = summe / 95;
     check('Die Minutenkurve verteilt nur um', Math.abs(schnitt - 1) < 0.02,
       `Mittel ${schnitt.toFixed(3)}`);
-    check('Spaet ist mehr los als frueh',
+    check('Spät ist mehr los als früh',
       minutenGewicht(85) > minutenGewicht(5) * 1.5,
       `${minutenGewicht(5).toFixed(2)} gegen ${minutenGewicht(85).toFixed(2)}`);
 
@@ -2053,7 +2054,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         log(`Tore je Viertelstunde: ${anteile.map((a) => a.toFixed(1)).join(', ')} %`);
         const ersteHaelfte = anteile[0] + anteile[1] + anteile[2];
         const zweiteHaelfte = anteile[3] + anteile[4] + anteile[5];
-        check('In der zweiten Haelfte fallen mehr Tore',
+        check('In der zweiten Hälfte fallen mehr Tore',
           zweiteHaelfte > ersteHaelfte,
           `${zweiteHaelfte.toFixed(1)} % gegen ${ersteHaelfte.toFixed(1)} %`);
         check('Die letzte Viertelstunde ist die torreichste',
@@ -2074,12 +2075,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         log(`Chancen je Spiel: ${mittel.toFixed(1)} im Mittel, `
           + `Streuung ${Math.sqrt(varianz).toFixed(2)}, `
           + `Dispersion ${(varianz / mittel).toFixed(2)} `
-          + '(nur protokolliert, Referenz 1,26 ueber 120 Partien)');
+          + '(nur protokolliert, Referenz 1,26 über 120 Partien)');
 
         check('Die Phasen stehen auch im Ticker', phasenzeilen > laeufe,
           `${phasenzeilen} Zeilen in ${laeufe} Partien`);
       } else {
-        log('Zu wenige Tore fuer eine Verteilung - uebersprungen.');
+        log('Zu wenige Tore für eine Verteilung - übersprungen.');
       }
     }
   }
@@ -2135,7 +2136,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       check('Unter der Woche kommen weniger Leute', w < e, `${w.toFixed(3)} gegen ${e.toFixed(3)}`);
       check('Der Unterschied bleibt schmal', e - w < 0.2, `${(e - w).toFixed(3)}`);
     } else {
-      log('Zu wenige Partien je Gruppe - Kulissenteil uebersprungen.');
+      log('Zu wenige Partien je Gruppe - Kulissenteil übersprungen.');
     }
   }
   // --- Aufstellung und Torzeilen (Abschnitt 37) -------------------------
@@ -2209,12 +2210,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     if (unterlegen > 50 && ueberlegen > 50) {
       const u = unterlegenDefensiv / unterlegen;
       const o = ueberlegenDefensiv / ueberlegen;
-      log(`Nach hinten orientiert: ${(u * 100).toFixed(1)} % als Aussenseiter, `
+      log(`Nach hinten orientiert: ${(u * 100).toFixed(1)} % als Außenseiter, `
         + `${(o * 100).toFixed(1)} % als Favorit`);
-      check('Aussenseiter stellen sich haeufiger nach hinten', u > o,
+      check('Außenseiter stellen sich häufiger nach hinten', u > o,
         `${(u * 100).toFixed(1)} % gegen ${(o * 100).toFixed(1)} %`);
     } else {
-      log('Zu wenige klare Kraefteverhaeltnisse - Vergleich uebersprungen.');
+      log('Zu wenige klare Kräfteverhältnisse - Vergleich übersprungen.');
     }
 
     // Die Torzeile nach Art der Situation. Geprueft wird, dass wirklich
@@ -2250,7 +2251,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       // `tVariant` auf einen fehlenden Schluessel zurueck und im Ticker steht
       // der rohe Name.
       for (const art of ['header', 'longShot', 'oneOnOne', 'close', 'normal']) {
-        check(`Die Torzeilen fuer ${art} sind vorhanden`,
+        check(`Die Torzeilen für ${art} sind vorhanden`,
           t(`live.goal.${art}.1`) !== `live.goal.${art}.1`);
       }
     }
@@ -2284,17 +2285,17 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const ohneZeit = verlauf(6.6, 18, 10);
     const spaet = verlauf(7.6, 29, 85);
 
-    log(`Potenzial ab 74 nach drei Saisons: stark ${stark}, erwartungsgemaess `
+    log(`Potenzial ab 74 nach drei Saisons: stark ${stark}, erwartungsgemäß `
       + `${erwartet}, schwach ${schwach}, ohne Spielzeit ${ohneZeit}, `
       + `mit 29 trotz starker Leistung ${spaet}`);
 
     check('Starke Leistungen heben das Potenzial', stark > 74, `${stark}`);
     check('Schwache Leistungen senken es', schwach < 74, `${schwach}`);
-    check('Wer erwartungsgemaess spielt, bleibt in der Naehe',
+    check('Wer erwartungsgemäß spielt, bleibt in der Nähe',
       Math.abs(erwartet - 74) <= 3, `${erwartet}`);
     check('Ohne Spielzeit sinkt es auch bei guter Note', ohneZeit < 74,
       `${ohneZeit}`);
-    check('Mit geschlossenem Fenster geht es nur noch abwaerts', spaet < 74,
+    check('Mit geschlossenem Fenster geht es nur noch abwärts', spaet < 74,
       `${spaet}`);
     // Der Ausschlag muss klein bleiben: ein erster Anlauf hob das Potenzial
     // in derselben Zeit von 74 auf 97 und liess es bei schwacher Leistung auf
@@ -2334,19 +2335,19 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const oben = bau({ startLevel: 1 });
     const unten = bau({ startLevel: 3 });
 
-    log(`Start ohne Optionen: Staerke ${ohne.staerke}, Potenzial ${ohne.potenzial}, `
+    log(`Start ohne Optionen: Stärke ${ohne.staerke}, Potenzial ${ohne.potenzial}, `
       + `Liga ${ohne.level}`);
-    log(`Mit zwoelf Punkten: Staerke ${mitPunkten.staerke}; `
-      + `frueh ${frueh.staerke}/${frueh.potenzial}, `
-      + `spaet ${spaeter.staerke}/${spaeter.potenzial}`);
+    log(`Mit zwölf Punkten: Stärke ${mitPunkten.staerke}; `
+      + `früh ${frueh.staerke}/${frueh.potenzial}, `
+      + `spät ${spaeter.staerke}/${spaeter.potenzial}`);
 
-    check('Verteilte Punkte machen den Spieler staerker',
+    check('Verteilte Punkte machen den Spieler stärker',
       mitPunkten.staerke > ohne.staerke,
       `${mitPunkten.staerke} gegen ${ohne.staerke}`);
-    check('Der Frueh­entwickler startet staerker als der Spaetzuender',
+    check('Der Früh­entwickler startet stärker als der Spätzünder',
       frueh.staerke > spaeter.staerke,
       `${frueh.staerke} gegen ${spaeter.staerke}`);
-    check('Die gewaehlte Startliga wird genommen',
+    check('Die gewählte Startliga wird genommen',
       oben.level === 1 && unten.level === 3,
       `${oben.level} und ${unten.level}`);
     check('Ohne Angabe entscheidet weiter die Herkunft', ohne.level >= 1,
@@ -2375,15 +2376,15 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   log('\n--- Eigene Entscheidungen ---');
   {
     // Die Faktoren selbst - exakt pruefbar, ohne eine Karriere zu spielen.
-    check('Der Profi entwickelt sich schneller als der Nachtschwaermer',
+    check('Der Profi entwickelt sich schneller als der Nachtschwärmer',
       LIFESTYLE.professional.growth > LIFESTYLE.nightlife.growth,
       `${LIFESTYLE.professional.growth} gegen ${LIFESTYLE.nightlife.growth}`);
-    check('Dafuer kommt er oeffentlich weniger vor',
+    check('Dafür kommt er öffentlich weniger vor',
       LIFESTYLE.professional.image < LIFESTYLE.nightlife.image,
       `${LIFESTYLE.professional.image} gegen ${LIFESTYLE.nightlife.image}`);
     check('Und er erholt sich besser',
       LIFESTYLE.professional.recovery > LIFESTYLE.nightlife.recovery);
-    check('Das Nachtleben ist verletzungsanfaelliger',
+    check('Das Nachtleben ist verletzungsanfälliger',
       LIFESTYLE.nightlife.injury > LIFESTYLE.professional.injury);
 
     // Zusatzeinheiten: der Gewinn waechst langsamer als der Preis, sonst
@@ -2397,7 +2398,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       `+${(eine.growth - 1).toFixed(2)} dann +${(zwei.growth - eine.growth).toFixed(2)}`);
     check('Und sie kostet mehr', zwei.injury - eine.injury > eine.injury - 1,
       `+${(eine.injury - 1).toFixed(2)} dann +${(zwei.injury - eine.injury).toFixed(2)}`);
-    check('Der Deckel haelt',
+    check('Der Deckel hält',
       extraSessionEffect(99).growth === zwei.growth);
 
     // Und jetzt gespielt: zwei Karrieren, gleiche Wuerfel, nur die Wahl
@@ -2442,17 +2443,17 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const nacht = lauf({ lifestyle: 'nightlife' }, tage);
     const zusatz = lauf({ lifestyle: 'balanced', extraSessions: 2 }, tage);
 
-    log(`Ueber ${tage} Tage - Attributplus: Profi ${profi.plus}, `
+    log(`Über ${tage} Tage - Attributplus: Profi ${profi.plus}, `
       + `ausgewogen ${mitte.plus}, Nachtleben ${nacht.plus}, `
       + `mit zwei Zusatzeinheiten ${zusatz.plus}`);
-    log(`Oeffentliches Bild: ${Math.round(profi.image)} / `
+    log(`Öffentliches Bild: ${Math.round(profi.image)} / `
       + `${Math.round(mitte.image)} / ${Math.round(nacht.image)}`);
     log(`Fitness im Mittel ohne und mit Zusatzeinheiten: `
       + `${mitte.fitness.toFixed(1)} gegen ${zusatz.fitness.toFixed(1)}`);
 
     check('Der Profi entwickelt sich in der Praxis am meisten',
       profi.plus > nacht.plus, `${profi.plus} gegen ${nacht.plus}`);
-    check('Sein oeffentliches Bild bleibt dafuer zurueck',
+    check('Sein öffentliches Bild bleibt dafür zurück',
       profi.image < nacht.image,
       `${Math.round(profi.image)} gegen ${Math.round(nacht.image)}`);
     // Der Wachstumsfaktor selbst ist oben exakt geprueft. Ueber eine ganze
@@ -2461,10 +2462,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     // Einsatzzeit entwickelt sich niemand. Genau das ist der Tausch, der
     // gewollt war - eine Zusicherung darauf waere die Behauptung, es gaebe
     // ihn nicht.
-    log(`Zusatzeinheiten ueber ${tage} Tage: Attributplus ${zusatz.plus} `
+    log(`Zusatzeinheiten über ${tage} Tage: Attributplus ${zusatz.plus} `
       + `gegen ${mitte.plus} ohne - der Fitnessverlust kann den Gewinn `
       + `aufzehren.`);
-    check('Und sie machen sichtbar mueder',
+    check('Und sie machen sichtbar müder',
       zusatz.fitness < mitte.fitness - 2,
       `${zusatz.fitness.toFixed(1)} gegen ${mitte.fitness.toFixed(1)}`);
 
@@ -2477,7 +2478,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     if (ohne && mit) {
       log(`Elfmeterstand: ohne Forderung fehlen ${ohne.gap}, mit Forderung `
         + `${mit.gap}`);
-      check('Die Forderung bringt den Spieler naeher an den Ball',
+      check('Die Forderung bringt den Spieler näher an den Ball',
         mit.gap <= ohne.gap && (mit.takes || mit.gap < ohne.gap),
         `${ohne.gap} auf ${mit.gap}`);
     }
@@ -2521,9 +2522,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     if (gross > 20 && klein > 20) {
       const g = grossDefensiv / gross;
       const k = kleinDefensiv / klein;
-      log(`Defensive Ausrichtung: grosse Vereine ${(g * 100).toFixed(1)} %, `
+      log(`Defensive Ausrichtung: große Vereine ${(g * 100).toFixed(1)} %, `
         + `kleine ${(k * 100).toFixed(1)} %`);
-      check('Kleine Vereine stehen haeufiger tief als grosse', k > g,
+      check('Kleine Vereine stehen häufiger tief als große', k > g,
         `${(k * 100).toFixed(1)} % gegen ${(g * 100).toFixed(1)} %`);
     }
 
@@ -2544,7 +2545,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     }
     log(`Ereignisse: ${gesehen.size} verschiedene in 600 Ziehungen`);
     check('Es gibt reichlich Ereignisse', gesehen.size >= 24, `${gesehen.size}`);
-    check('Kein Ereignis zeigt einen rohen Schluessel', fehlend === 0,
+    check('Kein Ereignis zeigt einen rohen Schlüssel', fehlend === 0,
       `${fehlend} Stellen`);
   }
   // --- Spielerstaerken (Abschnitt 41) -----------------------------------
@@ -2556,7 +2557,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   // Staerken werden nicht gewaehlt, sondern verdient: Anlage **und**
   // Nachweis muessen zusammenkommen. Genau das wird hier geprueft - und
   // dass die Wirkung nicht nur in einer Tabelle steht.
-  log('\n--- Spielerstaerken ---');
+  log('\n--- Spielerstärken ---');
   {
     const kopie = { ...user, attrs: { ...user.attrs } } as Player;
     const leer = { ...emptySeasonStats(user.id, 0, '', '') };
@@ -2565,7 +2566,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     kopie.attrs.freeKicks = 40;
     const vieleSpiele = { ...leer, goals: 60, appearances: 200, shots: 300, motm: 30 };
     const probeState = { ...game, traits: [] } as GameState;
-    check('Ohne Anlage keine Staerke',
+    check('Ohne Anlage keine Stärke',
       !neueStaerken(probeState, kopie, vieleSpiele).includes('freeKickSpecialist'));
 
     // Und ohne Nachweis nuetzt die Anlage nichts.
@@ -2575,13 +2576,13 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
 
     // Beides zusammen: dann schon.
     const verdient = neueStaerken(probeState, kopie, vieleSpiele);
-    log(`Mit Anlage und Nachweis verdient: ${verdient.length} Staerken`);
-    check('Anlage und Nachweis zusammen ergeben eine Staerke',
+    log(`Mit Anlage und Nachweis verdient: ${verdient.length} Stärken`);
+    check('Anlage und Nachweis zusammen ergeben eine Stärke',
       verdient.includes('freeKickSpecialist'), verdient.join(', '));
 
     // Eine erworbene Staerke kommt nicht ein zweites Mal.
     const schon = { ...game, traits: ['freeKickSpecialist'] } as GameState;
-    check('Eine Staerke wird nur einmal vergeben',
+    check('Eine Stärke wird nur einmal vergeben',
       !neueStaerken(schon, kopie, vieleSpiele).includes('freeKickSpecialist'));
 
     // Die Wirkung darf nicht nur in einer Tabelle stehen.
@@ -2593,10 +2594,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     log(`Wirkung: Kopfball ${mit.header.toFixed(2)}, Fernschuss `
       + `${mit.longShot.toFixed(2)}, Abschluss ${mit.finish.toFixed(2)}, `
       + `Verletzungsrisiko ${mit.injury.toFixed(2)}, Druck ${mit.pressure.toFixed(2)}`);
-    check('Staerken verbessern, was sie versprechen',
+    check('Stärken verbessern, was sie versprechen',
       mit.header > ohne.header && mit.longShot > ohne.longShot
       && mit.finish > ohne.finish);
-    check('Unverwuestlich senkt das Verletzungsrisiko', mit.injury < ohne.injury,
+    check('Unverwüstlich senkt das Verletzungsrisiko', mit.injury < ohne.injury,
       `${mit.injury.toFixed(2)}`);
     check('Nervenstark nimmt Druck', mit.pressure < ohne.pressure,
       `${mit.pressure.toFixed(2)}`);
@@ -2614,8 +2615,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       if (beschreibung.startsWith('trait.')) ohneText++;
       if (meldung.startsWith('trait.')) ohneText++;
     }
-    check('Alle Staerken haben ihre Texte', ohneText === 0,
-      `${TRAITS.length} Staerken, ${ohneText} fehlende Stellen`);
+    check('Alle Stärken haben ihre Texte', ohneText === 0,
+      `${TRAITS.length} Stärken, ${ohneText} fehlende Stellen`);
   }
   // --- Lage und Spielmomente (Abschnitt 42) -----------------------------
   //
@@ -2690,9 +2691,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       log(`Je Spiel: ${(ecken / partien).toFixed(1)} Ecken, `
         + `${(abseits / partien).toFixed(2)} Abseitsentscheidungen, `
         + `${(aluminium / partien).toFixed(2)} Aluminiumtreffer`);
-      check('Ecken kommen regelmaessig vor', ecken / partien > 1.5,
+      check('Ecken kommen regelmäßig vor', ecken / partien > 1.5,
         `${(ecken / partien).toFixed(1)} je Spiel`);
-      check('Aber nicht im Uebermass', ecken / partien < 14,
+      check('Aber nicht im Übermaß', ecken / partien < 14,
         `${(ecken / partien).toFixed(1)} je Spiel`);
       check('Abseits und Aluminium bleiben Ausnahmen',
         abseits / partien < 2 && aluminium / partien < 3,
@@ -2710,7 +2711,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     log(`Sechs Werte: ${feld.map((w) => `${t(summaryLabelKey(w.key))} ${w.value}`)
       .join(', ')}`);
     check('Die Karte zeigt sechs Werte', feld.length === 6, `${feld.length}`);
-    check('Alle liegen im gueltigen Bereich',
+    check('Alle liegen im gültigen Bereich',
       feld.every((w) => w.value >= 1 && w.value <= 99),
       feld.map((w) => w.value).join(', '));
 
@@ -2718,7 +2719,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     // Dribbling nichts, Reflexe und Herauslaufen dagegen alles.
     const keeper = { ...user, position: 'TW' } as Player;
     const keeperFeld = summaryValues(keeper.attrs, 'TW');
-    check('Torhueter bekommen eine eigene Reihe',
+    check('Torhüter bekommen eine eigene Reihe',
       keeperFeld.length === 6
       && keeperFeld.every((w) => !feld.some((f) => f.key === w.key)),
       keeperFeld.map((w) => w.key).join(', '));
@@ -2737,8 +2738,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const alleSchluessel = [...feld, ...keeperFeld].map((w) => w.key);
     const ohneText = alleSchluessel.filter(
       (k) => t(summaryLabelKey(k)).startsWith('summary.'));
-    check('Alle Kuerzel haben ihren Text', ohneText.length === 0,
-      ohneText.join(', ') || `${alleSchluessel.length} geprueft`);
+    check('Alle Kürzel haben ihren Text', ohneText.length === 0,
+      ohneText.join(', ') || `${alleSchluessel.length} geprüft`);
   }
   // --- Der Block hat einen Ort (Abschnitt 44) ---------------------------
   //
@@ -2776,12 +2777,12 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       // Und er steht vor dem Schuetzen, nicht dem Torwart vor den Fuessen.
       if (r.block.y < eng.distance - 9.5 || r.block.y > eng.distance - 0.5) falscheTiefe++;
     }
-    log(`Bloecke in 600 Schuessen: ${bloecke}`);
-    check('Es kommt ueberhaupt zu Bloecken', bloecke > 20, `${bloecke}`);
+    log(`Blöcke in 600 Schüssen: ${bloecke}`);
+    check('Es kommt überhaupt zu Blöcken', bloecke > 20, `${bloecke}`);
     check('Jeder Block hat eine Stelle', ohneOrt === 0, `${ohneOrt} ohne Ort`);
-    check('Kein Block ueber Kopfhoehe', ausserReichweite === 0,
+    check('Kein Block über Kopfhöhe', ausserReichweite === 0,
       `${ausserReichweite} zu hoch`);
-    check('Der Blocker steht vor dem Schuetzen', falscheTiefe === 0,
+    check('Der Blocker steht vor dem Schützen', falscheTiefe === 0,
       `${falscheTiefe} falsch`);
 
     // Ein Ball, der auf dem ganzen Weg ueber Kopfhoehe fliegt, ist nicht zu
@@ -2805,7 +2806,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     };
     const gelupft = findBlock(ueberKopf, { ...eng }, new Rng(7));
     const gerollt = findBlock(flach, { ...eng }, new Rng(7));
-    check('Ein Ball ueber Kopfhoehe laesst sich nicht blocken',
+    check('Ein Ball über Kopfhöhe lässt sich nicht blocken',
       gelupft === null,
       gelupft === null ? 'nicht blockbar' : `blockbar bei z=${gelupft.z.toFixed(2)}`);
     check('Ein flacher Ball dagegen schon', gerollt !== null,
@@ -2835,8 +2836,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const abstandHoch = quote(bahnGehoben, 0.2);
     const druckFlach = quote(bahnFlach, 0.95);
     const druckHoch = quote(bahnGehoben, 0.95);
-    log(`Bloecke je 400 - abstehend ${abstandFlach} flach gegen ${abstandHoch} angehoben,`
-      + ` bedraengt ${druckFlach} gegen ${druckHoch}`);
+    log(`Blöcke je 400 - abstehend ${abstandFlach} flach gegen ${abstandHoch} angehoben,`
+      + ` bedrängt ${druckFlach} gegen ${druckHoch}`);
     check('Anheben hilft, wenn der Verteidiger absteht',
       abstandHoch < abstandFlach - 40,
       `${abstandFlach} gegen ${abstandHoch}`);
@@ -2851,7 +2852,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const platt = resolveShot(
       { aimX: 0, aimY: 0, power: 0.8, contactX: 0, contactY: 0.2 },
       freistoss, schuetze, DIFFICULTY_SETTINGS.normal, new Rng(11));
-    log(`Platter Freistoss: ${platt.outcome}` +
+    log(`Platter Freistoß: ${platt.outcome}` +
       (platt.block ? ` (${platt.block.kind} bei z=${platt.block.z.toFixed(2)})` : ''));
     check('Ein Mauerblock meldet sich als Mauer',
       platt.outcome !== 'blocked' || platt.block?.kind === 'wall',
@@ -2866,8 +2867,128 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       'ba.miss.underneath', 'ba.miss.overTheBar', 'ba.miss.curved', 'ba.miss.wide',
     ];
     const ohneText = gruende.filter((k) => t(k) === k || t(k).startsWith('ba.'));
-    check('Alle Schussgruende haben ihren Text', ohneText.length === 0,
-      ohneText.join(', ') || `${gruende.length} geprueft`);
+    check('Alle Schussgründe haben ihren Text', ohneText.length === 0,
+      ohneText.join(', ') || `${gruende.length} geprüft`);
+  }
+  // --- Die Uhr und der verlorene Ball (Abschnitt 45) ---------------------
+  //
+  // Frueher fiel beim Ablaufen der Uhr ein ueberhasteter Abschluss: man
+  // verlor Zeit, aber nie den Ball. Damit war die Uhr eine Empfehlung.
+  // Jetzt ist der Ball weg - und dafuer laeuft sie deutlich laenger.
+  log('\n--- Die Uhr und der verlorene Ball ---');
+  {
+    const lage = (druck: number) => ({
+      id: 'u', kind: 'shot' as const, minute: 50, title: 'T', hint: '',
+      distance: 16, offset: 0, pressure: druck, keeper: 60, opponent: 60,
+      xg: 0.2, bigChance: false, scoreline: [0, 0] as [number, number],
+      homeName: 'A', awayName: 'B', userSide: 'home' as const,
+    });
+    const normal = DIFFICULTY_SETTINGS.normal;
+    const ruhig = pressureSeconds(lage(0), normal);
+    const hektisch = pressureSeconds(lage(1), normal);
+    log(`Bedenkzeit: ohne Druck ${ruhig.toFixed(1)} s, unter vollem Druck `
+      + `${hektisch.toFixed(1)} s`);
+    check('Auch unter vollem Druck bleibt echte Bedenkzeit', hektisch >= 5.5,
+      `${hektisch.toFixed(1)} s`);
+    check('Mehr Gegnerdruck bedeutet weniger Zeit', hektisch < ruhig,
+      `${ruhig.toFixed(1)} gegen ${hektisch.toFixed(1)}`);
+    // Bei ruhendem Ball wartet der Gegner - keine Uhr.
+    check('Bei Standards läuft keine Uhr',
+      pressureSeconds({ ...lage(1), kind: 'penalty' }, normal) === 0
+      && pressureSeconds({ ...lage(1), kind: 'freeKick' }, normal) === 0);
+
+    // Und der Ausgang selbst: ein verlorener Ball ist kein Abschluss und
+    // kein Pass. Wuerde er als Schuss verbucht, stuende in der Statistik
+    // ein Versuch, den es nie gab.
+    const uhrMatch = upcoming.find((m) => prepareUserMatch(game, m.id, true));
+    if (uhrMatch) {
+      const vorbereitet = prepareUserMatch(game, uhrMatch.id, true)!;
+      const uhrRng = new Rng(31337);
+      const uhrEngine = new MatchEngine({
+        ...vorbereitet.setup, highlightMode: 'own', rng: uhrRng,
+      });
+      let szenen = 0;
+      uhrEngine.runToEnd(() => {
+        szenen++;
+        return { outcome: 'ballLost' as const, quality: 0 };
+      });
+      const aus = uhrEngine.finish();
+      const meine = aus.stats.find((st) => st.playerId === user.id);
+      const zeilenMitVerlust = aus.events.filter((e) => e.user
+        && /verliert den Ball|Moment ist vorbei|abgenommen|dazwischen/.test(e.text)).length;
+      log(`${szenen} Szenen verschlafen: ${meine?.shots ?? 0} Schüsse, `
+        + `${meine?.passes ?? 0} Pässe, ${meine?.possessionLost ?? 0} Ballverluste`);
+      check('Ein verlorener Ball zählt nicht als Abschluss',
+        (meine?.shots ?? 0) === 0, `${meine?.shots ?? 0}`);
+      // Gegenprobe: dieselbe Partie, dieselben Szenen - aber gelungen.
+      const gutRng = new Rng(31337);
+      const gutEngine = new MatchEngine({
+        ...prepareUserMatch(game, uhrMatch.id, true)!.setup,
+        highlightMode: 'own', rng: gutRng,
+      });
+      gutEngine.runToEnd((c) => autoResolveChallenge(
+        c, user, DIFFICULTY_SETTINGS.normal, gutRng,
+      ));
+      const gut = gutEngine.finish().stats.find((st) => st.playerId === user.id);
+      log(`Zum Vergleich mit gespielten Szenen: ${gut?.shots ?? 0} Schüsse, `
+        + `${gut?.passes ?? 0} Pässe, ${gut?.possessionLost ?? 0} Ballverluste`);
+      check('Verschlafene Szenen bringen weniger Abschlüsse',
+        (meine?.shots ?? 0) < (gut?.shots ?? 0),
+        `${meine?.shots ?? 0} gegen ${gut?.shots ?? 0}`);
+      check('Und mehr Ballverluste',
+        (meine?.possessionLost ?? 0) > (gut?.possessionLost ?? 0),
+        `${meine?.possessionLost ?? 0} gegen ${gut?.possessionLost ?? 0}`);
+      check('Der Ticker sagt, was passiert ist', zeilenMitVerlust >= szenen,
+        `${zeilenMitVerlust} Zeilen zu ${szenen} Szenen`);
+    }
+  }
+  // --- Umlaute im Spieltext (Abschnitt 46) ------------------------------
+  //
+  // Der deutsche Text stand lange in Umschrift da: "Naechstes Spiel",
+  // "Kraefte schonen", "Freistoss". Das liest sich wie ein Fernschreiber
+  // und war ausserdem uneinheitlich - an einzelnen Stellen standen laengst
+  // Umlaute. Diese Pruefung haelt den Zustand fest: eine Handvoll
+  // Schreibweisen, die es im deutschen Katalog nicht mehr geben darf.
+  //
+  // Der englische Katalog bleibt aussen vor. Dort sind "queue", "guest"
+  // und "revenue" voellig richtig.
+  log('\n--- Umlaute im Spieltext ---');
+  {
+    const verboten = [
+      'fuer', 'ueber', 'naechst', 'staerke', 'koerper', 'moeglich',
+      'waehl', 'laesst', 'haelt', 'groess', 'zurueck', 'schluessel',
+      'torhueter', 'qualitaet', 'spaet', 'freistoss', 'aussen', 'fussball',
+      'kraefte', 'muessen', 'koennen', 'hoehe', 'laeuft',
+    ];
+    const fundstellen: string[] = [];
+    for (const [schluessel, text] of Object.entries(DE)) {
+      const klein = text.toLowerCase();
+      for (const wort of verboten) {
+        if (klein.includes(wort)) {
+          fundstellen.push(`${schluessel}: ${wort}`);
+          break;
+        }
+      }
+    }
+    // Wie viel Umlaut steht ueberhaupt drin? Eine Zahl, die zeigt, dass
+    // die Pruefung nicht bloss ins Leere greift.
+    const mitUmlaut = Object.values(DE)
+      .filter((text) => /[äöüÄÖÜß]/.test(text)).length;
+    log(`Deutsche Texte mit Umlaut: ${mitUmlaut} von ${Object.keys(DE).length}`);
+    check('Der deutsche Text nutzt Umlaute', mitUmlaut > 600, `${mitUmlaut}`);
+    check('Keine Umschrift mehr im deutschen Katalog',
+      fundstellen.length === 0,
+      fundstellen.slice(0, 6).join(', ') || `${verboten.length} Schreibweisen geprüft`);
+
+    // Und die Gegenprobe: der englische Katalog darf davon unberuehrt sein.
+    // Er wurde bei der Umstellung bewusst ausgelassen, weil eine Wortliste
+    // Deutsch nicht von Englisch unterscheiden kann - sie machte aus
+    // "revenue" ein "revenü".
+    const englischMitUmlaut = Object.entries(EN)
+      .filter(([, text]) => /[äöüÄÖÜß]/.test(text)).map(([k]) => k);
+    check('Der englische Katalog bleibt englisch',
+      englischMitUmlaut.length === 0,
+      englischMitUmlaut.slice(0, 4).join(', ') || `${Object.keys(EN).length} geprüft`);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
@@ -2901,13 +3022,13 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       if (d !== e) ungleich.push(`${key} (${d}/${e})`);
       if (d < 2) zuWenig.push(key);
     }
-    log(`${mitFassungen.size} Schluessel mit mehreren Fassungen`);
+    log(`${mitFassungen.size} Schlüssel mit mehreren Fassungen`);
     if (ungleich.length) log(`Ungleich: ${ungleich.join(', ')}`);
     check('Beide Sprachen haben gleich viele Fassungen', ungleich.length === 0,
       `${ungleich.length} ungleich`);
-    check('Jede Fassungsreihe hat mindestens zwei Eintraege', zuWenig.length === 0,
+    check('Jede Fassungsreihe hat mindestens zwei Einträge', zuWenig.length === 0,
       `${zuWenig.join(', ')}`);
-    check('Es gibt ueberhaupt Fassungen', mitFassungen.size >= 15,
+    check('Es gibt überhaupt Fassungen', mitFassungen.size >= 15,
       `${mitFassungen.size}`);
 
     // Die Auswahl muss die ganze Breite nutzen und darf nicht ueberlaufen.
@@ -2917,7 +3038,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     for (let i = 0; i < 200; i++) gesehen.add(tVariant(probe, i / 200));
     check('Die Auswahl nutzt alle Fassungen', gesehen.size === anzahl,
       `${gesehen.size} von ${anzahl}`);
-    check('Auch der Randwert 1 bleibt gueltig',
+    check('Auch der Randwert 1 bleibt gültig',
       !tVariant(probe, 1).endsWith('.' + (anzahl + 1)), tVariant(probe, 1).slice(0, 30));
   }
   // --- Nationalkader (Abschnitt 12) ------------------------------------
@@ -2941,10 +3062,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const staerken = kader.map((p) => computeOverall(p.attrs, p.position));
     const absteigend = staerken.every((v, i) => i === 0 || staerken[i - 1] >= v - 12);
 
-    log(`Nationalkader: ${kader.length} Spieler, staerkster ${staerken[0]}`);
-    check('Der Nationalkader ist vollstaendig', kader.length >= 15, `${kader.length}`);
-    check('Er enthaelt nur Spieler dieser Herkunft', fremde === 0, `${fremde} fremde`);
-    check('Er ist nach Staerke sortiert', absteigend, `${staerken.slice(0, 3).join(', ')}`);
+    log(`Nationalkader: ${kader.length} Spieler, stärkster ${staerken[0]}`);
+    check('Der Nationalkader ist vollständig', kader.length >= 15, `${kader.length}`);
+    check('Er enthält nur Spieler dieser Herkunft', fremde === 0, `${fremde} fremde`);
+    check('Er ist nach Stärke sortiert', absteigend, `${staerken.slice(0, 3).join(', ')}`);
     check('Verletzte stehen nicht im Kader', kader.every((p) => !p.injury));
 
     // Ein herausragender Spieler muss darin auftauchen.
@@ -2986,17 +3107,17 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       uS.attrs.penalties = besterElf.attrs.penalties - 5;
       const knappDaneben = penaltyStanding(gS, uS.clubId);
       log(`Elfmeterschwelle: vier Punkte dahinter ${knapp?.takes}, `
-        + `fuenf dahinter ${knappDaneben?.takes}`);
-      check('Vier Punkte hinter dem besten Schuetzen reicht noch',
+        + `fünf dahinter ${knappDaneben?.takes}`);
+      check('Vier Punkte hinter dem besten Schützen reicht noch',
         knapp?.takes === true, `${knapp?.takes}`);
-      check('Fuenf Punkte dahinter reicht nicht mehr',
+      check('Fünf Punkte dahinter reicht nicht mehr',
         knappDaneben?.takes === false, `${knappDaneben?.takes}`);
       check('Und der Abstand wird beziffert',
         (knappDaneben?.gap ?? 0) >= 1, `${knappDaneben?.gap} Punkte`);
 
       // Als bester Schuetze tritt er in jedem Fall an.
       uS.attrs.penalties = 99;
-      check('Der beste Schuetze tritt an',
+      check('Der beste Schütze tritt an',
         penaltyStanding(gS, uS.clubId)?.takes === true);
     }
 
@@ -3005,7 +3126,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       (a, b) => b.attrs.freeKicks - a.attrs.freeKicks);
     if (besteFrei.length >= 3) {
       uS.attrs.freeKicks = besteFrei[1].attrs.freeKicks + 1;
-      check('Der zweitbeste Freistossschuetze tritt an',
+      check('Der zweitbeste Freistoßschütze tritt an',
         freeKickStanding(gS, uS.clubId)?.takes === true);
       uS.attrs.freeKicks = besteFrei[2].attrs.freeKicks - 1;
       check('Der vierte nicht mehr',
@@ -3038,7 +3159,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     };
 
     eintragen('DM', 80, 14);
-    check('Vierzehn Einsaetze reichen noch nicht', learnAltPosition(gPos) === null,
+    check('Vierzehn Einsätze reichen noch nicht', learnAltPosition(gPos) === null,
       `${uP.altPositions.length} Nebenpositionen`);
 
     eintragen('DM', 80, 2);
@@ -3050,7 +3171,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
 
     // Kurzauftritte lehren nichts.
     eintragen('OM', 12, 30);
-    check('Kurzeinsaetze zaehlen nicht', learnAltPosition(gPos) === null,
+    check('Kurzeinsätze zählen nicht', learnAltPosition(gPos) === null,
       `${uP.altPositions.length} Nebenpositionen`);
 
     // Und ein Feldspieler wird kein Torwart.
@@ -3076,7 +3197,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   // Dahinter lag die groessere Luecke: Fuehrungsstaerke wuchs nie. Gemessen
   // an einer Laufbahn bis 27 - Ruf 99, Trainerbeziehung 94 - stand sie noch
   // immer bei 35, Rang 15 von 24 im eigenen Kader.
-  log('\n--- Spielfuehrerbinde ---');
+  log('\n--- Spielführerbinde ---');
   {
     const gKap = createNewGame({
       saveName: 'Kapitaenstest', seed: 9000, difficulty: 'normal',
@@ -3100,10 +3221,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     };
     const tragend = wachstum('Schluesselspieler', 90, 80);
     const rand = wachstum('Rotationsspieler', 50, 50);
-    log(`Fuehrungszuwachs je Saison: Schluesselspieler ${tragend}, `
+    log(`Führungszuwachs je Saison: Schlüsselspieler ${tragend}, `
       + `Rotationsspieler ${rand}`);
-    check('Fuehrungsstaerke waechst mit der Stellung', tragend >= 2, `${tragend} Punkte`);
-    check('Wer nicht traegt, waechst nicht hinein', rand === 0, `${rand} Punkte`);
+    check('Führungsstärke wächst mit der Stellung', tragend >= 2, `${tragend} Punkte`);
+    check('Wer nicht trägt, wächst nicht hinein', rand === 0, `${rand} Punkte`);
 
     // Die Binde selbst: erreichbar, aber nicht geschenkt.
     if (uK.contract) {
@@ -3112,7 +3233,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       const rolle = (): SquadRole => uK.contract!.role;
       uK.contract.role = 'Rotationsspieler';
       checkCaptaincy(gKap, new Rng(7));
-      check('Ein Rotationsspieler wird nicht Kapitaen',
+      check('Ein Rotationsspieler wird nicht Kapitän',
         rolle() !== 'Mannschaftsfuehrer', rolle());
 
       // Alle Voraussetzungen erfuellen und den Kader ueberragen.
@@ -3136,7 +3257,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         uK.contract.role = 'Schluesselspieler';
         checkCaptaincy(gKap, new Rng(100 + i * 37));
       }
-      check('Ein herausragender Spieler kann Kapitaen werden',
+      check('Ein herausragender Spieler kann Kapitän werden',
         rolle() === 'Mannschaftsfuehrer', rolle());
 
       // Und die Binde bleibt beim Verein.
@@ -3184,13 +3305,13 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     }
     const schnitt = quoten.reduce((a, b) => a + b, 0) / quoten.length;
     const hoechste = Math.max(...quoten);
-    log(`Gehaltsquote: Schnitt ${schnitt.toFixed(2)}, hoechste ${hoechste.toFixed(2)} `
+    log(`Gehaltsquote: Schnitt ${schnitt.toFixed(2)}, höchste ${hoechste.toFixed(2)} `
       + `bei ${vereine} Vereinen`);
     check('Jeder Verein hat ein Budget', ohneBudget === 0, `${ohneBudget} ohne`);
     check('Die Gehaltslast passt zum Gehaltsbudget', schnitt > 0.6 && schnitt < 1,
       `Schnitt ${schnitt.toFixed(2)}`);
-    check('Kein Verein liegt weit ueber seinem Gehaltsbudget', hoechste < 1.3,
-      `hoechste ${hoechste.toFixed(2)}`);
+    check('Kein Verein liegt weit über seinem Gehaltsbudget', hoechste < 1.3,
+      `höchste ${hoechste.toFixed(2)}`);
     check('Transfermittel bleiben unter dem Kaderwert', unterKaderwert === vereine,
       `${unterKaderwert} von ${vereine}`);
 
@@ -3207,9 +3328,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     };
     const guenstig = zahlungsfaehig(1_000_000, 3_000);
     const teuer = zahlungsfaehig(120_000_000, 120_000);
-    log(`Zahlungsfaehige Vereine: fuer 1 Mio ${guenstig}, fuer 120 Mio ${teuer}`);
-    check('Ein Talent koennen viele Vereine holen', guenstig > 50, `${guenstig}`);
-    check('Einen Weltstar koennen nur wenige holen', teuer < guenstig / 5,
+    log(`Zahlungsfähige Vereine: für 1 Mio ${guenstig}, für 120 Mio ${teuer}`);
+    check('Ein Talent können viele Vereine holen', guenstig > 50, `${guenstig}`);
+    check('Einen Weltstar können nur wenige holen', teuer < guenstig / 5,
       `${teuer} gegen ${guenstig}`);
     check('Aber wenigstens einer kann es', teuer >= 1, `${teuer}`);
 
@@ -3218,7 +3339,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const einVerein = Object.values(gFin.clubs).find((c) => c.budget > 1_000_000)!;
     const klein = feeShare(einVerein, einVerein.budget * 0.1);
     const gross = feeShare(einVerein, einVerein.budget * 0.9);
-    check('Der Anteil an den Transfermitteln steigt mit der Abloese', gross > klein,
+    check('Der Anteil an den Transfermitteln steigt mit der Ablöse', gross > klein,
       `${klein.toFixed(2)} gegen ${gross.toFixed(2)}`);
   }
   // --- Der Berater arbeitet gegen die Kassenlage (Abschnitt 35) --------
@@ -3268,9 +3389,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     const eng = gehaltVersuch(0.95);
     log(`Gehaltsforderung bei viel Luft: ${luft.durchgesetzt} von ${luft.versuche}, `
       + `im Schnitt +${luft.schnitt.toFixed(1)} Prozent`);
-    log(`Bei ueberzogenem Verein: ${eng.durchgesetzt} von ${eng.versuche}, `
+    log(`Bei überzogenem Verein: ${eng.durchgesetzt} von ${eng.versuche}, `
       + `im Schnitt +${eng.schnitt.toFixed(1)} Prozent`);
-    check('Der Berater setzt bei einem zahlungsfaehigen Verein etwas durch',
+    check('Der Berater setzt bei einem zahlungsfähigen Verein etwas durch',
       luft.durchgesetzt > luft.versuche / 2,
       `${luft.durchgesetzt} von ${luft.versuche}`);
     check('Die Kassenlage begrenzt die Gehaltsforderung',
@@ -3312,9 +3433,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     log(`Moral nach 4,2er Note: Widerstand 20 -> ${duenn.toFixed(1)}, `
       + `Widerstand 90 -> ${zaeh.toFixed(1)}`);
     log(`Moral nach 60-Tage-Verletzung: ${duennV.toFixed(1)} gegen ${zaehV.toFixed(1)}`);
-    check('Widerstandsfaehigkeit federt ein schlechtes Spiel ab', zaeh > duenn + 1,
+    check('Widerstandsfähigkeit federt ein schlechtes Spiel ab', zaeh > duenn + 1,
       `${duenn.toFixed(1)} gegen ${zaeh.toFixed(1)}`);
-    check('Widerstandsfaehigkeit federt eine Verletzung ab', zaehV > duennV + 2,
+    check('Widerstandsfähigkeit federt eine Verletzung ab', zaehV > duennV + 2,
       `${duennV.toFixed(1)} gegen ${zaehV.toFixed(1)}`);
 
     // Nach einem guten Spiel darf sie nicht wirken - sonst waere sie ein
@@ -3331,7 +3452,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       updateFormAfterMatch(p, 8.5, 90, true, false);
       return p.morale;
     })();
-    check('Nach einem guten Spiel wirkt Widerstandsfaehigkeit nicht',
+    check('Nach einem guten Spiel wirkt Widerstandsfähigkeit nicht',
       Math.abs(gutZaeh - gutDuenn) < 0.01, `${gutDuenn.toFixed(1)} gegen ${gutZaeh.toFixed(1)}`);
 
     // Ehrgeiz treibt die Entwicklung, bei 50 bleibt er neutral.
@@ -3354,7 +3475,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       return summe / laeufe;
     };
     const traege = einheitenBis65(20), getrieben = einheitenBis65(90);
-    log(`Einheiten bis Staerke 65: Ehrgeiz 20 -> ${traege.toFixed(0)}, `
+    log(`Einheiten bis Stärke 65: Ehrgeiz 20 -> ${traege.toFixed(0)}, `
       + `Ehrgeiz 90 -> ${getrieben.toFixed(0)}`);
     check('Ehrgeiz treibt die Entwicklung', getrieben < traege * 0.95,
       `${traege.toFixed(0)} gegen ${getrieben.toFixed(0)} Einheiten`);
@@ -3366,7 +3487,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       a.slideTackle = graetsche;
       return computeOverall(a, 'IV');
     };
-    check('Die Graetsche zaehlt fuer einen Innenverteidiger',
+    check('Die Grätsche zählt für einen Innenverteidiger',
       ivStaerke(90) > ivStaerke(20), `${ivStaerke(20)} gegen ${ivStaerke(90)}`);
 
     // Und sie zaehlt im Zweikampf selbst.
@@ -3385,8 +3506,8 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       return gewonnen;
     };
     const schwach = zweikampf(20), stark = zweikampf(90);
-    log(`Zweikaempfe gewonnen von 900: Graetsche 20 -> ${schwach}, 90 -> ${stark}`);
-    check('Die Graetsche zaehlt im Zweikampf', stark > schwach,
+    log(`Zweikämpfe gewonnen von 900: Grätsche 20 -> ${schwach}, 90 -> ${stark}`);
+    check('Die Grätsche zählt im Zweikampf', stark > schwach,
       `${schwach} gegen ${stark}`);
   }
   // --- Der Mentor wirkt (Abschnitt 30) --------------------------------
@@ -3433,10 +3554,10 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
 
     const ohne = messe(0);
     const mit = messe(0.11);
-    log(`Einheiten bis Staerke 65: ohne Mentor ${ohne.einheiten.toFixed(0)}, `
+    log(`Einheiten bis Stärke 65: ohne Mentor ${ohne.einheiten.toFixed(0)}, `
       + `mit Mentor ${mit.einheiten.toFixed(0)}`);
     log(`Mentale Werte im Schnitt: ${ohne.mental.toFixed(1)} gegen ${mit.mental.toFixed(1)}`);
-    check('Ein Mentor beschleunigt die Entwicklung spuerbar',
+    check('Ein Mentor beschleunigt die Entwicklung spürbar',
       mit.einheiten < ohne.einheiten * 0.96,
       `${ohne.einheiten.toFixed(0)} gegen ${mit.einheiten.toFixed(0)} Einheiten`);
     check('Ein Mentor gibt mentale Werte weiter', mit.mental > ohne.mental + 2,
@@ -3447,19 +3568,19 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     // Der gewaehlte Mentor muss Fuehrungsqualitaeten haben - sonst gibt es keinen.
     if (gMentor.mentorId) {
       const m = gMentor.players[gMentor.mentorId]!;
-      check('Der Mentor ist ein Fuehrungsspieler', m.attrs.leadership >= 55,
-        `Fuehrung ${m.attrs.leadership}`);
+      check('Der Mentor ist ein Führungsspieler', m.attrs.leadership >= 55,
+        `Führung ${m.attrs.leadership}`);
       check('Der Mentor wirkt, solange er im Verein ist', mentorInfluence(gMentor) > 0,
         `${(mentorInfluence(gMentor) * 100).toFixed(1)} Prozent`);
 
       // Verlaesst er den Verein, endet die Bindung - und mit ihr die Wirkung.
       m.clubId = null;
       const weg = mentorLeft(gMentor);
-      check('Ein Vereinswechsel des Mentors loest die Bindung', !!weg && !gMentor.mentorId);
+      check('Ein Vereinswechsel des Mentors löst die Bindung', !!weg && !gMentor.mentorId);
       check('Ohne Mentor gibt es keinen Trainingsvorteil',
         mentorInfluence(gMentor) === 0);
     } else {
-      log('Dieser Verein hat keinen passenden Mentor - das ist zulaessig.');
+      log('Dieser Verein hat keinen passenden Mentor - das ist zulässig.');
       check('Ohne Mentor gibt es keinen Trainingsvorteil', mentorInfluence(gMentor) === 0);
     }
   }
@@ -3510,9 +3631,9 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
       rival: rivalId ? g3.relationships[rivalId] : 0 };
     log(`Nach ${played} Spielen: Freund ${before.friend.toFixed(0)} -> ${after.friend.toFixed(0)}, `
       + `Rivale ${before.rival.toFixed(0)} -> ${after.rival.toFixed(0)}`);
-    if (friendId) check('Freundschaft waechst mit gemeinsamer Spielzeit',
+    if (friendId) check('Freundschaft wächst mit gemeinsamer Spielzeit',
       after.friend >= before.friend, `${before.friend.toFixed(0)} -> ${after.friend.toFixed(0)}`);
-    if (rivalId) check('Rivalitaet vertieft sich mit der Zeit',
+    if (rivalId) check('Rivalität vertieft sich mit der Zeit',
       after.rival <= before.rival, `${before.rival.toFixed(0)} -> ${after.rival.toFixed(0)}`);
   }
 
@@ -3562,7 +3683,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
         || g2.players[g2.userPlayerId].morale !== before.morale
         || g2.fanRelation !== 50 || g2.coachRelation !== 55;
       log(`Wahl "${opt.label}" angewandt.`);
-      check('Die Wahl veraendert die Werte des Spielers', changed);
+      check('Die Wahl verändert die Werte des Spielers', changed);
     }
   }
 
@@ -3605,14 +3726,14 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   log(`   gute Eingabe:      ${(goodGoals / 4).toFixed(1)}% Tore`);
   log(`   schlechte Eingabe: ${(badGoals / 4).toFixed(1)}% Tore`);
   log(`   Weltklasse, gute Eingabe: ${(eliteGoals / 4).toFixed(1)}% Tore`);
-  check('Gute Eingabe schlaegt schlechte deutlich', goodGoals > badGoals * 2,
+  check('Gute Eingabe schlägt schlechte deutlich', goodGoals > badGoals * 2,
     `${goodGoals} gegen ${badGoals}`);
   // Der Kern: ein sauber ins Eck platzierter Schuss fuehrt oft zum Tor.
-  check('Eine gute Eingabe fuehrt oft zum Tor', goodGoals > 160,
+  check('Eine gute Eingabe führt oft zum Tor', goodGoals > 160,
     `${(goodGoals / 4).toFixed(0)}% - Platzierung wird belohnt`);
-  check('Gute Eingabe ist kein Selbstlaeufer', goodGoals < 380,
-    'Auch bei guter Eingabe gibt es Fehlschuesse');
-  check('Attribute machen einen spuerbaren Unterschied', eliteGoals > goodGoals * 1.15,
+  check('Gute Eingabe ist kein Selbstläufer', goodGoals < 380,
+    'Auch bei guter Eingabe gibt es Fehlschüsse');
+  check('Attribute machen einen spürbaren Unterschied', eliteGoals > goodGoals * 1.15,
     `${eliteGoals} gegen ${goodGoals}`);
 
   // Kontaktpunkt wirkt sich auf die Flughoehe aus
@@ -3626,7 +3747,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   });
   const flatHeight = flat.crossing?.z ?? 0;
   const loftHeight = lofted.crossing?.z ?? 99;
-  log(`Torlinienhoehe bei Kontakt oben: ${flatHeight.toFixed(2)} m, unten: ${loftHeight.toFixed(2)} m`);
+  log(`Torlinienhöhe bei Kontakt oben: ${flatHeight.toFixed(2)} m, unten: ${loftHeight.toFixed(2)} m`);
   check('Unterer Ballkontakt hebt den Ball deutlich an', loftHeight > flatHeight + 0.5);
 
   // Effet kruemmt die Flugbahn
@@ -3640,7 +3761,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   });
   const drift = Math.abs((curved.crossing?.x ?? 0) - (straight.crossing?.x ?? 0));
   log(`Seitliche Ablenkung durch Effet: ${drift.toFixed(2)} m`);
-  check('Effet kruemmt die Flugbahn spuerbar', drift > 0.6 && drift < 12, `${drift.toFixed(2)} m`);
+  check('Effet krümmt die Flugbahn spürbar', drift > 0.6 && drift < 12, `${drift.toFixed(2)} m`);
 
   // Zwei Zahlen, und nur die zweite zaehlt: der Spielstand wird **gepackt**
   // abgelegt. Ein Spieler belegt roh 1397 Byte, davon 815 allein die 54
@@ -3648,7 +3769,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
   // Schluesselwiederholung. Als Zahlenfeld bleiben davon rund 160 Byte.
   const roh = new Blob([JSON.stringify(game)]).size;
   const gepackt = new Blob([JSON.stringify(packeFuerTest(game))]).size;
-  log(`Spielstandsgroesse: roh ${(roh / 1024 / 1024).toFixed(2)} MB, `
+  log(`Spielstandsgröße: roh ${(roh / 1024 / 1024).toFixed(2)} MB, `
     + `gepackt ${(gepackt / 1024 / 1024).toFixed(2)} MB`);
   // Die Grenze haengt an der Zahl der Spieler, nicht an einer festen
   // Megabyte-Zahl. Die alten 25 MB galten fuer eine Welt mit fuenf Laendern;
@@ -3661,7 +3782,7 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     jeSpieler < 2.4 * 1024,
     `${(jeSpieler / 1024).toFixed(2)} KB von 2,40 KB`);
   check('Die Packung spart deutlich', gepackt < roh * 0.75,
-    `${(gepackt / roh * 100).toFixed(0)} % der rohen Groesse`);
+    `${(gepackt / roh * 100).toFixed(0)} % der rohen Größe`);
 
   // Und sie muss verlustfrei sein. Die Reihenfolge von ALL_ATTRS ist Teil
   // des Speicherformats - wer ein Attribut in der Mitte einfuegt, verschiebt
@@ -3790,7 +3911,7 @@ async function pruefeVerkabelung(): Promise<number> {
   for (const { datei, name, mindestens } of erwartet) {
     const quelle = quellen.get(datei);
     if (quelle === undefined) {
-      log(`${datei}: nicht lesbar - uebersprungen`);
+      log(`${datei}: nicht lesbar - übersprungen`);
       continue;
     }
     const treffer = (quelle.match(new RegExp('\\b' + name + '\\b', 'g')) ?? []).length;
@@ -3814,7 +3935,7 @@ async function pruefeQuelltexte(): Promise<number> {
       if (!antwort.ok) throw new Error(String(antwort.status));
       quelle = await antwort.text();
     } catch {
-      log(`${pfad}: nicht lesbar - uebersprungen`);
+      log(`${pfad}: nicht lesbar - übersprungen`);
       continue;
     }
     // Zeilen mit `text:` gefolgt von einer Zeichenkette, die kein t(-Aufruf ist.

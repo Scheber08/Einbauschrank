@@ -12,6 +12,7 @@ import type { Challenge, ChallengeResult } from '../../engine/matchTypes';
 import { Rng, clamp } from '../../engine/rng';
 import type { DifficultySettings, Player } from '../../engine/types';
 import type { BlockPoint } from '../../engine/ballAction';
+import { pressureSeconds } from '../../engine/tempo';
 import { DefenderFigure, OPPONENT_KIT } from './figures';
 import { KeeperFigure, drawHumanKeeper, drawHumanPlayer } from './figures';
 import { t as tr, tDecimal, tVariant } from '../../i18n';
@@ -38,24 +39,6 @@ export default function HighlightScene(props: SceneProps) {
     return <SaveChallenge {...props} />;
   }
   return <BallChallenge {...props} />;
-}
-
-/**
- * Wie viele Sekunden bleiben, bis der Gegner da ist.
- * 0 bedeutet: keine Hetze - bei ruhendem Ball wartet der Gegner ebenfalls.
- *
- * Ohne diese Uhr liesse sich jede Szene beliebig lange auspendeln; genau das
- * nimmt einer Grosschance die Spannung. Der Wert ist bewusst grosszuegig -
- * es geht um Druck, nicht um Hektik.
- */
-function pressureSeconds(challenge: Challenge, difficulty: DifficultySettings): number {
-  if (challenge.kind === 'penalty' || challenge.kind === 'freeKick') return 0;
-  // Die Uhr laeuft ueber die ganze Szene, also ueber Richtung, Kraft und
-  // Ballkontakt zusammen. Sie ist bewusst grosszuegig bemessen: Wer weiss, was
-  // er tut, schafft es locker - nur das ewige Auspendeln faellt weg.
-  // Wer mehr Hektik will, senkt BASE; wer mehr Ruhe will, erhoeht sie.
-  const BASE = 8.5;
-  return clamp((BASE - challenge.pressure * 3.4) / difficulty.meterSpeed, 3.4, 13);
 }
 
 /**
@@ -945,16 +928,16 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
   const timeLeft = usePressureClock(pressureTime, clockRuns, () => {
     if (!clockRuns) return;
-    const rushed = aim ?? hover ?? { x: 0, y: Math.min(8, challenge.distance * 0.35) };
-    if (step === 'power' && chargingRef.current) {
-      powerRef.current = Math.max(
-        0.08, powerFromElapsed(performance.now() - chargeStartRef.current),
-      );
-    } else if (step !== 'contact') {
-      powerRef.current = 0.55;
-    }
+    // Frueher fiel hier ein ueberhasteter Abschluss - man verlor Zeit, aber
+    // nie den Ball. Damit war die Uhr eine Empfehlung. Jetzt nimmt der
+    // Gegner den Ball ab: die Uhr laeuft dafuer deutlich laenger.
     chargingRef.current = false;
-    fire(0, 0, rushed);
+    flightRef.current = null;
+    shotRef.current = null;
+    finalRef.current = { outcome: 'ballLost', quality: 0 };
+    setResultText(trv(seed, 'scene.result.ballLost'));
+    setReason(tr('scene.tooSlow'));
+    setStep('result');
   });
 
   // Tastatursteuerung
@@ -1005,7 +988,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         <>
           {step === 'target' && (
             <button className="primary" onClick={() => { setSelfShoot(true); setStep('aim'); }}>
-              Selbst abschliessen
+              Selbst abschließen
             </button>
           )}
           {passLike && selfShoot && step === 'aim' && (
@@ -1406,7 +1389,7 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
             ))}
           </div>
           <p className="tiny dim" style={{ marginTop: '0.7rem', marginBottom: 0 }}>
-            Weitere Bewegungen schaltest du ueber steigende Dribblingwerte frei.
+            Weitere Bewegungen schaltest du über steigende Dribblingwerte frei.
             Aktuell: {player.attrs.dribbling}.
           </p>
         </div>
