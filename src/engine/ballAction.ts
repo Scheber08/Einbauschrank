@@ -548,10 +548,21 @@ export function resolvePass(
   const POWER_TOLERANCE = 0.25;
 
   // Abfangen durch die Deckung
+  //
+  // Bei der Flanke zaehlt die Flankenstaerke, beim Zuspiel die Uebersicht.
+  // Vorher stand hier nur `vision`, und `crossing` war ein Attribut, das
+  // die Karte anzeigt und kein Spielzug liest.
+  const flanke = challenge.kind === 'cross';
+  const gespuer = flanke
+    ? player.attrs.crossing * 0.7 + player.attrs.vision * 0.3
+    : player.attrs.vision;
   const marked = target?.marked ?? 0.5;
   const interceptChance = clamp(
     marked * 0.42 + clamp(error / 7, 0, 1) * 0.28 + (1 - quality) * 0.34
-    + challenge.pressure * 0.1 - player.attrs.vision / 400,
+    + challenge.pressure * 0.1 - gespuer / 400
+    // In den Sechzehner geflankt wird immer gegen Koepfe - eine Flanke
+    // kommt seltener an als ein Pass aus dem Halbfeld.
+    + (flanke ? 0.12 : 0),
     0.02, 0.93,
   );
 
@@ -964,8 +975,12 @@ export function autoResolveChallenge(
         : { outcome: 'dribbleLost', quality: 0.35 };
     }
     case 'pass': case 'throughBall': case 'cross': {
-      const skill = player.attrs.shortPass * 0.5 + player.attrs.vision * 0.5;
-      const p = clamp(0.5 + skill / 260 - challenge.pressure * 0.25, 0.2, 0.94);
+      const istFlanke = challenge.kind === 'cross';
+      const skill = istFlanke
+        ? player.attrs.crossing * 0.7 + player.attrs.vision * 0.3
+        : player.attrs.shortPass * 0.5 + player.attrs.vision * 0.5;
+      const p = clamp(0.5 + skill / 260 - challenge.pressure * 0.25
+        - (istFlanke ? 0.16 : 0), istFlanke ? 0.15 : 0.2, 0.94);
       const target = challenge.targets?.[0];
       return rng.chance(p)
         ? { outcome: 'passCompleted', quality: 0.5, targetId: target?.id }

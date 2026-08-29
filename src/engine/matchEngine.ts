@@ -119,8 +119,8 @@ export interface TeamStatTotals {
 }
 
 interface PendingContext {
-  type: 'shot' | 'longShot' | 'header' | 'oneOnOne' | 'pass' | 'duel' | 'save'
-    | 'penalty' | 'freeKick' | 'dribble' | 'block';
+  type: 'shot' | 'longShot' | 'header' | 'oneOnOne' | 'pass' | 'cross' | 'duel'
+    | 'save' | 'penalty' | 'freeKick' | 'dribble' | 'block';
   attackingSide: Side;
   xg: number;
   distance: number;
@@ -780,6 +780,7 @@ export class MatchEngine {
     if (this.tryDefensiveChallenge(defSide, side)) return;
 
     // Dribbling des eigenen Spielers im Aufbau (Konzept Abschnitt 24).
+    if (this.tryCrossChallenge(side)) return;
     if (this.tryDribbleChallenge(side)) return;
 
     this.continueAttack(side, evts);
@@ -845,6 +846,25 @@ export class MatchEngine {
     // Eigener Spieler legt auf
     if (canInteract && userId && creator && creator.player.id === userId) {
       const targets = this.buildPassTargets(side, shooter);
+      // Von aussen wird geflankt, nicht flach aufgelegt.
+      //
+      // Die Szenenart "cross" gab es bisher nur auf dem Papier: Der
+      // Resolver behandelte sie, die Oberflaeche kannte sie - erzeugt hat
+      // sie niemand. Ein Aussenspieler bekam dieselbe Szene wie ein
+      // Zehner, und `crossing` war ein Attribut ohne Wirkung.
+      if (this.flanktVonAussen(userId)) {
+        const flanke = this.buildCrossChallenge(side, chance, targets);
+        this.startChallenge(flanke, {
+          type: 'cross',
+          attackingSide: side,
+          xg: chance.xg,
+          distance: flanke.distance,
+          offset: flanke.offset,
+          shooterId: shooter.player.id,
+          targets,
+        });
+        return;
+      }
       this.startChallenge(this.buildPassChallenge(side, chance, targets), {
         type: 'pass',
         attackingSide: side,
@@ -1272,6 +1292,70 @@ export class MatchEngine {
     LV: 0.07, RV: 0.07, IV: 0.02,
   };
 
+  /** Wie oft ein Spieler auf dieser Position aussen durchkommt. */
+  // Ein Spiel gibt dem Nutzer acht Szenen. Bei 0,17 kam ein Rechtsaussen
+  // in dreissig Spielen auf zehn Flanken - fuenf Prozent seiner Momente,
+  // fuer seine Hauptaufgabe zu wenig.
+  private static readonly CROSS_CHANCE: Partial<Record<string, number>> = {
+    LA: 0.45, RA: 0.45, LV: 0.26, RV: 0.26, OM: 0.06, ZM: 0.03,
+  };
+
+  /**
+   * Der eigene Spieler kommt aussen durch und flankt.
+   *
+   * Eigener Ausloeser, nicht bloss eine Spielart der Vorlage: Am
+   * Vorlagenzweig allein haengend kam die Flanke in dreissig Spielen genau
+   * einmal vor, weil ein Fluegelspieler selten der ausgewiesene
+   * Vorbereiter einer Grosschance ist. Aussen durchzukommen ist aber kein
+   * seltener Ausnahmefall, sondern seine Hauptaufgabe.
+   */
+  private tryCrossChallenge(side: Side): boolean {
+    if (!this.setup.interactive) return false;
+    if (this.userSide !== side) return false;
+    if (this.userChallenges >= this.maxChallenges) return false;
+    const user = this.userOnPitch;
+    if (!user || user.slot === 'TW') return false;
+
+    const base = MatchEngine.CROSS_CHANCE[user.slot] ?? 0;
+    if (base <= 0) return false;
+    // Wer flanken kann und schnell ist, kommt oefter in die Lage dazu.
+    const koennen = 0.6
+      + (user.player.attrs.crossing * 0.6 + tempo(user.player.attrs) * 0.4) / 130;
+    if (!this.rng.chance(clamp(base * koennen * this.attackFactor, 0.01, 0.42))) {
+      return false;
+    }
+
+    const abnehmer = this.onPitch[side]
+      .filter((o) => o.slot !== 'TW' && o.player.id !== this.setup.userPlayerId);
+    if (abnehmer.length === 0) return false;
+    // Wer im Strafraum wartet: Stuermer zuerst, dann wer sonst mit vorn ist.
+    const vorne = abnehmer.filter((o) => o.slot === 'ST' || o.slot === 'OM');
+    const bester = vorne.length
+      ? this.rng.weighted(vorne, (o) => 1 + o.player.attrs.heading / 40)
+      : this.rng.pick(abnehmer);
+    const targets = this.buildPassTargets(side, bester);
+
+    // Aus dem Lauf heraus, ohne dass vorher eine Grosschance stand: die
+    // Torgefahr entsteht erst durch die Flanke selbst.
+    const lage = {
+      distance: this.rng.float(6, 18),
+      offset: 0,
+      xg: clamp(this.rng.float(0.05, 0.16) * this.attackFactor, 0.03, 0.3),
+      bigChance: false,
+    };
+    const flanke = this.buildCrossChallenge(side, lage, targets);
+    this.startChallenge(flanke, {
+      type: 'cross',
+      attackingSide: side,
+      xg: lage.xg,
+      distance: flanke.distance,
+      offset: flanke.offset,
+      shooterId: bester.player.id,
+      targets,
+    });
+    return true;
+  }
+
   private tryDribbleChallenge(side: Side): boolean {
     if (!this.setup.interactive) return false;
     if (this.userSide !== side) return false;
@@ -1628,6 +1712,51 @@ export class MatchEngine {
     return result;
   }
 
+  /**
+   * Steht der eigene Spieler auf der Aussenbahn?
+   *
+   * Aussenstuermer flanken fast immer, Aussenverteidiger oft - beide
+   * kommen dort hin, wo eine Flanke die naheliegende Loesung ist. Alles
+   * andere legt flach ab.
+   */
+  private flanktVonAussen(userId: Id): boolean {
+    const eigen = this.onPitch[this.userSide!]?.find((o) => o.player.id === userId);
+    if (!eigen) return false;
+    if (eigen.slot === 'LA' || eigen.slot === 'RA') return this.rng.chance(0.72);
+    if (eigen.slot === 'LV' || eigen.slot === 'RV') return this.rng.chance(0.55);
+    return false;
+  }
+
+  /**
+   * Die Flanke: von der Seitenlinie in den Strafraum.
+   *
+   * Anders als beim flachen Zuspiel steht der Ball weit aussen und die
+   * Abnehmer stehen im Sechzehner. Das macht die Szene raeumlich zu einer
+   * anderen Aufgabe - lange Bahn quer statt kurzer Ball nach vorn.
+   */
+  private buildCrossChallenge(
+    side: Side,
+    chance: { distance: number; offset: number; xg: number; bigChance: boolean },
+    targets: ChallengeTarget[],
+  ): Challenge {
+    const aussen = this.rng.chance(0.5) ? 1 : -1;
+    return {
+      ...this.baseChallenge(side, 'cross'),
+      title: t('me.ch.cross.title'),
+      hint: t('me.ch.cross.hint'),
+      // Von der Grundlinie bis zur Strafraumkante, weit auf dem Fluegel.
+      distance: clamp(chance.distance * 0.5 + this.rng.float(4, 14), 4, 24),
+      offset: aussen * this.rng.float(17, 27),
+      pressure: this.withImportance(
+        clamp(this.strengthOf(this.other(side)).defence / 130 + this.rng.float(-0.15, 0.15),
+          0.05, 0.85)),
+      opponent: this.strengthOf(this.other(side)).defence,
+      xg: chance.xg,
+      bigChance: chance.bigChance,
+      targets,
+    };
+  }
+
   private buildPassChallenge(
     side: Side,
     chance: { distance: number; offset: number; xg: number; bigChance: boolean },
@@ -1779,6 +1908,9 @@ export class MatchEngine {
         } else {
           this.applyShotResult(result, ctx, user, st, evts);
         }
+        break;
+      case 'cross':
+        this.applyCrossResult(result, ctx, user, st, evts, side);
         break;
       case 'duel':
         this.applyDuelResult(result, ctx, user, st, evts);
@@ -2057,6 +2189,60 @@ export class MatchEngine {
       this.emit(evts, {
         minute: this.minute, type: 'chance', side, playerId: user.player.id, user: true,
         text: tVariant('live.assistWasted', this.rng.next(), { player: this.name(user.player.id) }),
+      });
+    }
+  }
+
+  /**
+   * Die Flanke auswerten.
+   *
+   * Nah am Zuspiel, aber mit eigener Buchfuehrung und eigener Folge: Aus
+   * einer Flanke wird ein Kopfball, nicht ein Schuss aus dem Lauf. `crosses`
+   * und `crossesCompleted` standen bis hierher in der Statistik und wurden
+   * nirgends hochgezaehlt - jeder Spieler hatte null Flanken, immer.
+   */
+  private applyCrossResult(
+    result: ChallengeResult, ctx: PendingContext,
+    user: OnPitchPlayer, st: PlayerMatchStats, evts: LiveEvent[], side: Side,
+  ) {
+    st.crosses++;
+    if (result.outcome === 'passLost') {
+      st.possessionLost++;
+      this.emit(evts, {
+        minute: this.minute, type: 'note', side, playerId: user.player.id, user: true,
+        text: tVariant('live.crossCleared', this.rng.next(),
+          { player: this.name(user.player.id) }),
+      });
+      return;
+    }
+
+    st.crossesCompleted++;
+    st.passes++;
+    st.passesCompleted++;
+    const targetId = result.targetId ?? ctx.shooterId;
+    const receiver = this.onPitch[side].find((o) => o.player.id === targetId);
+    if (!receiver) return;
+
+    st.keyPasses++;
+    // Eine angekommene Flanke wird zum Kopfball - wie hoch die Chance ist,
+    // haengt daran, wie gut sie geschlagen war und wer da hochsteigt.
+    const bonus = clamp(0.7 + result.quality * 0.9, 0.6, 1.65);
+    const kopfstark = clamp(receiver.player.attrs.heading / 100, 0.4, 1.3);
+    const chance = {
+      kind: 'header',
+      distance: clamp(this.rng.float(4, 13), 3, 16),
+      offset: this.rng.normal(0, 4),
+      xg: clamp(ctx.xg * bonus * kopfstark, 0.02, 0.78),
+      bigChance: ctx.xg * bonus * kopfstark >= 0.27,
+    };
+    const before = side === "home" ? this.homeScore : this.awayScore;
+    this.resolveShot(side, receiver, user, chance, evts, bonus);
+    const after = side === "home" ? this.homeScore : this.awayScore;
+    if (after === before) {
+      this.emit(evts, {
+        minute: this.minute, type: 'chance', side, playerId: user.player.id, user: true,
+        text: tVariant('live.crossWasted', this.rng.next(),
+          { player: this.name(user.player.id) }),
       });
     }
   }
@@ -2468,6 +2654,18 @@ export class MatchEngine {
         const dribbles = Math.round(this.rng.float(0, line === 'ATT' ? 7 : 3) * share);
         st.dribbles += dribbles;
         st.dribblesCompleted += Math.round(dribbles * clamp(0.3 + o.player.attrs.dribbling / 240, 0.1, 0.9));
+
+        // Flanken schlagen die Aussenbahnen, nicht die Mitte. Ohne diese
+        // Zeilen stuende in der Statistik jedes Aussenverteidigers eine
+        // Null, egal wie oft er hinten heraus kam.
+        const aussen = o.slot === 'LA' || o.slot === 'RA' || o.slot === 'LV' || o.slot === 'RV';
+        if (aussen) {
+          const flanken = Math.round(this.rng.float(0, o.slot === 'LA' || o.slot === 'RA' ? 6 : 4) * share);
+          st.crosses += flanken;
+          st.crossesCompleted += Math.round(flanken * clamp(
+            0.14 + o.player.attrs.crossing / 320 + this.rng.normal(0, 0.04), 0.03, 0.6,
+          ));
+        }
 
         if (line === 'DEF' || o.slot === 'DM') {
           st.tackles += Math.round(this.rng.float(0, 4) * share);

@@ -885,8 +885,10 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
         quality: resolution.quality,
         targetId: resolution.targetId,
       };
+      // Eine angekommene Flanke meldet sich als Flanke, nicht als Pass.
       setResultText(resolution.outcome === 'passCompleted'
-        ? trv(seed, 'scene.result.passOk')
+        ? trv(seed, challenge.kind === 'cross'
+          ? 'scene.result.crossOk' : 'scene.result.passOk')
         : resolution.reason === 'tooHard' ? trv(seed, 'scene.result.tooHard')
         : resolution.reason === 'tooShort' ? trv(seed, 'scene.result.tooShort')
         : resolution.reason === 'pastTeammate' ? trv(seed, 'scene.result.pastTeammate')

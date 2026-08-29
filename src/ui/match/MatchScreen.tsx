@@ -564,6 +564,10 @@ export default function MatchScreen() {
                   <StatLine label={t('stats.shots')} value={`${userStats.shotsOnTarget}/${userStats.shots}`} />
                   <StatLine label={t('match.passes')} value={`${userStats.passesCompleted}/${userStats.passes}`} />
                   <StatLine label={t('stats.keyPasses')} value={userStats.keyPasses} />
+                  {userStats.crosses > 0 && (
+                    <StatLine label={t('stats.crosses')}
+                      value={`${userStats.crossesCompleted}/${userStats.crosses}`} />
+                  )}
                   <StatLine label={t('ms.duels')} value={`${userStats.duelsWon}/${userStats.duels}`} />
                   {userStats.tackles > 0 && <StatLine label={t('stats.tackles')} value={userStats.tackles} />}
                   {userStats.saves > 0 && <StatLine label={t('stats.saves')} value={userStats.saves} />}

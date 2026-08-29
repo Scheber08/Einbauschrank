@@ -360,6 +360,8 @@ export interface SeasonStats {
   passes: number;
   passesCompleted: number;
   keyPasses: number;
+  crosses: number;
+  crossesCompleted: number;
   dribbles: number;
   dribblesCompleted: number;
   duels: number;
@@ -384,7 +386,8 @@ export function emptySeasonStats(
   return {
     playerId, season, competitionId, clubId,
     appearances: 0, starts: 0, minutes: 0, goals: 0, assists: 0, shots: 0,
-    shotsOnTarget: 0, passes: 0, passesCompleted: 0, keyPasses: 0, dribbles: 0,
+    shotsOnTarget: 0, passes: 0, passesCompleted: 0, keyPasses: 0,
+    crosses: 0, crossesCompleted: 0, dribbles: 0,
     dribblesCompleted: 0, duels: 0, duelsWon: 0, tackles: 0, interceptions: 0,
     saves: 0, cleanSheets: 0, goalsConceded: 0, yellowCards: 0, redCards: 0,
     motm: 0, ratingSum: 0, homeAppearances: 0, homeGoals: 0, awayGoals: 0,

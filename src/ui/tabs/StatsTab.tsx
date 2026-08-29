@@ -111,6 +111,8 @@ export default function StatsTab() {
                 <StatRow label={t('stats.homeGoals')} value={total.homeGoals} />
                 <StatRow label={t('stats.awayGoals')} value={total.awayGoals} />
                 <StatRow label={t('stats.dribbles')} value={`${total.dribblesCompleted}/${total.dribbles}`} />
+                <StatRow label={t('stats.crosses')}
+                  value={`${total.crossesCompleted}/${total.crosses}`} />
               </div>
               <div>
                 <h4>{t('stats.defenceDiscipline')}</h4>

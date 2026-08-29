@@ -104,6 +104,11 @@ export function computeRating(
   // Dribbling und Ballverluste
   r += s.dribblesCompleted * 0.11;
   r -= (s.dribbles - s.dribblesCompleted) * 0.05;
+  // Flanken: eine angekommene ist eine halbe Vorlage, eine ins Nichts
+  // geschlagene kostet wenig - sonst waere jeder Aussenspieler bestraft
+  // dafuer, dass er es ueberhaupt versucht.
+  r += s.crossesCompleted * 0.09;
+  r -= (s.crosses - s.crossesCompleted) * 0.012;
   // Ein verlorener Abschlag wiegt weniger als ein Ballverlust im Aufbau.
   r -= s.possessionLost * (line === 'GK' ? 0.015 : 0.035);
 

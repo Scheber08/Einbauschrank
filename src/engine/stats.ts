@@ -39,6 +39,8 @@ export function accumulate(
   entry.passes += s.passes;
   entry.passesCompleted += s.passesCompleted;
   entry.keyPasses += s.keyPasses;
+  entry.crosses += s.crosses;
+  entry.crossesCompleted += s.crossesCompleted;
   entry.dribbles += s.dribbles;
   entry.dribblesCompleted += s.dribblesCompleted;
   entry.duels += s.duels;

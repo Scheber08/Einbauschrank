@@ -707,7 +707,11 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       while (!engine.finished && engine.minute < 40 && guard++ < 200) {
         const res = engine.step();
         if (res.pending) {
-          if (res.pending.kind === 'dribble' || /shot|Shot|header|oneOnOne/.test(res.pending.kind)) attackCh++;
+          // Die Flanke zaehlt mit: sie ist unstrittig offensiv, und ohne
+          // sie sank die Zahl der Offensivszenen ausgerechnet dann, wenn
+          // mehr geflankt wurde.
+          if (res.pending.kind === 'dribble' || res.pending.kind === 'cross'
+            || /shot|Shot|header|oneOnOne/.test(res.pending.kind)) attackCh++;
           if (res.pending.kind === 'duel') defendCh++;
           engine.resolve(autoResolveChallenge(res.pending, user, DIFFICULTY_SETTINGS.normal, r));
         } else if (engine.pendingInjury) {
@@ -717,7 +721,8 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       }
       // Rest des Spiels zu Ende bringen, damit die Zaehlung vollstaendig ist.
       engine.runToEnd((c) => {
-        if (c.kind === 'dribble' || /shot|Shot|header|oneOnOne/.test(c.kind)) attackCh++;
+        if (c.kind === 'dribble' || c.kind === 'cross'
+          || /shot|Shot|header|oneOnOne/.test(c.kind)) attackCh++;
         if (c.kind === 'duel') defendCh++;
         return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
       });
@@ -1135,8 +1140,11 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       shirtNumber: 10, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'wonderkid',
     });
     const uR = gRiv.players[gRiv.userPlayerId];
-    const mit = Object.values(gRiv.players).filter(
-      (p) => p.clubId === uR.clubId && p.id !== uR.id && p.position !== 'TW');
+    const mit = Object.values(gRiv.players)
+      .filter((p) => p.clubId === uR.clubId && p.id !== uR.id && p.position !== 'TW')
+      // Nach Staerke, damit alle drei auch wirklich spielen.
+      .sort((a, b) => computeOverall(b.attrs, b.position)
+        - computeOverall(a.attrs, a.position));
 
     if (mit.length >= 3) {
       const freund = mit[0], neutral = mit[1], rivale = mit[2];
@@ -2935,9 +2943,13 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       check('Verschlafene Szenen bringen weniger Abschlüsse',
         (meine?.shots ?? 0) < (gut?.shots ?? 0),
         `${meine?.shots ?? 0} gegen ${gut?.shots ?? 0}`);
-      check('Und mehr Ballverluste',
-        (meine?.possessionLost ?? 0) > (gut?.possessionLost ?? 0),
-        `${meine?.possessionLost ?? 0} gegen ${gut?.possessionLost ?? 0}`);
+      // Nicht "mehr als im Vergleichslauf": dort gehen Szenen ebenfalls
+      // daneben, und eine misslungene Flanke ist auch ein Ballverlust.
+      // Sicher gilt nur die Untergrenze - jede verschlafene Szene bucht
+      // einen Verlust, zusaetzlich zu denen der uebrigen Minuten.
+      check('Jede verschlafene Szene bucht einen Ballverlust',
+        (meine?.possessionLost ?? 0) >= szenen,
+        `${meine?.possessionLost ?? 0} bei ${szenen} Szenen`);
       check('Der Ticker sagt, was passiert ist', zeilenMitVerlust >= szenen,
         `${zeilenMitVerlust} Zeilen zu ${szenen} Szenen`);
     }
@@ -2989,6 +3001,92 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Der englische Katalog bleibt englisch',
       englischMitUmlaut.length === 0,
       englischMitUmlaut.slice(0, 4).join(', ') || `${Object.keys(EN).length} geprüft`);
+  }
+  // --- Die Flanke (Abschnitt 47) ----------------------------------------
+  //
+  // "cross" war als Szenenart deklariert, im Resolver behandelt und in der
+  // Oberflaeche vorgesehen - erzeugt hat sie niemand. Ein Aussenspieler
+  // bekam dieselbe Szene wie ein Zehner, `crossing` war ein Attribut ohne
+  // Wirkung, und `crosses` stand als Null in jeder Statistik.
+  log('\n--- Die Flanke ---');
+  {
+    const merkePos = user.position;
+    const merkeAttrs = { ...user.attrs };
+
+    // Auf dem Fluegel muss die Szene kommen.
+    user.position = 'RA';
+    let flanken = 0; let andereSzenen = 0;
+    upcoming.slice(0, 30).forEach((m, k) => {
+      const vorbereitet = prepareUserMatch(game, m.id, true);
+      if (!vorbereitet) return;
+      const r = new Rng(44000 + k * 733);
+      const e = new MatchEngine({
+        ...vorbereitet.setup, highlightMode: 'own', rng: r,
+      });
+      e.runToEnd((c) => {
+        if (c.kind === 'cross') flanken++; else andereSzenen++;
+        return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
+      });
+      e.finish();
+    });
+    log(`Als Rechtsaussen: ${flanken} Flankenszenen neben ${andereSzenen} anderen`);
+    // Untergrenze mit Aussagekraft: eine einzige Flanke in dreissig
+    // Spielen waere ein Feature, das niemand zu sehen bekommt. Genau so
+    // war es, solange die Flanke nur am Vorlagenzweig hing.
+    check('Der Aussenspieler bekommt regelmaessig Flankenszenen',
+      flanken >= 20, `${flanken} in 30 Spielen`);
+
+    // In der Mitte nicht.
+    user.position = 'ZM';
+    let mitteFlanken = 0;
+    upcoming.slice(0, 30).forEach((m, k) => {
+      const vorbereitet = prepareUserMatch(game, m.id, true);
+      if (!vorbereitet) return;
+      const r = new Rng(45000 + k * 733);
+      const e = new MatchEngine({
+        ...vorbereitet.setup, highlightMode: 'own', rng: r,
+      });
+      e.runToEnd((c) => { if (c.kind === 'cross') mitteFlanken++;
+        return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r); });
+      e.finish();
+    });
+    log(`Als Zentraler Mittelfeldspieler: ${mitteFlanken} Flankenszenen`);
+    check('Aus der Mitte wird nicht geflankt', mitteFlanken === 0,
+      `${mitteFlanken}`);
+
+    // Und die Flankenstaerke muss den Unterschied machen.
+    const lage = (druck: number) => ({
+      id: 'fl', kind: 'cross' as const, minute: 40, title: 'F', hint: '',
+      distance: 12, offset: 22, pressure: druck, keeper: 60, opponent: 60,
+      xg: 0.15, bigChance: false, scoreline: [0, 0] as [number, number],
+      homeName: 'A', awayName: 'B', userSide: 'home' as const,
+      targets: [{ id: 'z', name: 'Ziel', shirtNumber: 9, position: 'ST' as const,
+        x: 2, y: 8, marked: 0.4, finishing: 70 }],
+    });
+    const flankenprofi = structuredClone(user);
+    const grobmotoriker = structuredClone(user);
+    for (const key of Object.keys(user.attrs) as (keyof typeof user.attrs)[]) {
+      flankenprofi.attrs[key] = 60; grobmotoriker.attrs[key] = 60;
+    }
+    flankenprofi.attrs.crossing = 92;
+    grobmotoriker.attrs.crossing = 28;
+    const zaehle = (p: typeof user) => {
+      let an = 0;
+      for (let i = 0; i < 400; i++) {
+        const r = autoResolveChallenge(lage(0.4), p, DIFFICULTY_SETTINGS.normal,
+          new Rng(6000 + i));
+        if (r.outcome === 'passCompleted') an++;
+      }
+      return an;
+    };
+    const gut = zaehle(flankenprofi);
+    const schlecht = zaehle(grobmotoriker);
+    log(`Flanken angekommen bei Flankenwert 92 gegen 28: ${gut} gegen ${schlecht}`);
+    check('Die Flankenstaerke entscheidet mit', gut > schlecht + 40,
+      `${gut} gegen ${schlecht}`);
+
+    user.position = merkePos;
+    Object.assign(user.attrs, merkeAttrs);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
@@ -3868,6 +3966,13 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchEngine.ts', name: 'rollEcke', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'lageFuerEreignis', mindestens: 2 },
     { datei: '/src/engine/events.ts', name: 'passt', mindestens: 8 },
+    { datei: '/src/engine/matchEngine.ts', name: 'applyCrossResult', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'buildCrossChallenge', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'flanktVonAussen', mindestens: 2 },
+    { datei: '/src/engine/matchEngine.ts', name: 'crossesCompleted', mindestens: 2 },
+    { datei: '/src/engine/matchSim.ts', name: 'crossesCompleted', mindestens: 2 },
+    { datei: '/src/engine/stats.ts', name: 'crossesCompleted', mindestens: 2 },
+    { datei: '/src/engine/ballAction.ts', name: 'gespuer', mindestens: 2 },
     { datei: '/src/engine/ballAction.ts', name: 'findBlock', mindestens: 2 },
     { datei: '/src/engine/ballAction.ts', name: 'wallHit', mindestens: 3 },
     { datei: '/src/ui/match/HighlightScene.tsx', name: 'DefenderFigure', mindestens: 3 },
