@@ -2129,6 +2129,8 @@ export const EN: Record<string, string> = {
   'se.renewal.pitch': '{club} want to extend and plan for you as {role}. Your current wage is EUR {salary} a week.',
   'se.renewal.news': '{club} offer you a new contract',
   'se.renewal.newsBody': 'Your contract is running out. The club puts an offer of EUR {salary} a week on the table, as {role}.',
+  'se.winterOffers.news': 'Interest in mid-season',
+  'se.winterOffers.body': 'Your first half of the season has been noticed. There is an offer under Transfers - it only stands until the end of January.',
   'se.offers.news': '{n} clubs are interested',
   'se.offers.newsBody': 'New offers have arrived after the season. Decide under Transfers.',
 

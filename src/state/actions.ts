@@ -530,6 +530,12 @@ export function acceptOffer(offerId: string) {
   // den Spieler beliebig oft fuer dieselben Mittel holen.
   bookSigning(club, oldClub, offer.fee, null, offer.salary,
     user.contract ? user.contract.salary : 0);
+  // Derselbe doppelte Boden wie bei der Verlaengerung: Ein im Winter
+  // unterschriebener Vorvertrag ist mit diesem Wechsel hinfaellig. Ohne
+  // diese Zeile wechselte der Spieler jetzt zu diesem Verein - und am
+  // Saisonende ein zweites Mal zu dem aus dem Vorvertrag. Zwei feste
+  // Wechsel in einem Jahr, ohne dass er das je entschieden haette.
+  game.preContract = null;
   user.clubId = club.id;
   user.contract = {
     clubId: club.id,

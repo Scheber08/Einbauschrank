@@ -2,6 +2,7 @@
  * Spielablauf: Karrierestart, Tageslogik und Spielabwicklung
  * (Konzept Abschnitt 14, 18, 41, 51).
  */
+import { generateWinterOffers } from './season';
 import { expireOffers } from './ids';
 import type { Genesung } from './development';
 import { ATTR_LABELS } from './attributes';
@@ -715,6 +716,9 @@ export function advanceDay(state: GameState): DayResult {
   // Im Januar des letzten Vertragsjahres darf ohne Abloese unterschrieben
   // werden - der Markt sieht dann anders aus als im Sommer.
   offerPreContracts(state);
+  // Und wer eine starke Hinrunde spielt, bekommt mitten in der Saison
+  // Angebote. Vorher blieb eine gute Hinrunde ein halbes Jahr folgenlos.
+  generateWinterOffers(state);
 
   // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
   // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.

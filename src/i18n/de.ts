@@ -2130,6 +2130,8 @@ export const DE: Record<string, string> = {
   'se.renewal.pitch': '{club} möchte mit dir verlängern und plant dich als {role} ein. Bisheriges Gehalt {salary} Euro pro Woche.',
   'se.renewal.news': '{club} bietet dir einen neuen Vertrag',
   'se.renewal.newsBody': 'Dein Vertrag läuft aus. Der Verein legt ein Angebot über {salary} Euro pro Woche als {role} vor.',
+  'se.winterOffers.news': 'Interesse mitten in der Saison',
+  'se.winterOffers.body': 'Deine Hinrunde ist nicht unbemerkt geblieben. Im Bereich Transfers liegt ein Angebot - es gilt nur bis Ende Januar.',
   'se.offers.news': '{n} Vereine zeigen Interesse',
   'se.offers.newsBody': 'Nach der Saison liegen neue Angebote vor. Entscheide im Bereich Transfers.',
 

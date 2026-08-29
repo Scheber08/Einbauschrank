@@ -150,9 +150,13 @@ export function resetBudgets(
     const klasse = KLASSEN_EINNAHMEN[
       state.competitions[club.leagueId]?.level ?? 3] ?? 1;
 
+    // Bewusst **ohne** den Klassenfaktor: Der Gehaltsrahmen wird aus der
+    // bisherigen Gehaltslast fortgeschrieben. Ein dauerhafter Aufschlag
+    // wuerde sich Saison um Saison aufschaukeln - genau die Drift, vor der
+    // der Kommentar am Saisonwechsel warnt. Die Spielklasse wirkt deshalb
+    // nur auf den Transferetat, und der kommt aus dem Kaderwert.
     const luft = 1.08 + zufall() * 0.22;
-    club.wageBudget = Math.max(5000,
-      Math.round(last * luft * (0.9 + erfolg * 0.1) * klasse));
+    club.wageBudget = Math.max(5000, Math.round(last * luft * (0.9 + erfolg * 0.1)));
 
     const anteil = (0.07 + zufall() * 0.07) * (0.8 + erfolg * 0.2);
     club.budget = Math.max(50000,

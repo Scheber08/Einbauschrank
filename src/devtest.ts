@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { generateWinterOffers } from './engine/season';
 import { kaderplatz } from './engine/lineup';
 import { squadOf } from './engine/worldGen';
 import { direktabnahmeChance } from './engine/attributes';
@@ -3948,6 +3949,59 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Eine mittlere Note aendert nichts',
       Math.abs(mittel - ohne) < Math.max(0.2, ohne * 0.02),
       `${tDecimal(mittel, 2)} gegen ${tDecimal(ohne, 2)}`);
+  }
+  // --- Angebote im Winter (Abschnitt 59) --------------------------------
+  //
+  // Angebote gab es nur einmal im Jahr, im Sommerfenster. Eine starke
+  // Hinrunde blieb damit ein halbes Jahr folgenlos - genau in dem Moment,
+  // in dem ein Spieler interessant wird, passierte nichts.
+  log('\n--- Angebote im Winter ---');
+  {
+    /** Setzt eine Hinrunde mit der gewuenschten Note und zaehlt die Angebote. */
+    const winter = (note: number, spiele: number, tore: number) => {
+      const gW = structuredClone(game);
+      const uW = gW.players[gW.userPlayerId];
+      if (!uW.clubId) return -1;
+      // Saisonstatistik der laufenden Saison ersetzen.
+      for (const k of Object.keys(gW.seasonStats)) {
+        const e = gW.seasonStats[k];
+        if (e.playerId === uW.id && e.season === gW.season) delete gW.seasonStats[k];
+      }
+      // Eine vorhandene Zeile als Vorlage nehmen und nur die Werte setzen,
+      // die hier zaehlen - so bleibt sie vollstaendig, auch wenn spaeter
+      // Felder dazukommen.
+      const vorlage = Object.values(game.seasonStats)[0];
+      gW.seasonStats['winterprobe'] = {
+        ...structuredClone(vorlage),
+        playerId: uW.id, season: gW.season,
+        competitionId: gW.clubs[uW.clubId]!.leagueId, clubId: uW.clubId,
+        appearances: spiele, goals: tore, minutes: spiele * 90,
+        ratingSum: note * spiele,
+      };
+      gW.offers = [];
+      gW.date = `${gW.season + 1}-01-03`;
+      generateWinterOffers(gW);
+      return gW.offers.length;
+    };
+
+    const stark = winter(7.9, 18, 14);
+    const mittel = winter(6.5, 18, 5);
+    const wenig = winter(8.5, 3, 3);
+    log(`Winterangebote: starke Hinrunde ${stark}, mittelmaessige ${mittel}, `
+      + `zu wenig Spiele ${wenig}`);
+    check('Eine starke Hinrunde bringt Angebote im Winter', stark > 0,
+      `${stark}`);
+    // Sonst waere der Winterwechsel die Regel statt die Ausnahme.
+    check('Eine mittelmaessige Hinrunde bringt keine', mittel === 0, `${mittel}`);
+    check('Ohne Einsaetze gibt es nichts', wenig === 0, `${wenig}`);
+
+    // Der eigene Zufallsstrom darf den Spielverlauf nicht beruehren.
+    const gA = structuredClone(game);
+    gA.date = `${gA.season + 1}-01-03`;
+    const vorher = gA.rngState;
+    generateWinterOffers(gA);
+    check('Das Winterfenster verschiebt den Zufallsstrom nicht',
+      gA.rngState === vorher, `${gA.rngState === vorher}`);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

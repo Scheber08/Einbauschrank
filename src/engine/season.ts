@@ -8,7 +8,7 @@ import { generateLoanOffers } from './loan';
 import { computeOverall, POSITION_LINE } from './attributes';
 import { COUNTRY_BY_ID } from './countries';
 import { CUP_ROUNDS, drawFirstRound, drawRound, winnersOf } from './cup';
-import { addDays, ageOn, makeDate, seasonLabel } from './date';
+import { addDays, ageOn, dayOfMonth, makeDate, month, seasonLabel } from './date';
 import { developAiPlayer } from './development';
 import { buildLeagueSchedule, cupDates, leagueMatchDates } from './fixtures';
 import { addCareerEvent, addMatch, addNews, makeId } from './ids';
@@ -919,6 +919,87 @@ export function offerUserRenewal(state: GameState, rng: Rng) {
     t('se.renewal.newsBody', {
       salary: tNumber(salary), role: t(`role.${role}`),
     }), true);
+}
+
+/**
+ * Angebote mitten in der Saison, im Januar.
+ *
+ * Angebote gab es nur einmal im Jahr, im Sommerfenster. Eine starke
+ * Hinrunde blieb damit ein halbes Jahr lang folgenlos - wer im Herbst
+ * aufdreht, merkt davon nichts, bis die Saison vorbei ist. Genau in dem
+ * Moment, in dem ein Spieler interessant wird, passierte nichts.
+ *
+ * Bewusst schmaler als der Sommer: hoechstens zwei Vereine, und nur bei
+ * wirklich guter Hinrunde. Ein Winterwechsel ist die Ausnahme.
+ *
+ * Eigener Zufallsstrom, aus Saison und Spieler abgeleitet - so
+ * verschiebt das Fenster den Spielverlauf nicht, sondern ist nur
+ * reproduzierbar.
+ */
+export function generateWinterOffers(state: GameState) {
+  const user = state.players[state.userPlayerId];
+  if (!user?.clubId || !user.contract) return;
+  if (month(state.date) !== 1 || dayOfMonth(state.date) !== 3) return;
+
+  const eintraege = Object.values(state.seasonStats).filter(
+    (e) => e.playerId === user.id && e.season === state.season,
+  );
+  const spiele = eintraege.reduce((a, e) => a + e.appearances, 0);
+  // Ohne halbe Hinrunde gibt es nichts zu bewerten.
+  if (spiele < 8) return;
+  const note = eintraege.reduce((a, e) => a + e.ratingSum, 0) / spiele;
+  const tore = eintraege.reduce((a, e) => a + e.goals, 0);
+  // Deutlich strenger als im Sommer: erst ab einer starken Hinrunde.
+  const wert = (note - 7.0) * 1.6 + tore * 0.06;
+  const anzahl = clamp(Math.round(wert), 0, 2);
+  if (anzahl <= 0) return;
+
+  let saat = 0x85ebca6b ^ (state.season * 2246822519);
+  for (const c of state.userPlayerId) saat = (saat * 31 + c.charCodeAt(0)) >>> 0;
+  const rng = new Rng(saat >>> 0);
+
+  const ability = computeOverall(user.attrs, user.position);
+  const alter = ageOn(user.birthDate, state.date);
+  const eigenerVerein = state.clubs[user.clubId];
+  const eigenesLevel = state.competitions[eigenerVerein?.leagueId ?? '']?.level ?? 3;
+  const gehaelter = buildWageIndex(state);
+  const erwarteteAbloese = Math.round(user.marketValue * 1.25);
+  const erwartetesGehalt = calcSalary(ability, alter, eigenesLevel, 60, 1);
+
+  const kandidaten = Object.values(state.clubs).filter((c) => {
+    if (c.id === user.clubId) return false;
+    const level = state.competitions[c.leagueId]?.level ?? 3;
+    // Mitten in der Saison holt niemand einen Spieler von weiter unten.
+    if (level > eigenesLevel) return false;
+    if (c.reputation < ability * 0.7) return false;
+    return canSign(c, gehaelter.get(c.id) ?? 0, erwarteteAbloese, erwartetesGehalt, 1.1);
+  });
+  if (kandidaten.length === 0) return;
+
+  for (const club of rng.sample(kandidaten, Math.min(anzahl, kandidaten.length))) {
+    const level = state.competitions[club.leagueId]?.level ?? 3;
+    const country = COUNTRY_BY_ID[club.countryId];
+    const salary = Math.round(calcSalary(ability, alter, level, club.reputation,
+      country?.wealth ?? 1) * rng.float(1.05, 1.4));
+    const role = ability >= club.reputation * 0.72 ? 'Stammspieler'
+      : ability >= club.reputation * 0.55 ? 'Rotationsspieler' : 'Ergaenzungsspieler';
+    addOffer(state, {
+      id: makeId(state, 'o'),
+      clubId: club.id,
+      // Mitten in der Saison zahlt man drauf.
+      fee: Math.round(Math.min(user.marketValue * rng.float(1.1, 1.7), club.budget)
+        / 10000) * 10000,
+      salary,
+      years: rng.int(2, 5),
+      role,
+      goalBonus: Math.round(salary * rng.float(0.15, 0.45)),
+      pitch: buildPitch(state, club, level, role),
+      expiresOn: addDays(state.date, 25),
+      leagueLevel: level,
+    });
+  }
+  addNews(state, 'transfer', t('se.winterOffers.news'),
+    t('se.winterOffers.body'), true);
 }
 
 /** Angebote an den eigenen Spieler nach der Saison (Konzept Abschnitt 34). */
