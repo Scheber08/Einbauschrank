@@ -1572,23 +1572,20 @@ export class MatchEngine {
     const attacker = this.rng.pick(this.onPitch[attackingSide].filter((o) => o.slot !== 'TW'));
     if (!attacker) return false;
 
+    // Ueber `baseChallenge` gebaut wie jede andere Szene. Vorher stand hier
+    // eine eigene Abschrift - und jedes Feld, das spaeter dazukam, fehlte
+    // ihr. Zuletzt das Abwehrkoennen: sechs von acht Szenen trugen es, der
+    // Zweikampf nicht.
     this.startChallenge({
-      id: `ch-${this.minute}-duel`,
-      kind: 'duel',
-      minute: this.minute,
+      ...this.baseChallenge(defSide, 'duel'),
       title: t('me.ch.duel.title'),
       hint: t('me.ch.duel.hint'),
       distance: this.rng.float(22, 45),
       offset: this.rng.normal(0, 14),
       pressure: 0.5,
-      keeper: this.strengthOf(defSide).keeper,
       opponent: attacker.rating,
       xg: 0,
       bigChance: false,
-      scoreline: this.score,
-      homeName: this.setup.homeClub.name,
-      awayName: this.setup.awayClub.name,
-      userSide: defSide,
     }, {
       type: 'duel',
       attackingSide,

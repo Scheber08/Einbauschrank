@@ -113,6 +113,12 @@ export function feeShare(club: Club, fee: number): number {
  * `erfolg` verschiebt das Ergebnis um bis zu ein Fünftel: Wer oben mitspielt,
  * hat im nächsten Sommer mehr in der Hand.
  */
+/**
+ * Wieviel eine Spielklasse einbringt, als Faktor auf Budget und
+ * Gehaltsrahmen. Erste Liga deutlich mehr, dritte deutlich weniger.
+ */
+const KLASSEN_EINNAHMEN: Record<number, number> = { 1: 1.45, 2: 1, 3: 0.72 };
+
 export function resetBudgets(
   state: GameState, erfolgJeVerein: Map<Id, number>, zufall: () => number,
 ) {
@@ -129,10 +135,27 @@ export function resetBudgets(
     // 1 heisst Mittelmass, darunter schwach, darueber stark.
     const erfolg = erfolgJeVerein.get(club.id) ?? 1;
 
+    // Die Spielklasse bestimmt die Einnahmen mit.
+    //
+    // Vorher hing das Budget allein an Kaderwert und bisheriger
+    // Gehaltslast. Ein Aufsteiger hatte damit genau so wenig Geld wie in
+    // der Liga darunter, konnte niemanden holen und stieg prompt wieder
+    // ab; ein Absteiger behielt seinen teuren Kader und kam sofort
+    // zurueck. Gemessen ueber drei Saisons: 43 Prozent der Aufsteiger
+    // gingen direkt wieder runter, 35 Prozent der Absteiger direkt wieder
+    // hoch - ein Fahrstuhl statt einer Liga.
+    //
+    // Fernsehgeld und Zuschauer unterscheiden sich zwischen erster und
+    // dritter Liga um ein Vielfaches. Genau das fehlte.
+    const klasse = KLASSEN_EINNAHMEN[
+      state.competitions[club.leagueId]?.level ?? 3] ?? 1;
+
     const luft = 1.08 + zufall() * 0.22;
-    club.wageBudget = Math.max(5000, Math.round(last * luft * (0.9 + erfolg * 0.1)));
+    club.wageBudget = Math.max(5000,
+      Math.round(last * luft * (0.9 + erfolg * 0.1) * klasse));
 
     const anteil = (0.07 + zufall() * 0.07) * (0.8 + erfolg * 0.2);
-    club.budget = Math.max(50000, Math.round(kaderwert * anteil / 10000) * 10000);
+    club.budget = Math.max(50000,
+      Math.round(kaderwert * anteil * klasse / 10000) * 10000);
   }
 }

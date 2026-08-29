@@ -102,6 +102,16 @@ export function applyTraining(
   eigeneWahl = 1,
   /** Risikofaktor aus denselben Entscheidungen. */
   eigenesRisiko = 1,
+  /**
+   * Durchschnittsnote der laufenden Saison, 0 wenn noch nichts gespielt.
+   *
+   * Die tatsaechliche Leistung ging bis hierher **nirgends** in die
+   * Entwicklung ein. Alter, Potenzialabstand, Trainingsanlage, Moral und
+   * Spielpraxis zaehlten - wer jede Woche schlecht spielte, wuchs genau
+   * so schnell wie ein Ueberflieger. Nur die Obergrenze bewegte sich
+   * ueber `reviewPotential` mit der Note; das Tempo dorthin nicht.
+   */
+  saisonNote = 0,
 ): TrainingOutcome {
   const before = computeOverall(player.attrs, player.position);
   const age = ageOn(player.birthDate, currentDate);
@@ -125,6 +135,12 @@ export function applyTraining(
   rate *= 0.85 + player.attrs.ambition / 330;
   rate *= 0.65 + (matchSharpness / 100) * 0.55;
   rate *= 0.7 + (player.morale / 100) * 0.45;
+  // Was auf dem Platz herauskommt, zaehlt auch fuer das, was daneben
+  // dazukommt. Neutral bei 6,4 - derselben Note, an der sich auch
+  // Vertragsangebote und Transferinteresse ausrichten. Wer noch nichts
+  // gespielt hat, verliert hier nichts: dafuer steht die Spielpraxis
+  // eine Zeile darueber.
+  if (saisonNote > 0) rate *= clamp(1 + (saisonNote - 6.4) * 0.16, 0.7, 1.3);
   rate *= factors.gain;
 
   const gains: TrainingOutcome['gains'] = [];

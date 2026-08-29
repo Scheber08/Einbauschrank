@@ -604,6 +604,21 @@ function meldeGenesung(state: GameState, genesen: Genesung) {
     }));
 }
 
+/**
+ * Durchschnittsnote des eigenen Spielers in der laufenden Saison.
+ *
+ * Null, solange nichts gespielt wurde - dann soll die Leistung die
+ * Entwicklung weder heben noch bremsen.
+ */
+function saisonNote(state: GameState): number {
+  const eintraege = Object.values(state.seasonStats).filter(
+    (e) => e.playerId === state.userPlayerId && e.season === state.season,
+  );
+  const spiele = eintraege.reduce((a, e) => a + e.appearances, 0);
+  if (spiele === 0) return 0;
+  return eintraege.reduce((a, e) => a + e.ratingSum, 0) / spiele;
+}
+
 export function advanceDay(state: GameState): DayResult {
   const rng = new Rng(state.rngState);
   const result: DayResult = {
@@ -654,6 +669,7 @@ export function advanceDay(state: GameState): DayResult {
         * extraSessionEffect(state.extraSessions ?? 0).growth,
       LIFESTYLE[state.lifestyle ?? 'balanced'].injury
         * extraSessionEffect(state.extraSessions ?? 0).injury,
+      saisonNote(state),
     );
     if (result.training.injured) {
       addNews(state, 'injury', t('gm.trainInjury.title'),
