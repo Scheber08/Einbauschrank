@@ -28,6 +28,85 @@ export function isAvailable(p: Player): boolean {
 }
 
 /** Wie gut passt ein Spieler heute auf diesen Platz? */
+/** Ein einzelner Grund, warum der Spieler steht, wo er steht. */
+export interface Kaderfaktor {
+  /** Katalogschluessel der Bezeichnung. */
+  key: string;
+  /** Wieviele Punkte der Trainerbewertung daran haengen. */
+  punkte: number;
+}
+
+/** Wo der Spieler in der Rangordnung des Trainers steht. */
+export interface Kaderplatz {
+  rang: number;
+  von: number;
+  /** Punktabstand zum direkten Konkurrenten. Negativ heisst: dahinter. */
+  abstand: number;
+  /** Der direkte Konkurrent - der eine davor, sonst der eine dahinter. */
+  rivale: string | null;
+  /** Ob der Rivale vor ihm steht. */
+  rivaleVorn: boolean;
+  faktoren: Kaderfaktor[];
+}
+
+/**
+ * Was der Trainer sieht - und der Spieler bisher nicht.
+ *
+ * `slotScore` entscheidet ueber jede Aufstellung, wurde aber nur
+ * innerhalb der Aufstellung benutzt. Der Spieler sass auf der Bank und
+ * erfuhr weder, wie knapp es war, noch woran es lag. In einem Spiel,
+ * dessen ganze Schleife "erkaempf dir deinen Platz" heisst, ist das die
+ * wichtigste Auskunft ueberhaupt.
+ *
+ * Die einzelnen Gruende entstehen als Gegenprobe: derselbe Spieler,
+ * derselbe Platz, nur der eine Faktor auf neutral. Die Differenz ist
+ * genau der Beitrag dieses Faktors - keine zweite Formel, die
+ * irgendwann auseinanderlaeuft.
+ */
+export function kaderplatz(
+  kader: Player[], user: Player, coachRelation: number,
+): Kaderplatz | null {
+  const slot = user.position;
+  const bewertet = kader
+    .map((p) => ({ p, score: slotScore(p, slot, coachRelation) }))
+    .sort((a, b) => b.score - a.score);
+  const eigen = bewertet.findIndex((e) => e.p.id === user.id);
+  if (eigen < 0) return null;
+
+  const davor = bewertet[eigen - 1];
+  const dahinter = bewertet[eigen + 1];
+  const nachbar = davor ?? dahinter ?? null;
+  const eigenScore = bewertet[eigen].score;
+
+  const mit = (aenderung: Partial<Player>, beziehung = coachRelation) =>
+    slotScore({ ...user, ...aenderung }, slot, beziehung);
+  const roh: Kaderfaktor[] = [
+    { key: 'squad.factor.form', punkte: eigenScore - mit({ form: 50 }) },
+    { key: 'squad.factor.fitness', punkte: eigenScore - mit({ fitness: 100 }) },
+    { key: 'squad.factor.role', punkte: eigenScore - mit({
+      contract: user.contract
+        ? { ...user.contract, role: 'Ergaenzungsspieler' } : null,
+    }) },
+    { key: 'squad.factor.coach',
+      punkte: eigenScore - mit({}, 50) },
+    { key: 'squad.factor.potential',
+      punkte: eigenScore - mit({ potential: 0 }) },
+  ];
+
+  return {
+    rang: eigen + 1,
+    von: bewertet.length,
+    abstand: nachbar ? eigenScore - nachbar.score : 0,
+    rivale: nachbar ? `${nachbar.p.firstName} ${nachbar.p.lastName}` : null,
+    rivaleVorn: !!davor,
+    // Was kaum wiegt, gehoert nicht in die Auskunft - sonst steht dort
+    // eine Liste, in der das Wesentliche untergeht.
+    faktoren: roh
+      .filter((k) => Math.abs(k.punkte) >= 0.4)
+      .sort((a, b) => Math.abs(b.punkte) - Math.abs(a.punkte)),
+  };
+}
+
 export function slotScore(p: Player, slot: PositionCode, coachRelation: number): number {
   const base = effectiveOverall(p.attrs, p.position, p.altPositions, slot);
   const formFactor = 0.86 + (p.form / 100) * 0.28;

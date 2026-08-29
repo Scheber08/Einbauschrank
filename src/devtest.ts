@@ -3,6 +3,8 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { kaderplatz } from './engine/lineup';
+import { squadOf } from './engine/worldGen';
 import { direktabnahmeChance } from './engine/attributes';
 import { kopfballGefahr, luftHoheit } from './engine/attributes';
 import { aufSchwachemFuss, resolvePass } from './engine/ballAction';
@@ -3712,6 +3714,91 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     // Kopfballspieler nicht.
     check('Ganz aus ist sie nie', kopfStark >= 0.1,
       `${tDecimal(kopfStark * 100, 0)} %`);
+  }
+  // --- Der Stand beim Trainer (Abschnitt 56) ----------------------------
+  //
+  // `slotScore` entscheidet ueber jede Aufstellung und wurde nur innerhalb
+  // der Aufstellung benutzt. Der Spieler sass auf der Bank und erfuhr
+  // weder, wie knapp es war, noch woran es lag - in einem Karrierespiel
+  // die Frage, die man sich jede Woche stellt.
+  log('\n--- Der Stand beim Trainer ---');
+  {
+    const club = user.clubId ? game.clubs[user.clubId] : null;
+    const kader = club ? squadOf(game.players, club.id) : [];
+    const platz = kaderplatz(kader, user, game.coachRelation);
+    if (!platz) {
+      check('Der Stand beim Trainer laesst sich bestimmen', false, 'kein Kader');
+    } else {
+      log(`Rang ${platz.rang} von ${platz.von}, `
+        + `${platz.rivaleVorn ? 'hinter' : 'vor'} ${platz.rivale ?? '-'} `
+        + `(${tDecimal(platz.abstand, 1)} Punkte), Gruende: `
+        + `${platz.faktoren.map((k) => `${k.key.split('.').pop()} `
+          + `${tDecimal(k.punkte, 1)}`).join(', ') || 'keine'}`);
+      check('Der Rang liegt im Kader', platz.rang >= 1 && platz.rang <= platz.von,
+        `${platz.rang} von ${platz.von}`);
+
+      // Bessere Form muss nach vorn bringen. Gemessen an einem Feld von
+      // Zwillingen, die sich nur in der Form unterscheiden - im echten
+      // Kader liegt der Spieler einundzwanzig Punkte vor dem Zweiten,
+      // dort bewegt keine Form der Welt seinen Rang. Eine Probe, die
+      // "Rang 1 gegen Rang 1" ergibt, hat nichts gemessen.
+      const zwillinge = [10, 30, 50, 70, 90].map((wert, i) => {
+        const z = structuredClone(user);
+        z.id = `zw-${i}`;
+        z.form = wert;
+        return z;
+      });
+      const raenge = zwillinge.map(
+        (z) => kaderplatz(zwillinge, z, game.coachRelation)!.rang);
+      log(`Zwillinge nach Form 10/30/50/70/90: Raenge ${raenge.join(', ')}`);
+      check('Bessere Form bringt einen besseren Rang',
+        raenge.length === 5 && raenge.every((r, i) => r === 5 - i),
+        raenge.join(', '));
+
+      // Und die Auskunft muss den direkten Konkurrenten richtig benennen.
+      const mitte = kaderplatz(zwillinge, zwillinge[2], game.coachRelation)!;
+      check('Der genannte Konkurrent ist der direkte Nachbar',
+        mitte.rivaleVorn && mitte.abstand < 0,
+        `${mitte.rivale ?? '-'}, Abstand ${tDecimal(mitte.abstand, 1)}`);
+
+      const besser = structuredClone(user);
+      besser.form = 95;
+      const schlechter = structuredClone(user);
+      schlechter.form = 15;
+      const kaderMit = (p: typeof user) => kader.map(
+        (q: typeof user) => (q.id === p.id ? p : q));
+      const gut = kaderplatz(kaderMit(besser), besser, game.coachRelation)!;
+      const schwach = kaderplatz(kaderMit(schlechter), schlechter, game.coachRelation)!;
+
+      // Und der genannte Grund muss zur Richtung passen: wer in Form ist,
+      // dem darf die Form nicht als Bremse ausgewiesen werden.
+      const formGut = gut.faktoren.find((k) => k.key === 'squad.factor.form');
+      const formSchwach = schwach.faktoren.find((k) => k.key === 'squad.factor.form');
+      check('Gute Form wird als Grund dafuer genannt, schlechte dagegen',
+        (formGut?.punkte ?? 1) > 0 && (formSchwach?.punkte ?? -1) < 0,
+        `${tDecimal(formGut?.punkte ?? 0, 1)} gegen `
+        + `${tDecimal(formSchwach?.punkte ?? 0, 1)}`);
+
+      // Die Gruende sind Gegenproben derselben Formel - kein zweiter
+      // Rechenweg, der auseinanderlaufen kann. Das laesst sich pruefen:
+      // ohne jeden Vorteil muss die Summe der Beitraege zum Rohwert passen.
+      const neutral = structuredClone(user);
+      neutral.form = 50; neutral.fitness = 100; neutral.potential = 0;
+      if (neutral.contract) neutral.contract.role = 'Ergaenzungsspieler';
+      const ohneAlles = slotScore(neutral, user.position, 50);
+      const echt = slotScore(user, user.position, game.coachRelation);
+      const summe = platz.faktoren.reduce((a, k) => a + k.punkte, 0);
+      log(`Rohwert ${tDecimal(echt, 1)}, ohne jeden Vorteil `
+        + `${tDecimal(ohneAlles, 1)}, Summe der genannten Gruende `
+        + `${tDecimal(summe, 1)}`);
+      // Nicht exakt: die Faktoren wirken teils multiplikativ, und kleine
+      // Beitraege werden bewusst weggelassen. Die Groessenordnung muss
+      // aber stimmen, sonst erklaert die Auskunft etwas anderes als das,
+      // was der Trainer rechnet.
+      check('Die genannten Gruende erklaeren den Unterschied',
+        Math.abs(summe - (echt - ohneAlles)) < Math.max(3, Math.abs(echt - ohneAlles) * 0.5),
+        `${tDecimal(summe, 1)} gegen ${tDecimal(echt - ohneAlles, 1)}`);
+    }
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

@@ -151,6 +151,17 @@ export const DE: Record<string, string> = {
   'contract.perWeek': '{amount} EUR/Woche',
 
   // --- Mannschaft -------------------------------------------------------
+  'squad.standing': 'Dein Stand beim Trainer',
+  'squad.standing.rank': 'Rang im Kader',
+  'squad.standing.behind': '{points} Punkte hinter {name}.',
+  'squad.standing.ahead': '{points} Punkte vor {name}.',
+  'squad.standing.alone': 'Auf deiner Position bist du allein im Kader.',
+  'squad.standing.hint': 'Der Trainer wiegt Können, Form, Fitness, deine Rolle im Kader, euer Verhältnis und dein Potenzial gegeneinander ab. Die Punkte zeigen, was dich gerade trägt und was dich bremst.',
+  'squad.factor.form': 'Form',
+  'squad.factor.fitness': 'Fitness',
+  'squad.factor.role': 'Rolle im Kader',
+  'squad.factor.coach': 'Verhältnis zum Trainer',
+  'squad.factor.potential': 'Potenzial',
   'squad.title': 'Kader',
   'squad.number': '#',
   'squad.name': 'Name',

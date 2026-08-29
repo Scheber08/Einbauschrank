@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { computeOverall } from '../../engine/attributes';
 import { ageOn } from '../../engine/date';
 import { userClub } from '../../engine/game';
-import { selectLineup } from '../../engine/lineup';
+import { kaderplatz, selectLineup } from '../../engine/lineup';
 import { clubSponsors } from '../../engine/identity';
 import { nationCode, nationName } from '../../engine/nations';
 import { t, tNumber } from '../../i18n';
@@ -15,7 +15,7 @@ import { TACTIC_LABELS, DIFFICULTY_SETTINGS } from '../../engine/types';
 import { useAppState } from '../../state/store';
 import ClubCrest from '../ClubCrest';
 import FormationPitch from '../FormationPitch';
-import { Empty, Meter, Panel, Pill, money, shortName } from '../components';
+import { Bar, Empty, Meter, Panel, Pill, money, shortName } from '../components';
 
 type SortKey = 'position' | 'ability' | 'age' | 'form' | 'value';
 
@@ -168,6 +168,8 @@ export default function SquadTab() {
         )}
       </Panel>
 
+      <KaderplatzPanel />
+
       <RelationshipsPanel />
 
       <Panel title={t('squad.title')} action={
@@ -233,6 +235,62 @@ export default function SquadTab() {
         </p>
       </Panel>
     </>
+  );
+}
+
+/**
+ * Wo der Spieler in der Rangordnung des Trainers steht - und woran es liegt.
+ *
+ * `slotScore` entscheidet ueber jede Aufstellung und stand nirgends in
+ * der Oberflaeche. Wer auf der Bank sass, erfuhr weder, wie knapp es
+ * war, noch was ihm fehlt. Genau das ist in einem Karrierespiel die
+ * Frage, die man sich jede Woche stellt.
+ */
+function KaderplatzPanel() {
+  const game = useAppState().game!;
+  const club = userClub(game);
+  const user = game.players[game.userPlayerId];
+  const platz = useMemo(() => {
+    if (!club || !user) return null;
+    return kaderplatz(squadOf(game.players, club.id), user, game.coachRelation);
+  }, [club, user, game.players, game.coachRelation, game.version]);
+  if (!platz) return null;
+
+  const anteil = platz.von > 1 ? 1 - (platz.rang - 1) / (platz.von - 1) : 1;
+  return (
+    <Panel title={t('squad.standing')}>
+      <div className='row' style={{ flexWrap: 'wrap', gap: '0.9rem' }}>
+        <div className="stat">
+          <div className='value'>{platz.rang}<span className='dim'>
+            {` / ${platz.von}`}</span></div>
+          <div className='label'>{t('squad.standing.rank')}</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <Bar value={anteil * 100} />
+          <div className="tiny muted">
+            {platz.rivale
+              ? t(platz.rivaleVorn
+                ? 'squad.standing.behind' : 'squad.standing.ahead', {
+                name: platz.rivale,
+                points: tNumber(Math.abs(Math.round(platz.abstand * 10)) / 10),
+              })
+              : t('squad.standing.alone')}
+          </div>
+        </div>
+      </div>
+      {platz.faktoren.length > 0 && (
+        <div className="chip-row" style={{ marginTop: 8 }}>
+          {platz.faktoren.map((k) => (
+            <Pill key={k.key} tone={k.punkte > 0 ? 'good' : 'bad'}>
+              {t(k.key)} {k.punkte > 0 ? '+' : '−'}
+              {tNumber(Math.abs(Math.round(k.punkte * 10)) / 10)}
+            </Pill>
+          ))}
+        </div>
+      )}
+      <p className='tiny muted' style={{ marginTop: 8 }}>
+        {t('squad.standing.hint')}</p>
+    </Panel>
   );
 }
 

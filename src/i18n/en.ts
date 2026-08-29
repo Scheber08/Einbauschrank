@@ -150,6 +150,17 @@ export const EN: Record<string, string> = {
   'contract.perWeek': 'EUR {amount}/week',
 
   // --- Squad ------------------------------------------------------------
+  'squad.standing': 'Where you stand with the coach',
+  'squad.standing.rank': 'Rank in the squad',
+  'squad.standing.behind': '{points} points behind {name}.',
+  'squad.standing.ahead': '{points} points ahead of {name}.',
+  'squad.standing.alone': 'You are the only one in the squad for your position.',
+  'squad.standing.hint': 'The coach weighs ability, form, fitness, your squad role, your relationship and your potential against each other. The points show what is carrying you and what is holding you back.',
+  'squad.factor.form': 'Form',
+  'squad.factor.fitness': 'Fitness',
+  'squad.factor.role': 'Squad role',
+  'squad.factor.coach': 'Relationship with the coach',
+  'squad.factor.potential': 'Potential',
   'squad.title': 'Squad',
   'squad.number': '#',
   'squad.name': 'Name',
