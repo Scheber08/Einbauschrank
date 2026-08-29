@@ -54,6 +54,7 @@ npm run typecheck
 | 27-28 Simulation, Taktik | Minutenweise Detailsimulation für eigene Spiele, schnelle Hintergrundsimulation für alle übrigen; sieben Formationen, acht Spielstile |
 | 29 Trainerbeziehung | Beeinflusst Aufstellung, Einsatzzeit und Kaderplatz |
 | 33-34 Verträge, Transfers | Vertragsverlängerung, Angebote nach jeder Saison, Wechsel des eigenen Spielers, Transferbewegungen der Computerspieler |
+| 34 Vorverträge | Im letzten halben Vertragsjahr fällt keine Ablöse mehr an: Vereine bieten ablösefrei für die kommende Saison, das Gehalt handelt man selbst aus. Der eigene Verein erfährt es - Trainerbeziehung und Verlängerungsangebot sind danach weg |
 | 34 Leihgeschäfte | Wer kaum spielt, bekommt Leihangebote aus tieferen Spielklassen - zur Winterpause und zum Saisonende |
 | 35 Beratersystem | Ein Berater sucht Vereine, verhandelt Gehalt nach und fordert eine größere Rolle ein; Aufträge kosten Zeit und Vertrauen |
 | 36-38 Marktwert, Form, Fitness | Dynamischer Marktwert, Form, Moral, Fitness, Spielpraxis, Selbstvertrauen |
@@ -100,9 +101,9 @@ Alles wird als Inline-SVG gezeichnet, ohne Bilddateien:
 Diese Punkte aus dem Konzept sind bewusst späteren Ausbauschritten vorbehalten:
 
 - Die Spiele des World Nations Cup werden derzeit simuliert; die Beteiligung des
-  eigenen Spielers (Länderspiele, Tore, Turnierverlauf) fliesst in die Karriere
+  eigenen Spielers (Länderspiele, Tore, Turnierverlauf) fließt in die Karriere
   ein, ist aber noch nicht interaktiv spielbar.
-- **Abschnitt 34**: Vorverträge und Tauschgeschäfte. Leihen sind umgesetzt,
+- **Abschnitt 34**: Tauschgeschäfte. Leihen und Vorverträge sind umgesetzt,
   der übrige Transfermarkt bleibt auf Angebote an den eigenen Spieler und eine
   einfache Umverteilung der Computerspieler beschränkt.
 - **Abschnitt 20.4**: Erweiterte Spielersteuerung über ein komplettes Spiel.

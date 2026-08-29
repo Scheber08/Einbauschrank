@@ -566,6 +566,8 @@ export interface WncResult {
   userNominated: boolean;
   userCaps: number;
   userGoals: number;
+  /** Vorlagen im Turnier. Fehlt in Spielstaenden vor der Einfuehrung. */
+  userAssists?: number;
 }
 
 // --- Spielstand ---------------------------------------------------------
@@ -702,6 +704,8 @@ export interface GameState {
   /** Nationalmannschaft (Konzept Abschnitt 12 und 13). */
   nationalCaps: number;
   nationalGoals: number;
+  /** Vorlagen im Nationaltrikot. Fehlt in aelteren Spielstaenden. */
+  nationalAssists?: number;
   /** Ist der eigene Spieler aktuell nominiert? */
   nationalNominated: boolean;
   /** Historie des World Nations Cup. */

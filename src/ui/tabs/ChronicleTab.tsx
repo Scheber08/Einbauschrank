@@ -155,6 +155,8 @@ export default function ChronicleTab() {
           <div className="grid two" style={{ marginBottom: '0.8rem' }}>
             <div className="stat"><div className="value">{game.nationalCaps}</div><div className="label">{t('chronicle.caps')}</div></div>
             <div className="stat"><div className="value">{game.nationalGoals}</div><div className="label">{t('chronicle.capGoals')}</div></div>
+            <div className="stat"><div className="value">{game.nationalAssists ?? 0}</div>
+              <div className="label">{t('chronicle.capAssists')}</div></div>
           </div>
 
           {/* Der Kader der eigenen Herkunft. Ohne ihn war eine Nominierung eine

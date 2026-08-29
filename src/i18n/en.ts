@@ -488,7 +488,7 @@ export const EN: Record<string, string> = {
   'wnc.round.semi': 'Semi-final',
   'wnc.round.final': 'Final',
   'wnc.round.won': 'Won',
-  'wnc.careerEvent': 'Reached the {round} of the {season} World Nations Cup with the national team ({caps} caps, {goals} goals).',
+  'wnc.careerEvent': 'Reached the {round} of the {season} World Nations Cup with the national team ({caps} caps, {goals} goals, {assists} assists).',
 
   'wnc.champion': 'World champions',
   'wnc.finalAgainst': 'final against {team}',
@@ -712,6 +712,7 @@ export const EN: Record<string, string> = {
   'chronicle.squadOf': '{nation} squad',
   'chronicle.ownRank': 'Ranked {n} at {position} in the whole country.',
   'chronicle.caps': 'Caps',
+  'chronicle.capAssists': 'International assists',
   'chronicle.capGoals': 'International goals',
   'chronicle.titles': 'Titles',
   'chronicle.worldChampion': 'World champion: ',

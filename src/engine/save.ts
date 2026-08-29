@@ -159,15 +159,19 @@ export async function saveGame(state: GameState): Promise<void> {
 }
 
 /**
- * Bringt einen geladenen Spielstand auf den aktuellen Stand. Bisher gibt es
- * nur einen Fall: Vor der Trennung von Herkunft und Spielort stand in
- * `nationality` ein Ligaland statt einer Nation.
+ * Bringt einen geladenen Spielstand auf den aktuellen Stand.
+ *
+ * Zwei Faelle: Vor der Trennung von Herkunft und Spielort stand in
+ * `nationality` ein Ligaland statt einer Nation. Und Vorlagen im
+ * Nationaltrikot gab es frueher nicht - ohne diese Zeile stuende in der
+ * Chronik eines alten Spielstands "undefined".
  */
 function migrate(state: GameState): GameState {
   for (const player of Object.values(state.players)) {
     const nation = normalizeNationality(player.nationality);
     if (nation !== player.nationality) player.nationality = nation;
   }
+  state.nationalAssists ??= 0;
   return state;
 }
 

@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { playWorldNationsCup } from './engine/national';
 import { offerPreContracts, fulfilPreContract, expireUserContract } from './engine/contract';
 import { offerUserRenewal } from './engine/season';
 import { summaryLabelKey, summaryValues } from './engine/attributes';
@@ -3200,6 +3201,90 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     offerPreContracts(gFrueh);
     check('Mit laufendem Vertrag kommt kein Vorvertrag',
       gFrueh.offers.length === 0, `${gFrueh.offers.length}`);
+  }
+  // --- Das Turnier zaehlt den Spieler (Abschnitt 50) ---------------------
+  //
+  // Ein Tor beim World Nations Cup hing an genau zwei Dingen: Position und
+  // Abschlusswert. Weder Form noch Fitness noch der Gegner zaehlten, und
+  // Vorlagen gab es gar nicht - ein Spielmacher stand nach einem Turnier
+  // mit null in der Chronik, egal wie er gespielt hatte.
+  log('\n--- Das Turnier zaehlt den Spieler ---');
+  {
+    /** Spielt ein Turnier mit einem praeparierten Spieler und zaehlt. */
+    const turnier = (baue: (p: typeof user) => void, laeufe: number) => {
+      let tore = 0; let vorlagen = 0; let spiele = 0;
+      for (let i = 0; i < laeufe; i++) {
+        const gT = structuredClone(game);
+        const uT = gT.players[gT.userPlayerId];
+        gT.nationalNominated = true;
+        baue(uT);
+        const r = playWorldNationsCup(gT, new Rng(77000 + i * 613));
+        tore += r.userGoals; vorlagen += r.userAssists ?? 0; spiele += r.userCaps;
+      }
+      return { tore, vorlagen, spiele };
+    };
+
+    // Koennen zaehlt.
+    const stark = turnier((p) => {
+      p.position = 'ST';
+      p.attrs.finishing = 92; p.attrs.heading = 88; p.attrs.longShots = 85;
+      p.attrs.composure = 88; p.form = 75; p.fitness = 95;
+    }, 30);
+    const schwach = turnier((p) => {
+      p.position = 'ST';
+      p.attrs.finishing = 32; p.attrs.heading = 30; p.attrs.longShots = 28;
+      p.attrs.composure = 30; p.form = 75; p.fitness = 95;
+    }, 30);
+    log(`Tore in 30 Turnieren: starker Stuermer ${stark.tore}, schwacher ${schwach.tore}`);
+    check('Der bessere Stuermer trifft oefter', stark.tore > schwach.tore + 10,
+      `${stark.tore} gegen ${schwach.tore}`);
+
+    // Form und Fitness zaehlen - dieselben Attribute, andere Verfassung.
+    const inForm = turnier((p) => {
+      p.position = 'ST';
+      p.attrs.finishing = 78; p.attrs.heading = 70; p.attrs.longShots = 70;
+      p.attrs.composure = 72; p.form = 92; p.fitness = 100;
+    }, 30);
+    const ausForm = turnier((p) => {
+      p.position = 'ST';
+      p.attrs.finishing = 78; p.attrs.heading = 70; p.attrs.longShots = 70;
+      p.attrs.composure = 72; p.form = 25; p.fitness = 62;
+    }, 30);
+    log(`Tore: in Form ${inForm.tore}, ausser Form ${ausForm.tore}`);
+    check('Form und Fitness zaehlen mit', inForm.tore > ausForm.tore,
+      `${inForm.tore} gegen ${ausForm.tore}`);
+
+    // Ein Spielmacher traegt jetzt messbar bei.
+    const zehner = turnier((p) => {
+      p.position = 'OM';
+      p.attrs.vision = 90; p.attrs.shortPass = 88; p.attrs.crossing = 82;
+      p.attrs.dribbling = 85; p.form = 75; p.fitness = 95;
+    }, 30);
+    log(`Spielmacher in 30 Turnieren: ${zehner.vorlagen} Vorlagen, `
+      + `${zehner.tore} Tore aus ${zehner.spiele} Spielen`);
+    check('Ein Spielmacher sammelt Vorlagen', zehner.vorlagen > 0,
+      `${zehner.vorlagen}`);
+    check('Und die Vorlagen landen im Spielstand', (() => {
+      const gP = structuredClone(game);
+      gP.nationalNominated = true;
+      const uP = gP.players[gP.userPlayerId];
+      uP.position = 'OM';
+      uP.attrs.vision = 95; uP.attrs.shortPass = 92; uP.attrs.crossing = 88;
+      uP.attrs.dribbling = 90;
+      const vorher = gP.nationalAssists ?? 0;
+      for (let i = 0; i < 8; i++) playWorldNationsCup(gP, new Rng(9100 + i * 97));
+      return (gP.nationalAssists ?? 0) > vorher;
+    })());
+
+    // Ein Torwart schiesst keine Turniertore.
+    const keeper = turnier((p) => {
+      p.position = 'TW';
+      p.attrs.finishing = 90; p.form = 90; p.fitness = 100;
+    }, 20);
+    log(`Torwart: ${keeper.tore} Tore, ${keeper.vorlagen} Vorlagen `
+      + `aus ${keeper.spiele} Spielen`);
+    check('Der Torwart trifft nicht', keeper.spiele > 0 && keeper.tore === 0,
+      `${keeper.tore} in ${keeper.spiele} Spielen`);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

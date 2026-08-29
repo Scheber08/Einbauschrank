@@ -179,6 +179,7 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
   const nominated = state.nationalNominated && !!userNation;
   let userCaps = 0;
   let userGoals = 0;
+  let userAssists = 0;
   /**
    * Wie weit die eigene Nation kam - als stabiler Schluessel, nicht als
    * fertiger Text. Frueher stand hier "Sieg", und die Oberflaeche verglich
@@ -187,18 +188,57 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
    */
   let userReached: string | undefined;
 
-  // Traegt die Beteiligung des Spielers ein, wenn seine Nation spielt.
-  const recordUser = (nation: Nation, roundLabel: string, won: boolean) => {
+  /**
+   * Traegt die Beteiligung des Spielers ein, wenn seine Nation spielt.
+   *
+   * Vorher hing ein Turniertor an genau zwei Dingen: der Position und dem
+   * Abschlusswert. Weder Form noch Fitness noch der Gegner spielten eine
+   * Rolle, und ein Spielmacher konnte gar nichts beitragen - Vorlagen gab
+   * es nicht. Ein Weltmeisterschaftstor ist aber der groesste Augenblick
+   * einer Laufbahn; er sollte verdient sein.
+   */
+  const recordUser = (nation: Nation, gegner: Nation, roundLabel: string, won: boolean) => {
     if (!nominated || nation.id !== userNation || !user) return;
     userCaps++;
     userReached = roundLabel;
-    // Torwahrscheinlichkeit aus Position und Abschluss.
-    const attackWeight = user.position === 'ST' ? 0.7
-      : user.position === 'OM' || user.position === 'LA' || user.position === 'RA' ? 0.5
-      : user.position === 'ZM' ? 0.25 : 0.08;
-    const chance = clamp(attackWeight * (0.4 + user.attrs.finishing / 150) * (won ? 1.2 : 0.8), 0.02, 0.8);
-    if (rng.chance(chance)) userGoals++;
-    if (rng.chance(chance * 0.4)) userGoals++;
+
+    // Wie oft der Ball ueberhaupt bei ihm landet - eine Frage der Position.
+    const beteiligung = user.position === 'ST' ? 0.7
+      : user.position === 'OM' || user.position === 'LA' || user.position === 'RA' ? 0.55
+      : user.position === 'ZM' ? 0.34
+      : user.position === 'DM' || user.position === 'LV' || user.position === 'RV' ? 0.16
+      : user.position === 'TW' ? 0 : 0.09;
+
+    // Was er damit anfaengt. Abschluss und Kopfball fuer das Tor,
+    // Uebersicht und Zuspiel fuer die Vorlage - so wie im Vereinsspiel.
+    const torKoennen = (user.attrs.finishing * 0.5 + user.attrs.heading * 0.2
+      + user.attrs.longShots * 0.15 + user.attrs.composure * 0.15) / 100;
+    const vorlagenKoennen = (user.attrs.vision * 0.4 + user.attrs.shortPass * 0.25
+      + user.attrs.crossing * 0.2 + user.attrs.dribbling * 0.15) / 100;
+
+    // Tagesform und Fitness zaehlen wie in jedem anderen Spiel auch.
+    const verfassung = clamp(0.7 + (user.form - 50) / 200 + (user.fitness - 70) / 300,
+      0.55, 1.3);
+
+    // Und der Gegner: gegen eine Weltauswahl faellt weniger als gegen
+    // einen Aussenseiter. `won` allein sagte darueber nichts.
+    const widerstand = clamp(1.35 - gegner.strength / 130, 0.45, 1.25);
+
+    // Ohne Beteiligung kein Tor. Die Untergrenze der Klammer hob eine
+    // gewollte Null wieder auf ein Prozent an - der Torwart traf damit
+    // einmal in siebenundachtzig Spielen.
+    if (beteiligung <= 0) return;
+
+    const torChance = clamp(beteiligung * torKoennen * verfassung * widerstand
+      * (won ? 1.15 : 0.8), 0.01, 0.75);
+    if (rng.chance(torChance)) userGoals++;
+    if (rng.chance(torChance * 0.35)) userGoals++;
+
+    // Vorlagen gab es bisher gar nicht - ein Spielmacher stand nach einem
+    // Turnier mit null in der Chronik, egal wie er gespielt hat.
+    const vorlagenChance = clamp(beteiligung * vorlagenKoennen * verfassung
+      * widerstand * (won ? 1.2 : 0.75), 0.01, 0.7);
+    if (rng.chance(vorlagenChance)) userAssists++;
   };
 
   // --- Gruppenphase: vier Gruppen zu vier, zwei kommen weiter. ---
@@ -216,8 +256,8 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
         if (ga > gb) teams[i].points += 3;
         else if (gb > ga) teams[j].points += 3;
         else { teams[i].points++; teams[j].points++; }
-        recordUser(teams[i].nation, 'group', ga > gb);
-        recordUser(teams[j].nation, 'group', gb > ga);
+        recordUser(teams[i].nation, teams[j].nation, 'group', ga > gb);
+        recordUser(teams[j].nation, teams[i].nation, 'group', gb > ga);
       }
     }
     teams.sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf);
@@ -234,8 +274,8 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
       if (ga === gb) { if (rng.chance(0.5)) ga++; else gb++; } // Verlaengerung/Elfmeter
       const aWon = ga > gb;
       winners.push(aWon ? a : b);
-      recordUser(a, label, aWon);
-      recordUser(b, label, !aWon);
+      recordUser(a, b, label, aWon);
+      recordUser(b, a, label, !aWon);
     }
     return winners;
   };
@@ -257,6 +297,7 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
     userNominated: nominated,
     userCaps,
     userGoals,
+    userAssists,
   };
 
   // In den Spielstand eintragen.
@@ -265,6 +306,8 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
   state.nationalCaps += userCaps;
   checkCapMilestones(state, capsVorher, state.nationalCaps, rng);
   state.nationalGoals += userGoals;
+  // Aeltere Spielstaende kennen das Feld noch nicht.
+  state.nationalAssists = (state.nationalAssists ?? 0) + userAssists;
 
   addNews(state, 'national',
     t('nat.wnc.news', { champion: champion.name, season: state.season }),
@@ -280,6 +323,7 @@ export function playWorldNationsCup(state: GameState, rng: Rng): WncResult {
       addCareerEvent(state, 'national', t('nat.wnc.eventTitle', { round: runde }),
         t('wnc.careerEvent', {
           season: state.season, round: runde, caps: userCaps, goals: userGoals,
+          assists: userAssists,
         }));
     }
   }
