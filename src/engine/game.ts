@@ -35,6 +35,7 @@ import { checkLoanReturn, generateLoanOffers } from './loan';
 import { advanceTrophy, clearOldTrophy, startTrophy } from './trophy';
 import { isWncYear, playWorldNationsCup, updateNationalStatus } from './national';
 import { t, tDecimal, tVariant } from '../i18n';
+import { offerPreContracts } from './contract';
 import { remindContractExpiry } from './contract';
 import { checkMatchMilestones } from './milestones';
 import { gameCountryOfNation } from './nations';
@@ -652,6 +653,9 @@ export function advanceDay(state: GameState): DayResult {
   }
   // Ein auslaufender Vertrag soll auffallen, bevor er ausgelaufen ist.
   remindContractExpiry(state);
+  // Im Januar des letzten Vertragsjahres darf ohne Abloese unterschrieben
+  // werden - der Markt sieht dann anders aus als im Sommer.
+  offerPreContracts(state);
 
   // Taegliche Regeneration und Formentwicklung. Massgeblich ist, ob der EIGENE
   // Verein heute gespielt hat - nicht, ob irgendwo auf der Welt ein Spiel lief.

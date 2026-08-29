@@ -138,6 +138,23 @@ interface PendingContext {
 
 const ATTACK_PROB = 0.40;
 /** Obergrenze selbst gespielter Situationen je Modus, damit ein Spiel zuegig bleibt. */
+/**
+ * Wie oft ein Spieler auf diesem Platz aussen durchkommt und flankt.
+ *
+ * Ausgelagert und ausgefuehrt, damit der Rauchtest die Regel selbst
+ * pruefen kann. Ueber die Aufstellung ginge das nicht: welchen Platz der
+ * Trainer vergibt, haengt am ganzen Kader - gemessen stand ein
+ * Rechtsaussen mit Bestwerten in fuenf von fuenf Spielen als
+ * Linksverteidiger auf dem Platz, und ein junger Spieler sitzt ohnehin
+ * auf der Bank.
+ *
+ * Zentrale Plaetze bekommen bewusst einen kleinen Wert statt null: Auch
+ * ein Zehner bringt gelegentlich einen Ball von halbrechts herein.
+ */
+export const CROSS_CHANCE_TABELLE: Partial<Record<string, number>> = {
+  LA: 0.45, RA: 0.45, LV: 0.26, RV: 0.26, OM: 0.06, ZM: 0.03,
+};
+
 const MAX_USER_CHALLENGES_OWN = 8;
 const MAX_USER_CHALLENGES_ALL = 12;
 
@@ -1296,9 +1313,7 @@ export class MatchEngine {
   // Ein Spiel gibt dem Nutzer acht Szenen. Bei 0,17 kam ein Rechtsaussen
   // in dreissig Spielen auf zehn Flanken - fuenf Prozent seiner Momente,
   // fuer seine Hauptaufgabe zu wenig.
-  private static readonly CROSS_CHANCE: Partial<Record<string, number>> = {
-    LA: 0.45, RA: 0.45, LV: 0.26, RV: 0.26, OM: 0.06, ZM: 0.03,
-  };
+  private static readonly CROSS_CHANCE = CROSS_CHANCE_TABELLE;
 
   /**
    * Der eigene Spieler kommt aussen durch und flankt.

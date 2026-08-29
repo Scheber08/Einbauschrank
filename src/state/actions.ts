@@ -13,6 +13,7 @@ import { calcMarketValue } from '../engine/playerGen';
 import { bookSigning } from '../engine/finance';
 import { dropCaptaincyOnTransfer } from '../engine/captain';
 import { t, tDecimal, tNumber } from '../i18n';
+import { clamp } from '../engine/rng';
 import { Rng } from '../engine/rng';
 import { seedRelationships } from '../engine/relationships';
 import { acceptLoan } from '../engine/loan';
@@ -425,9 +426,46 @@ export function acceptOffer(offerId: string) {
     return;
   }
 
+  // Vorvertrag: unterschrieben wird jetzt, gewechselt zum Saisonende. Bis
+  // dahin spielt man weiter beim alten Verein - und der weiss es.
+  //
+  // Das ist der Preis: ein halbes Jahr bei einem Trainer, dem man gerade
+  // gesagt hat, dass man geht. Wer stattdessen abwartet, bekommt am
+  // Saisonende, was uebrig ist.
+  if (offer.preContract) {
+    game.preContract = {
+      clubId: club.id,
+      salary: offer.salary,
+      years: offer.years,
+      role: offer.role,
+      goalBonus: offer.goalBonus,
+      signedOn: game.date,
+    };
+    game.offers = [];
+    game.coachRelation = clamp(game.coachRelation - 18, 1, 99);
+    game.fanRelation = clamp(game.fanRelation - 8, 1, 99);
+    addCareerEvent(game, 'contract', t('act.pre.title', { club: club.name }),
+      t('act.pre.body', {
+        club: club.name,
+        role: t(`role.${offer.role}`),
+        salary: tNumber(offer.salary),
+      }), { clubId: club.id });
+    addNews(game, 'transfer',
+      t('act.pre.headline', { player: user.lastName, club: club.name }),
+      t('act.pre.news', { club: club.name }), true);
+    commit();
+    void saveCurrent(true);
+    showToast(t('act.pre.toast', { club: club.name }), 'good');
+    return;
+  }
+
   // Verlaengerung beim eigenen Verein: nur der Vertrag wird neu, das Umfeld
   // (Beziehungen, Trainer, Fans) bleibt bestehen.
   if (offer.renewal || offer.clubId === user.clubId) {
+    // Doppelter Boden: sollte doch einmal beides zusammentreffen, gilt
+    // die spaetere Entscheidung. Ohne diese Zeile stuende der Spieler
+    // zum Saisonende trotz Verlaengerung bei einem anderen Verein.
+    game.preContract = null;
     user.contract = {
       clubId: club.id,
       salary: offer.salary,

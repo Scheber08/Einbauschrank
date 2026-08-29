@@ -506,6 +506,15 @@ export interface TransferOffer {
   renewal?: boolean;
   /** Leihe: Der Stammverein bleibt bestehen, die Rueckkehr ist vereinbart. */
   loan?: boolean;
+  /**
+   * Vorvertrag: unterschrieben wird jetzt, gewechselt zum Saisonende.
+   *
+   * Im letzten halben Vertragsjahr faellt keine Abloese mehr an. Deshalb
+   * koennen Vereine bieten, die sich eine Abloese nie leisten koennten -
+   * und das Gehalt faellt besser aus, weil man selbst verhandelt statt
+   * am Saisonende zu nehmen, was uebrig ist.
+   */
+  preContract?: boolean;
 }
 
 /** Laufende Leihe (Konzept Abschnitt 34). */
@@ -674,6 +683,18 @@ export interface GameState {
 
   /** Offene Transferangebote an den eigenen Spieler. */
   offers: TransferOffer[];
+  /**
+   * Ein unterschriebener Vorvertrag, der zum Saisonende wirksam wird.
+   * Bis dahin spielt man weiter beim alten Verein - der weiss Bescheid.
+   */
+  preContract?: {
+    clubId: Id;
+    salary: number;
+    years: number;
+    role: SquadRole;
+    goalBonus: number;
+    signedOn: GameDate;
+  } | null;
 
   /** Titel und Erfolge fuer die Spielstandsuebersicht. */
   honours: { season: number; label: string }[];

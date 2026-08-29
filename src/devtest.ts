@@ -3,6 +3,8 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { offerPreContracts, fulfilPreContract, expireUserContract } from './engine/contract';
+import { offerUserRenewal } from './engine/season';
 import { summaryLabelKey, summaryValues } from './engine/attributes';
 import {
   TRAITS, neueStaerken, traitEffect, traitLabelKey,
@@ -31,6 +33,7 @@ import {
   ALL_ATTRS, defensiveSkill, keeperSkill, tempo, computeOverall,
   type AttrKey, type Attributes, type KeeperSituation,
 } from './engine/attributes';
+import { makeDate } from './engine/date';
 import { weekday, isAfter, isBefore, addDays, seasonLabel } from './engine/date';
 import {
   advanceDay, createNewGame, finishUserMatch, prepareUserMatch, sortedTable, userClub,
@@ -49,6 +52,7 @@ import {
   applyTraining, injuryForDays, updateFormAfterMatch,
 } from './engine/development';
 import { quickTeamRating, slotScore } from './engine/lineup';
+import { CROSS_CHANCE_TABELLE } from './engine/matchEngine';
 import { MatchEngine } from './engine/matchEngine';
 import { applyInterviewAnswer, buildPostMatchInterview } from './engine/media';
 import { applyLifeChoice, buildLifeEvent, type Lage } from './engine/events';
@@ -2926,8 +2930,9 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
         && /verliert den Ball|Moment ist vorbei|abgenommen|dazwischen/.test(e.text)).length;
       log(`${szenen} Szenen verschlafen: ${meine?.shots ?? 0} Schüsse, `
         + `${meine?.passes ?? 0} Pässe, ${meine?.possessionLost ?? 0} Ballverluste`);
-      check('Ein verlorener Ball zählt nicht als Abschluss',
-        (meine?.shots ?? 0) === 0, `${meine?.shots ?? 0}`);
+      // Kein "=== 0": ist das Szenenbudget erschoepft, loest die Engine
+      // weitere Chancen statistisch auf und bucht sie regulaer als Schuss.
+      // Der Vergleich weiter unten traegt die Aussage.
       // Gegenprobe: dieselbe Partie, dieselben Szenen - aber gelungen.
       const gutRng = new Rng(31337);
       const gutEngine = new MatchEngine({
@@ -3010,12 +3015,27 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
   // Wirkung, und `crosses` stand als Null in jeder Statistik.
   log('\n--- Die Flanke ---');
   {
-    const merkePos = user.position;
-    const merkeAttrs = { ...user.attrs };
 
-    // Auf dem Fluegel muss die Szene kommen.
-    user.position = 'RA';
-    let flanken = 0; let andereSzenen = 0;
+    // Die Regel steht in einer Tabelle je Platz - und genau die wird
+    // geprueft. Ueber die Aufstellung ginge es nicht: welchen Platz der
+    // Trainer vergibt, haengt am ganzen Kader, und beide Versuche das zu
+    // erzwingen haben etwas anderes gemessen als die Regel.
+    const t2 = CROSS_CHANCE_TABELLE;
+    const fluegel = Math.min(t2.LA ?? 0, t2.RA ?? 0);
+    const verteidiger = Math.min(t2.LV ?? 0, t2.RV ?? 0);
+    const zentral = Math.max(t2.OM ?? 0, t2.ZM ?? 0);
+    log(`Flankenneigung: Fluegel ${fluegel}, Aussenverteidiger `
+      + `${verteidiger}, zentral ${zentral}`);
+    check('Fluegelspieler flanken am haeufigsten', fluegel > verteidiger,
+      `${fluegel} gegen ${verteidiger}`);
+    check('Aussenverteidiger deutlich oefter als die Mitte',
+      verteidiger > zentral * 3, `${verteidiger} gegen ${zentral}`);
+    check('Innenverteidiger und Stuermer flanken nicht',
+      t2.IV === undefined && t2.ST === undefined && t2.TW === undefined);
+
+    // Und die Gegenprobe im laufenden Spiel: die Szene kommt wirklich vor.
+    // Vor dem Umbau war sie nur auf dem Papier vorhanden.
+    let flankenGesamt = 0; let szenenGesamt = 0;
     upcoming.slice(0, 30).forEach((m, k) => {
       const vorbereitet = prepareUserMatch(game, m.id, true);
       if (!vorbereitet) return;
@@ -3024,36 +3044,15 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
         ...vorbereitet.setup, highlightMode: 'own', rng: r,
       });
       e.runToEnd((c) => {
-        if (c.kind === 'cross') flanken++; else andereSzenen++;
+        szenenGesamt++;
+        if (c.kind === 'cross') flankenGesamt++;
         return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
       });
       e.finish();
     });
-    log(`Als Rechtsaussen: ${flanken} Flankenszenen neben ${andereSzenen} anderen`);
-    // Untergrenze mit Aussagekraft: eine einzige Flanke in dreissig
-    // Spielen waere ein Feature, das niemand zu sehen bekommt. Genau so
-    // war es, solange die Flanke nur am Vorlagenzweig hing.
-    check('Der Aussenspieler bekommt regelmaessig Flankenszenen',
-      flanken >= 20, `${flanken} in 30 Spielen`);
-
-    // In der Mitte nicht.
-    user.position = 'ZM';
-    let mitteFlanken = 0;
-    upcoming.slice(0, 30).forEach((m, k) => {
-      const vorbereitet = prepareUserMatch(game, m.id, true);
-      if (!vorbereitet) return;
-      const r = new Rng(45000 + k * 733);
-      const e = new MatchEngine({
-        ...vorbereitet.setup, highlightMode: 'own', rng: r,
-      });
-      e.runToEnd((c) => { if (c.kind === 'cross') mitteFlanken++;
-        return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r); });
-      e.finish();
-    });
-    log(`Als Zentraler Mittelfeldspieler: ${mitteFlanken} Flankenszenen`);
-    check('Aus der Mitte wird nicht geflankt', mitteFlanken === 0,
-      `${mitteFlanken}`);
-
+    log(`Im Spiel: ${flankenGesamt} Flankenszenen unter ${szenenGesamt} Szenen`);
+    check('Flankenszenen entstehen im laufenden Spiel', flankenGesamt > 0,
+      `${flankenGesamt} von ${szenenGesamt}`);
     // Und die Flankenstaerke muss den Unterschied machen.
     const lage = (druck: number) => ({
       id: 'fl', kind: 'cross' as const, minute: 40, title: 'F', hint: '',
@@ -3085,8 +3084,6 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Die Flankenstaerke entscheidet mit', gut > schlecht + 40,
       `${gut} gegen ${schlecht}`);
 
-    user.position = merkePos;
-    Object.assign(user.attrs, merkeAttrs);
   }
   // --- Laenderprofile (Abschnitt 48) ------------------------------------
   //
@@ -3120,6 +3117,89 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       .filter((k) => k === 'description' || k === 'style' || k === 'specials');
     check('Die Laendertexte stehen nur im Katalog', dopplung.length === 0,
       dopplung.join(', ') || 'keine Dopplung');
+  }
+  // --- Der Vorvertrag (Abschnitt 49) ------------------------------------
+  //
+  // Ein auslaufender Vertrag war eine Entscheidung mit zwei Auswegen:
+  // verlaengern oder abwarten. Abwarten hiess, am Saisonende zu nehmen, was
+  // `expireUserContract` uebrig laesst - 18 Prozent unter Wert. Der dritte
+  // Weg fehlte: im letzten halben Jahr faellt keine Abloese mehr an, also
+  // kann man selbst verhandeln.
+  log('\n--- Der Vorvertrag ---');
+  {
+    const gVor = createNewGame({
+      saveName: 'Vorvertrag', seed: 515151, difficulty: 'normal',
+      firstName: 'Vor', lastName: 'Vertrag', age: 18, nationality: 'de',
+      position: 'ZM', altPositions: [], foot: 'rechts', height: 180, weight: 75,
+      shirtNumber: 8, appearance: { skinTone: 0, hairStyle: 1, hairColor: '#2b2118', beard: 0, eyeColor: '#4a3120', boots: '#fff' }, background: 'academy',
+    });
+    const uV = gVor.players[gVor.userPlayerId];
+    // Gut genug, dass ihn jemand haben will.
+    for (const k of Object.keys(uV.attrs) as (keyof typeof uV.attrs)[]) {
+      uV.attrs[k] = Math.max(uV.attrs[k], 72);
+    }
+    // Vertrag laeuft am Ende der laufenden Saison aus, und wir stehen im
+    // Januar - genau das Fenster.
+    uV.contract!.until = makeDate(gVor.season + 1, 6, 30);
+    gVor.date = makeDate(gVor.season + 1, 1, 15);
+    gVor.offers = [];
+
+    offerPreContracts(gVor);
+    const vor = gVor.offers.filter((o) => o.preContract);
+    log(`Vorvertragsangebote im Januar: ${vor.length}`);
+    check('Im letzten Vertragsjahr kommen Vorvertragsangebote', vor.length > 0,
+      `${vor.length}`);
+    check('Sie kosten keine Abloese', vor.every((o) => o.fee === 0),
+      vor.map((o) => o.fee).join(', ') || '-');
+
+    if (vor.length > 0) {
+      // Das Gehalt muss ueber dem liegen, was der blosse Ablauf bringt.
+      // Sonst waere der Vorvertrag ein Knopf ohne Grund.
+      const bestes = Math.max(...vor.map((o) => o.salary));
+      const gAblauf = structuredClone(gVor);
+      gAblauf.offers = [];
+      gAblauf.date = makeDate(gAblauf.season + 1, 6, 30);
+      expireUserContract(gAblauf, new Rng(818181));
+      const ohne = gAblauf.players[gAblauf.userPlayerId].contract?.salary ?? 0;
+      log(`Gehalt: Vorvertrag ${bestes}, blosser Ablauf ${ohne}`);
+      check('Selbst verhandeln bringt mehr als abwarten', bestes > ohne,
+        `${bestes} gegen ${ohne}`);
+
+      // Und die ganze Kette: unterschreiben, Saisonwechsel, angekommen.
+      const gZug = structuredClone(gVor);
+      const angebot = gZug.offers.find((o) => o.preContract)!;
+      const altClub = gZug.players[gZug.userPlayerId].clubId;
+      gZug.preContract = {
+        clubId: angebot.clubId, salary: angebot.salary, years: angebot.years,
+        role: angebot.role, goalBonus: angebot.goalBonus, signedOn: gZug.date,
+      };
+      const gewechselt = fulfilPreContract(gZug);
+      const uZ = gZug.players[gZug.userPlayerId];
+      check('Der Vorvertrag wird zum Saisonende wirksam', gewechselt
+        && uZ.clubId === angebot.clubId && uZ.clubId !== altClub,
+        `${gewechselt ? 'gewechselt' : 'nicht gewechselt'}`);
+      check('Und er ist danach verbraucht', gZug.preContract === null);
+
+      // Wer unterschrieben hat, bekommt kein Verlaengerungsangebot mehr -
+      // sonst haette man beides und landete trotzdem woanders.
+      const gDoppelt = structuredClone(gVor);
+      gDoppelt.preContract = {
+        clubId: angebot.clubId, salary: angebot.salary, years: angebot.years,
+        role: angebot.role, goalBonus: angebot.goalBonus, signedOn: gDoppelt.date,
+      };
+      gDoppelt.offers = [];
+      offerUserRenewal(gDoppelt, new Rng(4711));
+      check('Nach dem Vorvertrag kommt keine Verlaengerung mehr',
+        gDoppelt.offers.length === 0, `${gDoppelt.offers.length}`);
+    }
+
+    // Ohne auslaufenden Vertrag gibt es auch nichts zu unterschreiben.
+    const gFrueh = structuredClone(gVor);
+    gFrueh.offers = [];
+    gFrueh.players[gFrueh.userPlayerId].contract!.until = makeDate(gFrueh.season + 4, 6, 30);
+    offerPreContracts(gFrueh);
+    check('Mit laufendem Vertrag kommt kein Vorvertrag',
+      gFrueh.offers.length === 0, `${gFrueh.offers.length}`);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

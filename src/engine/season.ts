@@ -12,6 +12,7 @@ import { developAiPlayer } from './development';
 import { buildLeagueSchedule, cupDates, leagueMatchDates } from './fixtures';
 import { addCareerEvent, addMatch, addNews, makeId } from './ids';
 import { t, tDecimal, tNumber, tVariant } from '../i18n';
+import { fulfilPreContract } from './contract';
 import { expireUserContract } from './contract';
 import { runManagerChanges } from './manager';
 import { resolveObjectives } from './objectives';
@@ -322,7 +323,10 @@ export function endSeason(state: GameState, rng: Rng): SeasonReport {
   runManagerChanges(state, rng, new Set(report.relegated.map((r) => r.clubId)));
   // Vor dem Transferfenster: Ein nicht verlaengerter Vertrag endet jetzt
   // wirklich. Der Spieler hatte eine volle Saison und zwei Hinweise Zeit.
-  expireUserContract(state, rng);
+  //
+  // Wer im Winter einen Vorvertrag unterschrieben hat, wechselt dorthin -
+  // dann greift der Ablauf gar nicht erst.
+  if (!fulfilPreContract(state)) expireUserContract(state, rng);
   // Neue Saison, neues Geld - und zwar bevor der Markt oeffnet. Gerechnet
   // wird aus dem Kader, nicht aus dem Vorjahreswert: Jede Fortschreibung
   // driftet ueber zwanzig Saisons weg, und die alte Auf-/Abstiegsskalierung
@@ -856,6 +860,9 @@ export function offerUserRenewal(state: GameState, rng: Rng) {
   const user = state.players[state.userPlayerId];
   const club = user?.clubId ? state.clubs[user.clubId] : null;
   if (!user?.contract || !club) return;
+  // Wer schon woanders unterschrieben hat, bekommt kein Angebot mehr.
+  // Sonst koennte man verlaengern und zum Saisonende trotzdem wechseln.
+  if (state.preContract) return;
 
   // Das Angebot muss eine Saison vor dem Ende kommen, nicht in dem Moment,
   // in dem der Vertrag ohnehin ausgelaufen ist. Ein Vertrag "bis 2029" deckt

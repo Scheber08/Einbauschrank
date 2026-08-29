@@ -57,6 +57,31 @@ export default function TransfersTab() {
           <Empty text={t('transfers.noOffers')} />
         )}
         <div className="grid two">
+          {/* Wer schon unterschrieben hat, soll das dauerhaft sehen -
+              samt dem, was ihn bis zum Saisonende erwartet. */}
+          {game.preContract && (() => {
+            const ziel = game.clubs[game.preContract.clubId];
+            if (!ziel) return null;
+            return (
+              <div className="panel offer-card" style={{ margin: 0 }}>
+                <div className="row" style={{ gap: '0.6rem', alignItems: 'center' }}>
+                  <ClubCrest club={ziel} size={44} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 680 }}>{ziel.name}</div>
+                    <div className="tiny dim">{t('transfers.preSigned')}</div>
+                  </div>
+                  <Pill tone="good">{t('transfers.preContract')}</Pill>
+                </div>
+                <p className="small muted" style={{ margin: '0.6rem 0 0' }}>
+                  {t('transfers.preSignedBody', {
+                    club: ziel.name,
+                    role: t(`role.${game.preContract.role}`),
+                    salary: tNumber(game.preContract.salary),
+                  })}
+                </p>
+              </div>
+            );
+          })()}
           {game.offers.map((offer) => {
             const offerClub = game.clubs[offer.clubId];
             const league = offerClub ? game.competitions[offerClub.leagueId] : null;
@@ -82,6 +107,7 @@ export default function TransfersTab() {
                   </div>
                   {offer.renewal && <Pill tone="good">{t('transfers.renewal')}</Pill>}
                   {offer.loan && <Pill tone="warn">{t('transfers.loan')}</Pill>}
+                  {offer.preContract && <Pill tone="warn">{t('transfers.preContract')}</Pill>}
                   {better && !offer.renewal && !offer.loan && <Pill tone="good">{t('transfers.higherLeague')}</Pill>}
                 </div>
 
@@ -89,12 +115,16 @@ export default function TransfersTab() {
                   {offerClub.stadiumName} - {t('transfers.seats', { n: tNumber(offerClub.stadiumCapacity) })}
                 </div>
                 <div className="tiny dim" style={{ marginBottom: '0.5rem' }}>
-                  Trainer {offerClub.managerName} - Sponsor {sponsors.shirt}
-                  {lastSeason?.position ? ` - Vorsaison ${lastSeason.position}.` : ''}
+                  {t('transfers.clubLine', {
+                    manager: offerClub.managerName, sponsor: sponsors.shirt,
+                  })}
+                  {lastSeason?.position
+                    ? ` - ${t('transfers.lastSeasonPlace', { n: lastSeason.position })}`
+                    : ''}
                 </div>
 
                 <div className="small" style={{ margin: '0.6rem 0' }}>
-                  <div className="row between"><span className="muted">{t('contract.role')}</span><span>{offer.role}</span></div>
+                  <div className="row between"><span className="muted">{t('contract.role')}</span><span>{t(`role.${offer.role}`)}</span></div>
                   <div className="row between">
                     <span className="muted">{t('contract.salary')}</span>
                     <span>
@@ -167,7 +197,10 @@ export default function TransfersTab() {
                 <p className="tiny dim">{offer.pitch}</p>
                 <button className="primary small" style={{ width: '100%' }}
                   onClick={() => acceptOffer(offer.id)}>
-                  {offer.renewal ? t('transfers.extend') : offer.loan ? t('transfers.acceptLoan') : t('transfers.accept')}
+                  {offer.renewal ? t('transfers.extend')
+                    : offer.loan ? t('transfers.acceptLoan')
+                    : offer.preContract ? t('transfers.signPreContract')
+                    : t('transfers.accept')}
                 </button>
               </div>
             );
