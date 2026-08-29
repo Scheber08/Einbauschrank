@@ -3098,6 +3098,8 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     const plaetze = new Map<string, number>();
     let flankenAussen = 0;
     let flankenMitte = 0;
+    let seiteRichtig = 0;
+    let seiteFalsch = 0;
     flankenLage.spiele.forEach((m, k) => {
       const vorbereitet = prepareUserMatch(flankenLage.st, m.id, true);
       if (!vorbereitet) return;
@@ -3112,6 +3114,7 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       // damit seine Laune und nicht die Regel. Jede zweite Partie wird
       // der Spieler deshalb bewusst nach aussen gestellt.
       if (meiner && k % 2 === 1) meiner.position = k % 4 === 1 ? 'RA' : 'LA';
+      const erzwungen = meiner && k % 2 === 1 ? meiner.position : null;
       const r = new Rng(44000 + k * 733);
       const e = new MatchEngine({
         ...vorbereitet.setup, highlightMode: 'own', rng: r,
@@ -3121,6 +3124,11 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
         if (c.kind === 'cross') {
           flankenGesamt++;
           if (k % 2 === 1) flankenAussen++; else flankenMitte++;
+          // Ein Linksaussen flankt von links. Das Vorzeichen des
+          // seitlichen Abstands sagt, von wo: negativ ist links.
+          if (erzwungen === 'LA' && c.offset < 0) seiteRichtig++;
+          else if (erzwungen === 'RA' && c.offset > 0) seiteRichtig++;
+          else if (erzwungen) seiteFalsch++;
         }
         return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, r);
       });
@@ -3137,6 +3145,11 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     check('Aussen wird oefter geflankt als in der Mitte',
       flankenAussen > flankenMitte || szenenGesamt === 0,
       `außen ${flankenAussen}, Mitte ${flankenMitte}`);
+    // Und sie kommt von der richtigen Seite: ein Linksaussen flankt
+    // von links. Vorher war das ein Muenzwurf.
+    check('Die Flanke kommt von der Seite, auf der der Spieler steht',
+      seiteRichtig > 0 && seiteFalsch === 0,
+      `${seiteRichtig} richtig, ${seiteFalsch} falsch`);
     // Und die Flankenstaerke muss den Unterschied machen.
     const lage = (druck: number) => ({
       id: 'fl', kind: 'cross' as const, minute: 40, title: 'F', hint: '',

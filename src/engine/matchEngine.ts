@@ -1761,7 +1761,27 @@ export class MatchEngine {
     chance: { distance: number; offset: number; xg: number; bigChance: boolean },
     targets: ChallengeTarget[],
   ): Challenge {
-    const aussen = this.rng.chance(0.5) ? 1 : -1;
+    // Von welcher Seite kommt sie? Das war ein Muenzwurf - ein
+    // Linksaussen flankte damit in der Haelfte der Faelle von rechts.
+    // Das widerspricht nicht nur dem Bild und dem Hinweistext ("von
+    // aussen"), es kostet ihn auch etwas: `weakFoot` in `ballAction`
+    // haengt am Vorzeichen des Abstands, ein linker Fuss auf der
+    // rechten Bahn bekommt Abzug. Negativ ist links, positiv rechts.
+    //
+    // Die Muenze wird trotzdem immer geworfen, auch wenn sie auf der
+    // Aussenbahn nicht gebraucht wird: Sie haelt die Zahl der
+    // Zufallsziehungen gleich und verschiebt damit keine Welt.
+    const muenze = this.rng.chance(0.7);
+    const eigen = this.userOnPitch;
+    let aussen: number;
+    if (eigen?.slot === 'LA' || eigen?.slot === 'LV') aussen = -1;
+    else if (eigen?.slot === 'RA' || eigen?.slot === 'RV') aussen = 1;
+    else {
+      // In der Mitte entscheidet der starke Fuss - wer links schiesst,
+      // zieht eher nach links -, aber nicht jedes Mal.
+      const seite = eigen?.player.foot === 'links' ? -1 : 1;
+      aussen = muenze ? seite : -seite;
+    }
     return {
       ...this.baseChallenge(side, 'cross'),
       title: t('me.ch.cross.title'),
