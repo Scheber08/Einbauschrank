@@ -1635,12 +1635,28 @@ export class MatchEngine {
     return mods[gegner.tacticStyle] ?? 0;
   }
 
+  /**
+   * Koennen und Mut der Abwehr, in den Ball zu gehen.
+   *
+   * `blocking` sagt, ob er den Ball trifft, `bravery`, ob er ueberhaupt
+   * hingeht. Beide Attribute waren bis hierher reine Zierde: erzeugt,
+   * angezeigt, trainierbar - und von keiner Regel gelesen.
+   */
+  private blockKoennen(defSide: Side): number {
+    const feld = this.onPitch[defSide].filter((o) => o.slot !== 'TW');
+    if (feld.length === 0) return 50;
+    const summe = feld.reduce((a, o) => a
+      + o.player.attrs.blocking * 0.65 + o.player.attrs.bravery * 0.35, 0);
+    return summe / feld.length;
+  }
+
   private baseChallenge(side: Side, kind: Challenge['kind']): Omit<Challenge, 'title' | 'hint' | 'distance' | 'offset' | 'xg' | 'bigChance' | 'pressure' | 'opponent'> {
     return {
       id: `ch-${this.minute}-${kind}-${this.userChallenges}`,
       kind,
       minute: this.minute,
       keeper: this.strengthOf(this.other(side)).keeper,
+      blockSkill: this.blockKoennen(this.other(side)),
       scoreline: this.score,
       homeName: this.setup.homeClub.name,
       awayName: this.setup.awayClub.name,

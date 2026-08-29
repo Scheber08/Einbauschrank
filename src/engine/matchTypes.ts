@@ -39,6 +39,15 @@ export interface Challenge {
   keeper: number;
   /** Qualitaet des direkten Gegenspielers 0-100. */
   opponent: number;
+  /**
+   * Wie entschlossen sich die Abwehr in den Ball wirft, 0-100.
+   *
+   * Aus `blocking` und `bravery` der Feldspieler. Beide Werte standen
+   * im Attributblatt, liessen sich trainieren und kosteten
+   * Trainingszeit - gelesen hat sie keine einzige Regel. Fehlt die
+   * Angabe, bleibt es beim bisherigen Verhalten.
+   */
+  blockSkill?: number;
   /** Erwartete Torwahrscheinlichkeit der Ausgangssituation. */
   xg: number;
   bigChance: boolean;

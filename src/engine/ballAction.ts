@@ -406,7 +406,13 @@ export function resolveShot(
 
   // Blockade durch herausruckende Verteidiger
   if (!isPenalty && !isFreeKick) {
-    const blockChance = challenge.pressure * 0.22 * (challenge.distance > 18 ? 1.4 : 0.8);
+    // Wie oft sich ueberhaupt jemand dazwischenwirft, hing allein an
+    // Druck und Entfernung. Koennen und Mut der Abwehr kamen nicht vor -
+    // `blocking` und `bravery` waren erzeugt, angezeigt und trainierbar,
+    // aber von keiner Regel gelesen. Bei 50 aendert sich nichts.
+    const mut = clamp(((challenge.blockSkill ?? 50) - 50) / 50, -1, 1);
+    const blockChance = challenge.pressure * 0.22
+      * (challenge.distance > 18 ? 1.4 : 0.8) * (1 + mut * 0.45);
     if (rng.chance(clamp(blockChance, 0, 0.45))) {
       // Erst jetzt wird gesucht, wo der Verteidiger stehen kann. Findet
       // sich kein Punkt in Reichweite, fliegt der Ball ueber ihn hinweg -
@@ -688,7 +694,11 @@ export function findBlock(
 ): BlockPoint | null {
   // Unter hohem Druck ist der Gegner naeher dran.
   const naehe = clamp(challenge.pressure, 0, 1);
-  const abstand = rng.float(1.4, 9) * (1 - naehe * 0.35);
+  // Und eine Abwehr, die sich traut und weiss wie, steht naeher am
+  // Ball. Genau dafuer sind `blocking` und `bravery` da - gelesen hat
+  // sie bis hierher niemand.
+  const koennen = clamp(((challenge.blockSkill ?? 50) - 50) / 50, -1, 1);
+  const abstand = rng.float(1.4, 9) * (1 - naehe * 0.35) * (1 - koennen * 0.22);
   const zielY = challenge.distance - abstand;
   if (zielY < 0.8) return null;
 

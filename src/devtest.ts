@@ -3555,6 +3555,77 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       flachSchwach < schwach,
       `${tDecimal(flachSchwach, 2)} gegen ${tDecimal(schwach, 2)}`);
   }
+  // --- Mut und Koennen in der Abwehr (Abschnitt 53) ---------------------
+  //
+  // `blocking` und `bravery` standen im Attributblatt, wurden bei der
+  // Erzeugung gewuerfelt, von Laenderprofilen gewichtet und liessen sich
+  // trainieren - gelesen hat sie keine einzige Spielregel. Jetzt haengt
+  // der Block eines Verteidigers daran.
+  log('\n--- Mut und Koennen in der Abwehr ---');
+  {
+    const schuetze = structuredClone(user);
+    for (const key of Object.keys(schuetze.attrs) as (keyof typeof schuetze.attrs)[]) {
+      schuetze.attrs[key] = 55;
+    }
+    schuetze.form = 55; schuetze.confidence = 55; schuetze.fitness = 90;
+
+    const bloeckeBei = (wert: number | undefined) => {
+      const r = new Rng(4711);
+      let bloecke = 0;
+      const n = 900;
+      for (let i = 0; i < n; i++) {
+        const c = {
+          id: 'b', kind: 'shot' as const, minute: 50, title: 'T', hint: '',
+          distance: 20, offset: 0, pressure: 0.6, keeper: 60, opponent: 60,
+          blockSkill: wert,
+          xg: 0.2, bigChance: false, scoreline: [0, 0] as [number, number],
+          homeName: 'A', awayName: 'B', userSide: 'home' as const,
+        } as unknown as Challenge;
+        const aus = resolveShot(
+          { aimX: r.float(-3, 3), aimY: 0, power: r.float(0.5, 0.95),
+            contactX: r.float(-0.4, 0.4), contactY: r.float(-0.5, 0.3) },
+          c, schuetze, DIFFICULTY_SETTINGS.normal, r);
+        if (aus.outcome === 'blocked') bloecke++;
+      }
+      return bloecke / n;
+    };
+
+    const mutig = bloeckeBei(85);
+    const zaghaft = bloeckeBei(15);
+    const ohne = bloeckeBei(undefined);
+    log(`Geblockt: mutige Abwehr ${tDecimal(mutig * 100, 1)} %, `
+      + `zaghafte ${tDecimal(zaghaft * 100, 1)} %, ohne Angabe `
+      + `${tDecimal(ohne * 100, 1)} %`);
+    check('Eine mutige Abwehr blockt mehr', mutig > zaghaft * 1.1,
+      `${tDecimal(mutig * 100, 1)} % gegen ${tDecimal(zaghaft * 100, 1)} %`);
+    // Ohne Angabe muss es beim bisherigen Verhalten bleiben - sonst haette
+    // die Ergaenzung alle Szenen ohne Abwehrangabe stillschweigend
+    // verschoben.
+    check('Ohne Angabe bleibt es beim Mittelwert',
+      Math.abs(ohne - (mutig + zaghaft) / 2) < 0.06,
+      `${tDecimal(ohne * 100, 1)} % zwischen ${tDecimal(zaghaft * 100, 1)} `
+      + `und ${tDecimal(mutig * 100, 1)}`);
+
+    // Und die Engine muss den Wert auch wirklich mitgeben, sonst haengt
+    // die schoenste Regel an einem undefinierten Feld.
+    const probe = offeneIn(mitSpielen, 1)[0];
+    const vorbereitet = probe ? prepareUserMatch(mitSpielen, probe.id, true) : null;
+    if (vorbereitet) {
+      const pruefRng = new Rng(5150);
+      const pruefEngine = new MatchEngine({
+        ...vorbereitet.setup, highlightMode: 'own', rng: pruefRng,
+      });
+      let mitWert = 0; let gesamt = 0;
+      pruefEngine.runToEnd((c) => {
+        gesamt++;
+        if (typeof c.blockSkill === 'number' && c.blockSkill > 0) mitWert++;
+        return autoResolveChallenge(c, user, DIFFICULTY_SETTINGS.normal, pruefRng);
+      });
+      pruefEngine.finish();
+      check('Die Engine gibt das Abwehrkoennen an jede Szene mit',
+        gesamt > 0 && mitWert === gesamt, `${mitWert} von ${gesamt}`);
+    }
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -4415,6 +4486,9 @@ async function pruefeVerkabelung(): Promise<number> {
     // Definition plus zwei Aufrufstellen (Schuss und Flanke). Faellt eine
     // davon weg, gilt der schwache Fuss wieder nur zur Haelfte.
     { datei: '/src/engine/ballAction.ts', name: 'aufSchwachemFuss', mindestens: 3 },
+    // Ohne diese Verbindung sind `blocking` und `bravery` wieder Zierde.
+    { datei: '/src/engine/ballAction.ts', name: 'blockSkill', mindestens: 1 },
+    { datei: '/src/engine/matchEngine.ts', name: 'blockKoennen', mindestens: 2 },
     // Und die Anzeige: ohne sie faellt der Abzug wieder lautlos.
     { datei: '/src/ui/match/HighlightScene.tsx', name: 'aufSchwachemFuss', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'simulateUserMatch', mindestens: 1 },
