@@ -15,9 +15,10 @@ export interface CountryDef {
   name: string;
   short: string;
   reputation: number;
-  description: string;
-  style: string;
-  specials: string[];
+  // Beschreibung, Spielstil und Besonderheiten stehen im Sprachkatalog
+  // unter `country.<id>.description`, `.style` und `.special1..3`. Sie
+  // standen frueher zusaetzlich hier - zwei Fassungen desselben Satzes,
+  // von denen nur die eine je angezeigt wurde.
   /** Additive Boni bei der Spielergenerierung. */
   attrBias: Partial<Record<AttrKey, number>>;
   /** Bevorzugte Vereinstaktiken. */
@@ -37,9 +38,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Deutschland',
     short: 'GER',
     reputation: 78,
-    description: 'Taktisch, diszipliniert, körperlich, mit starker Nachwuchsarbeit.',
-    style: 'Taktisch und diszipliniert',
-    specials: ['Starke Trainingsakademien', 'Hohe taktische Anforderungen', 'Viele junge Spieler'],
     attrBias: {
       discipline: 7, teamwork: 6, defPositioning: 5, concentration: 5,
       strength: 4, stamina: 4, professionalism: 5, decisions: 3,
@@ -58,9 +56,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'England',
     short: 'ENG',
     reputation: 86,
-    description: 'Schnell, intensiv, körperbetont, mit vielen Flanken und hohem Pressing.',
-    style: 'Intensiv und körperbetont',
-    specials: ['Hohe Gehälter', 'Große Stadien', 'Starke zweite Liga'],
     attrBias: {
       pace: 6, stamina: 7, strength: 6, crossing: 6, pressing: 6,
       bravery: 5, jumping: 4, longPass: 3,
@@ -79,9 +74,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Spanien',
     short: 'ESP',
     reputation: 84,
-    description: 'Technisch, ballbesitzorientiert, mit kreativer Offensive und starken Dribblern.',
-    style: 'Technisch und ballbesitzorientiert',
-    specials: ['Große technische Talente', 'Starke Nachwuchsakademien'],
     attrBias: {
       shortPass: 8, ballControl: 8, vision: 6, dribbling: 6, firstTouch: 7,
       agility: 5, composure: 4, curve: 4,
@@ -97,9 +89,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Italien',
     short: 'ITA',
     reputation: 80,
-    description: 'Defensiv, taktisch, kontrolliert, mit gutem Stellungsspiel und starken Torhütern.',
-    style: 'Defensiv und taktisch',
-    specials: ['Erfahrene Profis', 'Schwierige Defensivreihen', 'Hoher Stellenwert von Taktik'],
     attrBias: {
       defPositioning: 8, marking: 7, tackling: 6, anticipation: 7, concentration: 5,
       reflexes: 5, gkPositioning: 5, blocking: 5, decisions: 4,
@@ -115,9 +104,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Frankreich',
     short: 'FRA',
     reputation: 76,
-    description: 'Athletisch, schnell, direkt, mit starken Flügelspielern und intensiven Zweikämpfen.',
-    style: 'Athletisch und direkt',
-    specials: ['Viele junge Talente', 'Große Unterschiede zwischen den Vereinen'],
     attrBias: {
       acceleration: 8, pace: 7, agility: 6, jumping: 6, tackling: 5,
       strength: 5, balance: 4, dribbling: 4,
@@ -133,9 +119,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Niederlande',
     short: 'NED',
     reputation: 70,
-    description: 'Ballbesitz, Ausbildung und frühe Chancen für junge Spieler.',
-    style: 'Ballbesitz und Ausbildung',
-    specials: ['Beste Nachwuchsarbeit', 'Junge Mannschaften', 'Bescheidene Gehälter'],
     attrBias: {
       shortPass: 7, vision: 6, firstTouch: 6, ballControl: 5,
       decisions: 5, teamwork: 4, pressing: 4,
@@ -151,9 +134,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Portugal',
     short: 'POR',
     reputation: 74,
-    description: 'Technisch, dribbelstark, mit einem Auge für den Weiterverkauf.',
-    style: 'Technisch und dribbelstark',
-    specials: ['Talentschmiede für größere Ligen', 'Enge Stadien', 'Viel Technik'],
     attrBias: {
       dribbling: 7, ballControl: 6, curve: 5, agility: 5,
       crossing: 4, freeKicks: 4, composure: 3,
@@ -169,9 +149,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Brasilien',
     short: 'BRA',
     reputation: 76,
-    description: 'Technik, Übersteiger und Spieler, die schon mit achtzehn abgeworben werden.',
-    style: 'Technisch und einfallsreich',
-    specials: ['Riesiger Talentpool', 'Früher Wechsel nach Europa', 'Wenig Geld'],
     attrBias: {
       dribbling: 8, ballControl: 7, agility: 6, balance: 5,
       curve: 5, finishing: 3, discipline: -4,
@@ -187,9 +164,6 @@ export const COUNTRIES: CountryDef[] = [
     name: 'Türkei',
     short: 'TUR',
     reputation: 66,
-    description: 'Leidenschaft auf den Rängen, direkter Fußball, hitzige Derbys.',
-    style: 'Leidenschaftlich und direkt',
-    specials: ['Lauteste Kulissen', 'Viele Derbys', 'Schnelle Trainerwechsel'],
     attrBias: {
       bravery: 6, strength: 5, longShots: 5, stamina: 4,
       tackling: 4, composure: -3,

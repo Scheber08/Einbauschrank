@@ -717,12 +717,12 @@ function timingQuality(deviation: number, window: number): number {
  */
 function timingFeedback(offset: number, window: number, quality: number): string {
   const pct = Math.round(quality * 100);
-  if (offset > window) return `Timing ${pct} Prozent - deutlich zu spät.`;
-  if (offset < -window) return `Timing ${pct} Prozent - deutlich zu früh.`;
-  if (quality >= 0.95) return `Timing ${pct} Prozent - auf den Punkt.`;
-  if (quality >= 0.7) return `Timing ${pct} Prozent - fast auf den Punkt.`;
-  const richtung = offset > 0 ? 'etwas zu spät' : 'etwas zu früh';
-  return `Timing ${pct} Prozent - ${richtung}.`;
+  const wie = offset > window ? 'lateBadly'
+    : offset < -window ? 'earlyBadly'
+      : quality >= 0.95 ? 'perfect'
+        : quality >= 0.7 ? 'close'
+          : offset > 0 ? 'lateSlightly' : 'earlySlightly';
+  return t(`ba.timing.${wie}`, { pct });
 }
 
 export function resolveDuel(
@@ -753,21 +753,21 @@ export function resolveDuel(
   const timingText = timingFeedback(timing.offset, window, quality);
 
   if (dev <= window && rng.chance(clamp(success + 0.06, 0.05, 0.93))) {
-    return { outcome: 'duelWon', quality, detail: `Ball sauber erobert. ${timingText}` };
+    return { outcome: 'duelWon', quality, detail: `${t('ba.duel.won')} ${timingText}` };
   }
   if (timing.offset > window) {
     // Zu spaet: der Gegner ist schon vorbei, es folgt meist ein Foul.
     return rng.chance(clamp(0.65 - player.attrs.discipline / 400, 0.3, 0.85))
-      ? { outcome: 'foulCommitted', quality, detail: `Zu spät gekommen. ${timingText}` }
-      : { outcome: 'duelLost', quality, detail: `Zu spät gekommen. ${timingText}` };
+      ? { outcome: 'foulCommitted', quality, detail: `${t('ba.duel.late')} ${timingText}` }
+      : { outcome: 'duelLost', quality, detail: `${t('ba.duel.late')} ${timingText}` };
   }
   if (timing.offset < -window) {
-    return { outcome: 'duelLost', quality, detail: `Zu früh angegangen. ${timingText}` };
+    return { outcome: 'duelLost', quality, detail: `${t('ba.duel.early')} ${timingText}` };
   }
   // Im Zeitfenster, aber der Gegenspieler behauptet den Ball.
   return {
     outcome: 'duelLost', quality,
-    detail: `Der Gegenspieler schirmt den Ball ab. ${timingText}`,
+    detail: `${t('ba.duel.shielded')} ${timingText}`,
   };
 }
 
@@ -862,14 +862,14 @@ export function resolveDribble(
   if (rng.chance(0.22)) {
     return {
       outcome: 'foulSuffered', quality,
-      detail: `Der Gegner kommt zu spät - Freistoß. ${timingText}`,
+      detail: `${t('ba.dribble.fouled')} ${timingText}`,
     };
   }
   return {
     outcome: 'dribbleLost', quality,
-    detail: `${dev > window
-      ? (timing.offset > 0 ? 'Zu spät angesetzt' : 'Zu früh angesetzt')
-      : 'Der Verteidiger liest die Bewegung'}. ${timingText}`,
+    detail: `${t(dev > window
+      ? (timing.offset > 0 ? 'ba.dribble.late' : 'ba.dribble.early')
+      : 'ba.dribble.read')} ${timingText}`,
   };
 }
 

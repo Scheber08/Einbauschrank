@@ -3088,6 +3088,39 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     user.position = merkePos;
     Object.assign(user.attrs, merkeAttrs);
   }
+  // --- Laenderprofile (Abschnitt 48) ------------------------------------
+  //
+  // Beschreibung, Spielstil und Besonderheiten standen doppelt da: als
+  // deutsche Saetze in countries.ts und noch einmal im Katalog. Angezeigt
+  // wurde immer der Katalog - und die vier spaeter hinzugekommenen Laender
+  // hatten dort gar keinen Eintrag. Auf dem Erstellungsbildschirm stand
+  // deshalb woertlich "country.batavia.style".
+  log('\n--- Laenderprofile ---');
+  {
+    const luecken: string[] = [];
+    let besonderheiten = 0;
+    for (const land of COUNTRIES) {
+      for (const teil of ['style', 'description']) {
+        const k = `country.${land.id}.${teil}`;
+        if (t(k) === k) luecken.push(k);
+      }
+      const eigen = [1, 2, 3]
+        .map((i) => `country.${land.id}.special${i}`)
+        .filter((k) => t(k) !== k);
+      besonderheiten += eigen.length;
+      if (eigen.length < 2) luecken.push(`${land.id}: nur ${eigen.length} Besonderheiten`);
+    }
+    log(`${COUNTRIES.length} Laender, ${besonderheiten} Besonderheiten im Katalog`);
+    check('Jedes Land hat Stil, Beschreibung und Besonderheiten',
+      luecken.length === 0,
+      luecken.slice(0, 5).join(', ') || `${COUNTRIES.length} geprueft`);
+
+    // Und nichts davon steht doppelt: countries.ts fuehrt keine Texte mehr.
+    const dopplung = Object.keys(COUNTRIES[0] ?? {})
+      .filter((k) => k === 'description' || k === 'style' || k === 'specials');
+    check('Die Laendertexte stehen nur im Katalog', dopplung.length === 0,
+      dopplung.join(', ') || 'keine Dopplung');
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -4043,10 +4076,15 @@ async function pruefeQuelltexte(): Promise<number> {
       log(`${pfad}: nicht lesbar - übersprungen`);
       continue;
     }
-    // Zeilen mit `text:` gefolgt von einer Zeichenkette, die kein t(-Aufruf ist.
+    // Zeilen mit `text:` oder `detail:` gefolgt von einer Zeichenkette,
+    // die kein t(-Aufruf ist.
+    //
+    // `detail:` fehlte hier - und genau darin standen die Rueckmeldungen
+    // der Zweikampf- und Dribbelszenen als deutsche Saetze. Der Waechter
+    // meldete diese Datei jahrelang als sauber.
     const treffer = quelle.split(/\r?\n/)
       .map((zeile, i) => ({ zeile: zeile.trim(), nr: i + 1 }))
-      .filter(({ zeile }) => /^text:\s*[`'"]/.test(zeile))
+      .filter(({ zeile }) => /^(text|detail):\s*[`'"]/.test(zeile))
       .filter(({ zeile }) => /[a-zA-Z]{4,}/.test(zeile.replace(/\$\{[^}]*\}/g, '')));
     for (const { zeile, nr } of treffer) {
       log(`  ${pfad}:${nr}  ${zeile.slice(0, 70)}`);

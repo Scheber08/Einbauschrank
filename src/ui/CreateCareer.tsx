@@ -12,6 +12,9 @@ import { Rng, randomSeed } from '../engine/rng';
 import { startNewCareer } from '../state/actions';
 import { setState } from '../state/store';
 import type { BackgroundKey, Difficulty, Foot } from '../engine/types';
+import { COUNTRY_BY_ID } from '../engine/countries';
+import { Meter, Pill } from './components';
+import { tn } from '../i18n';
 import { Panel } from './components';
 import { t } from '../i18n';
 import { useLocale } from '../i18n/useLocale';
@@ -29,6 +32,43 @@ const GRUPPEN_ORDNUNG: AttrGroup[] = [
   'technical', 'physical', 'mental', 'defensive', 'goalkeeping',
 ];
 
+/**
+ * Was einen in diesem Land erwartet.
+ *
+ * Die Laenderwahl ist die folgenreichste Entscheidung am Karrierestart -
+ * sie bestimmt Gehaltsniveau, Nachwuchsarbeit, Ansehen und die
+ * Attributverteilung der Spieler. Zu sehen war davon ein vierwoertiges
+ * Stil-Label im Auswahlfeld. Beschreibung und Besonderheiten lagen im
+ * Katalog beziehungsweise in countries.ts und wurden nie angezeigt.
+ */
+function CountryProfile({ id }: { id: string }) {
+  const def = COUNTRY_BY_ID[id];
+  if (!def) return null;
+  // Bis zu drei Besonderheiten je Land; fehlende Schluessel fallen weg.
+  const besonderes = [1, 2, 3]
+    .map((i) => `country.${id}.special${i}`)
+    .filter((k) => t(k) !== k);
+  const balken = [
+    { label: t('country.meter.reputation'), wert: def.reputation },
+    { label: t('country.meter.wealth'), wert: Math.round(def.wealth * 55) },
+    { label: t('country.meter.youth'), wert: def.youth },
+  ];
+  return (
+    <div style={{ marginTop: '0.9rem' }}>
+      <label>{t('create.countryProfile')}</label>
+      <p className="small muted" style={{ margin: '0.2rem 0 0.5rem' }}>
+        {t(`country.${id}.description`)}
+      </p>
+      <div className="row" style={{ flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.6rem' }}>
+        {besonderes.map((k) => <Pill key={k}>{t(k)}</Pill>)}
+        <Pill>{tn('country.meter.tiers', def.leagueNames.length)}</Pill>
+      </div>
+      <div className="grid three">
+        {balken.map((b) => <Meter key={b.label} label={b.label} value={b.wert} />)}
+      </div>
+    </div>
+  );
+}
 export default function CreateCareer() {
   useLocale();
   const [saveName, setSaveName] = useState(t('create.defaultSaveName'));
@@ -129,6 +169,7 @@ export default function CreateCareer() {
                   </option>
                 ))}
               </select>
+              <CountryProfile id={homeCountry} />
             </div>
             <div>
               <label>{t('create.homeCountry')}</label>
