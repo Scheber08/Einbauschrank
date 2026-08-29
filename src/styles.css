@@ -492,6 +492,80 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .moment-score b { font-variant-numeric: tabular-nums; }
 .moment-text { color: var(--muted); max-width: 30ch; margin: 0 auto; }
 
+/* Das eigene Tor ist der Augenblick, auf den eine Karriere zielt. Es
+   bekommt Strahlen hinter der Karte, eine Druckwelle aus ihrer Mitte und
+   fallendes Konfetti - alles aus CSS, kein Bild und kein Fremdcode. */
+.moment.party { background: rgba(3, 8, 16, 0.8); }
+.moment-rays {
+  position: absolute; inset: -25%; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg,
+    rgba(229, 205, 124, 0.16) 0deg 7deg, transparent 7deg 20deg);
+  mask-image: radial-gradient(closest-side, #000 12%, transparent 78%);
+  animation: rays-spin 16s linear infinite;
+}
+@keyframes rays-spin { to { transform: rotate(360deg); } }
+
+.moment.party .moment-card { position: relative; overflow: visible; }
+.moment-wave {
+  position: absolute; inset: 0; border-radius: var(--radius);
+  border: 2px solid var(--gold); pointer-events: none;
+  animation: wave-out 900ms cubic-bezier(0.15, 0.7, 0.3, 1) 120ms 2 both;
+}
+@keyframes wave-out {
+  from { transform: scale(1); opacity: 0.85; }
+  to { transform: scale(1.55); opacity: 0; }
+}
+.moment.party .moment-label {
+  animation: label-punch 620ms cubic-bezier(0.2, 1.6, 0.35, 1) 80ms both;
+  text-shadow: 0 0 22px rgba(229, 205, 124, 0.45);
+}
+@keyframes label-punch {
+  0% { transform: scale(0.5); opacity: 0; letter-spacing: 0.3em; }
+  60% { transform: scale(1.14); opacity: 1; letter-spacing: 0.02em; }
+  100% { transform: scale(1); letter-spacing: 0.04em; }
+}
+
+.konfetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.konfetti i {
+  position: absolute; top: -14px; display: block; border-radius: 1px;
+  animation-name: konfetti-fall; animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes konfetti-fall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+}
+
+/* Der Spielstand pocht einmal, wenn er sich aendert - sonst huepft die
+   Ziffer lautlos um eins. */
+.scoreboard .score { animation: score-pop 520ms cubic-bezier(0.2, 1.5, 0.35, 1); }
+@keyframes score-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.28); color: var(--accent); }
+  100% { transform: scale(1); }
+}
+
+/* Tickerzeilen kommen je nach Anlass unterschiedlich herein: ein Tor
+   wischt gruen durch, eine Karte zuckt kurz. */
+.ev.fresh.goal { animation: ev-goal 620ms ease-out; }
+@keyframes ev-goal {
+  0% { opacity: 0; transform: translateX(-10px); background: rgba(67, 217, 154, 0.3); }
+  55% { background: rgba(67, 217, 154, 0.16); }
+  100% { opacity: 1; transform: none; background: transparent; }
+}
+.ev.fresh.card { animation: ev-card 420ms ease-out; }
+@keyframes ev-card {
+  0% { opacity: 0; transform: translateX(-4px) rotate(-1.5deg); }
+  40% { transform: translateX(2px) rotate(1deg); }
+  100% { opacity: 1; transform: none; }
+}
+.ev.fresh.chance { animation: ev-chance 460ms ease-out; }
+@keyframes ev-chance {
+  from { opacity: 0; transform: translateX(-6px); background: rgba(95, 178, 232, 0.18); }
+  to { opacity: 1; transform: none; background: transparent; }
+}
 @keyframes moment-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes moment-pop {
   from { transform: scale(0.82); opacity: 0; }
@@ -499,7 +573,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .moment, .moment-card { animation: none; }
+  .moment, .moment-card, .moment-rays, .moment-wave, .konfetti i,
+  .moment.party .moment-label, .scoreboard .score,
+  .ev.fresh.goal, .ev.fresh.card, .ev.fresh.chance { animation: none; }
+  .konfetti, .moment-rays { display: none; }
 }
 
 /* Gegnerdruck: laeuft ueber die volle Breite der Szene ab. */

@@ -283,7 +283,10 @@ export default function MatchScreen() {
           <span>{homeClub.name}</span>
         </div>
         <div className="center">
-          <div className="score">{score[0]}:{score[1]}</div>
+          {/* Der Schluessel loest die Animation aus: bei jedem neuen Stand
+              wird das Feld neu gesetzt und pocht einmal. Ohne das aenderte
+              sich lautlos eine Ziffer. */}
+          <div className="score" key={`${score[0]}:${score[1]}`}>{score[0]}:{score[1]}</div>
           <div className="clock">
             {phase === 'setup' ? formatDate(match.date)
               : phase === 'done' ? t('match.fullTime')
@@ -674,6 +677,32 @@ export default function MatchScreen() {
  * Kurze Einblendung fuer die grossen Momente. Ein Klick ueberspringt sie,
  * sonst verschwindet sie von selbst.
  */
+/**
+ * Konfetti fuer ein eigenes Tor.
+ *
+ * Die Positionen kommen aus dem Index, nicht aus Math.random: so flackert
+ * nichts bei einem Neuzeichnen, und die Feier sieht bei jedem Tor gleich
+ * ordentlich aus. Reine CSS-Bewegung, keine Bilddatei.
+ */
+function Konfetti() {
+  const farben = ['var(--accent)', 'var(--accent-2)', 'var(--accent-3)',
+    'var(--accent-4)', 'var(--gold)'];
+  return (
+    <div className="konfetti" aria-hidden="true">
+      {Array.from({ length: 26 }, (_, i) => (
+        <i key={i} style={{
+          left: `${(i * 37) % 100}%`,
+          background: farben[i % farben.length],
+          animationDelay: `${(i % 9) * 0.11}s`,
+          animationDuration: `${1.5 + (i % 5) * 0.22}s`,
+          width: i % 3 === 0 ? '5px' : '7px',
+          height: i % 3 === 0 ? '9px' : '6px',
+        }} />
+      ))}
+    </div>
+  );
+}
+
 function MomentOverlay(
   { event, homeShort, awayShort, onSkip }:
   {
@@ -682,9 +711,16 @@ function MomentOverlay(
 ) {
   const scored = event.type === 'goal' || event.type === 'ownGoal';
   const tone = event.user ? 'user' : scored ? 'goal' : 'warn';
+  // Ein eigenes Tor ist der Augenblick, auf den die ganze Karriere zielt.
+  // Der bekommt Strahlen, Konfetti und eine Druckwelle - alles andere die
+  // ruhige Karte.
+  const feier = event.user && event.type === 'goal';
   return (
-    <div className={`moment ${tone}`} onClick={onSkip}>
+    <div className={`moment ${tone} ${feier ? 'party' : ''}`} onClick={onSkip}>
+      {feier && <div className="moment-rays" aria-hidden="true" />}
+      {feier && <Konfetti />}
       <div className="moment-card">
+        {feier && <span className="moment-wave" aria-hidden="true" />}
         <div className="moment-minute">{event.minute}.</div>
         <div className="moment-label">{t(MOMENT_KEY[event.type] ?? 'match.event')}</div>
         {event.score && (
@@ -895,8 +931,9 @@ function EventIcon({ type }: { type: LiveEvent['type'] }) {
 }
 
 function EventRow({ event, fresh }: { event: LiveEvent; fresh?: boolean }) {
-  const cls = event.type === 'goal' ? 'goal'
-    : event.type === 'yellow' || event.type === 'red' || event.type === 'secondYellow' ? 'card' : '';
+  const cls = event.type === 'goal' || event.type === 'ownGoal' ? 'goal'
+    : event.type === 'yellow' || event.type === 'red' || event.type === 'secondYellow' ? 'card'
+    : event.type === 'save' || event.type === 'miss' || event.type === 'chance' ? 'chance' : '';
   return (
     <div className={`ev ${cls} ${event.user ? 'user' : ''} ${fresh ? 'fresh' : ''}`}>
       <span className="min">{event.minute > 0 ? `${event.minute}'` : ''}</span>

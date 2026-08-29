@@ -981,6 +981,7 @@ export const DE: Record<string, string> = {
   'scene.jumpNow': 'Jetzt abspringen',
   'scene.moveMouseOverBall': 'Bewege die Maus ueber den Ball',
   'scene.chooseCornerHeight': 'Waehle Ecke und Hoehe',
+  'scene.triggerInGreen': '{move} im gruenen Bereich ausloesen',
   'scene.grabInGreen': 'Im gruenen Bereich zupacken',
   'scene.bodyPointsHere': 'Koerperhaltung deutet hierhin',
   'scene.overTheWall': 'Der Ball geht ueber die Mauer',
@@ -2398,6 +2399,17 @@ export const DE: Record<string, string> = {
 
 
   // --- Engine: Szenenkommentar und Finten ----------------------------------
+  'ba.block.wall': 'Die Mauer steht. Ueber sie hinweg oder mit Effet aussen herum - platt durch geht nicht.',
+  'ba.block.low': 'Ein Verteidiger bekommt das Bein dazwischen. Flach am Boden findet kein Ball einen Weg durch.',
+  'ba.block.body': 'Ein Verteidiger stellt den Koerper in den Schussweg.',
+  'ba.block.high': 'Geblockt auf Brusthoehe. Entweder flacher halten oder ganz drueber - dazwischen wartet der Verteidiger.',
+  'ba.save.central': 'Zu zentral gezielt - der Torwart musste sich kaum bewegen. Ziele naeher an den Pfosten.',
+  'ba.save.softly': 'Gute Ecke, aber zu wenig Druck hinter dem Ball. Der Torwart hatte Zeit.',
+  'ba.miss.short': 'Der Ball erreicht die Torlinie gar nicht. Es fehlte deutlich an Kraft.',
+  'ba.miss.underneath': 'Zu hoch. Du hast den Ball zu weit unten getroffen - er steigt zu stark.',
+  'ba.miss.overTheBar': 'Zu hoch angesetzt. Weniger Kraft oder ein Kontakt weiter oben haelt den Ball flach.',
+  'ba.miss.curved': 'Der Effet traegt den Ball {side} am Tor vorbei. Weniger seitlicher Kontakt.',
+  'ba.miss.wide': '{side} vorbei. Die Richtung war zu weit aussen.',
   'ba.woodwork': 'Aluminium. Wenige Zentimeter weiter nach innen und der Ball ist drin.',
   'ba.feint.roll': 'Ballrolle',
   'ba.feint.roll.desc': 'Einfach und sicher, bringt aber wenig Raumgewinn.',

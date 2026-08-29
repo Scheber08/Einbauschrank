@@ -24,6 +24,7 @@ import type { Challenge } from './engine/matchTypes';
 import { matchReferee, type RefereeStyle } from './engine/referee';
 import { matchWeather, type Weather } from './engine/weather';
 import { attendanceRoll } from './engine/rivalry';
+import { findBlock } from './engine/ballAction';
 import { resolveDuel, resolveDribble, applyExecutionError, autoResolveChallenge, resolveShot, simulateBallFlight } from './engine/ballAction';
 import {
   ALL_ATTRS, defensiveSkill, keeperSkill, tempo, computeOverall,
@@ -2739,6 +2740,135 @@ Chronik: ${game.careerEvents.length} Eintraege, davon ${marken.length} Marken`);
     check('Alle Kuerzel haben ihren Text', ohneText.length === 0,
       ohneText.join(', ') || `${alleSchluessel.length} geprueft`);
   }
+  // --- Der Block hat einen Ort (Abschnitt 44) ---------------------------
+  //
+  // Vorher war ein geblockter Schuss eine Zeile Text: Der Torblick zeigte
+  // den Ball ungehindert weiterfliegen und daneben stand "Ein Verteidiger
+  // stand im Schussweg". Jetzt hat jeder Block eine Stelle, an der er
+  // stattfand - und damit einen Verteidiger, den man sehen kann.
+  log('\n--- Der Block hat einen Ort ---');
+  {
+    const blockRng = new Rng(90210);
+    // Eigene Ausgangslage statt der aus dem Physikteil: der Abschnitt steht
+    // weiter oben und soll fuer sich lesbar bleiben.
+    const eng = {
+      id: 'b', kind: 'shot' as const, minute: 50, title: 'Test', hint: '',
+      distance: 22, offset: 0, pressure: 0.95, keeper: 60, opponent: 60,
+      xg: 0.2, bigChance: false, scoreline: [0, 0] as [number, number],
+      homeName: 'A', awayName: 'B', userSide: 'home' as const,
+    };
+    const schuetze = structuredClone(user);
+    for (const key of Object.keys(schuetze.attrs) as (keyof typeof schuetze.attrs)[]) {
+      schuetze.attrs[key] = 55;
+    }
+    schuetze.form = 55; schuetze.confidence = 55; schuetze.fitness = 90;
+    let bloecke = 0; let ohneOrt = 0; let ausserReichweite = 0; let falscheTiefe = 0;
+    for (let i = 0; i < 600; i++) {
+      const r = resolveShot(
+        { aimX: blockRng.float(-3, 3), aimY: 0, power: blockRng.float(0.5, 0.95),
+          contactX: blockRng.float(-0.4, 0.4), contactY: blockRng.float(-0.5, 0.3) },
+        eng, schuetze, DIFFICULTY_SETTINGS.normal, blockRng);
+      if (r.outcome !== 'blocked') continue;
+      bloecke++;
+      if (!r.block) { ohneOrt++; continue; }
+      // Ein Verteidiger kommt bis knapp ueber Kopfhoehe, nicht hoeher.
+      if (r.block.z > 2.15) ausserReichweite++;
+      // Und er steht vor dem Schuetzen, nicht dem Torwart vor den Fuessen.
+      if (r.block.y < eng.distance - 9.5 || r.block.y > eng.distance - 0.5) falscheTiefe++;
+    }
+    log(`Bloecke in 600 Schuessen: ${bloecke}`);
+    check('Es kommt ueberhaupt zu Bloecken', bloecke > 20, `${bloecke}`);
+    check('Jeder Block hat eine Stelle', ohneOrt === 0, `${ohneOrt} ohne Ort`);
+    check('Kein Block ueber Kopfhoehe', ausserReichweite === 0,
+      `${ausserReichweite} zu hoch`);
+    check('Der Blocker steht vor dem Schuetzen', falscheTiefe === 0,
+      `${falscheTiefe} falsch`);
+
+    // Ein Ball, der auf dem ganzen Weg ueber Kopfhoehe fliegt, ist nicht zu
+    // blocken. Das ist der Hebel, den der Spieler dadurch bekommt: den
+    // Verteidiger sehen und ihn ueberheben.
+    // Eine Bahn, die im ganzen Band ueber Kopfhoehe liegt, darf keinen
+    // Block ergeben. Die Bahn ist hier von Hand gesetzt statt geschossen:
+    // geprueft wird die Regel, nicht ob die Physik gerade so eine Bahn
+    // hergibt - sonst faellt die Pruefung durch, ohne je gefragt zu haben.
+    const ueberKopf = {
+      points: Array.from({ length: 60 }, (_, i) => ({
+        x: 0, y: 22 - i * 0.36, z: 3.2, t: i / 120,
+      })),
+      crossing: { x: 0, z: 3.2, t: 0.5, speed: 20 },
+      end: { x: 0, y: 0, z: 3.2, t: 0.5 },
+      launchSpeed: 20,
+    };
+    const flach = {
+      ...ueberKopf,
+      points: ueberKopf.points.map((p) => ({ ...p, z: 0.8 })),
+    };
+    const gelupft = findBlock(ueberKopf, { ...eng }, new Rng(7));
+    const gerollt = findBlock(flach, { ...eng }, new Rng(7));
+    check('Ein Ball ueber Kopfhoehe laesst sich nicht blocken',
+      gelupft === null,
+      gelupft === null ? 'nicht blockbar' : `blockbar bei z=${gelupft.z.toFixed(2)}`);
+    check('Ein flacher Ball dagegen schon', gerollt !== null,
+      gerollt ? `Block bei y=${gerollt.y.toFixed(1)}` : 'kein Block');
+
+    // Der Hebel, den der Spieler bekommt: den Ball anheben. Er wirkt nur,
+    // wenn der Verteidiger absteht - wer bedraengt wird, kann niemanden
+    // ueberheben, weil der Gegner zu nah ist. Gemessen wird deshalb beides.
+    // Geprueft wird der Mechanismus selbst, ohne die Wuerfelchance davor:
+    // sonst misst man den Wurf und nicht die Physik.
+    const bahnFlach = simulateBallFlight({
+      startX: 0, startY: 22, aimX: 0, aimY: 0, power: 0.75,
+      contactX: 0, contactY: 0.5, shotPower: 55, curve: 55,
+    });
+    const bahnGehoben = simulateBallFlight({
+      startX: 0, startY: 22, aimX: 0, aimY: 0, power: 0.75,
+      contactX: 0, contactY: -0.7, shotPower: 55, curve: 55,
+    });
+    const quote = (bahn: typeof bahnFlach, druck: number) => {
+      let treffer = 0;
+      for (let i = 0; i < 400; i++) {
+        if (findBlock(bahn, { ...eng, pressure: druck }, new Rng(9000 + i))) treffer++;
+      }
+      return treffer;
+    };
+    const abstandFlach = quote(bahnFlach, 0.2);
+    const abstandHoch = quote(bahnGehoben, 0.2);
+    const druckFlach = quote(bahnFlach, 0.95);
+    const druckHoch = quote(bahnGehoben, 0.95);
+    log(`Bloecke je 400 - abstehend ${abstandFlach} flach gegen ${abstandHoch} angehoben,`
+      + ` bedraengt ${druckFlach} gegen ${druckHoch}`);
+    check('Anheben hilft, wenn der Verteidiger absteht',
+      abstandHoch < abstandFlach - 40,
+      `${abstandFlach} gegen ${abstandHoch}`);
+    check('Unter Druck hilft es nicht - der Gegner steht zu nah',
+      druckHoch === druckFlach,
+      `${druckFlach} gegen ${druckHoch}`);
+
+    // Die Mauer meldet sich als Mauer, nicht als einzelner Verteidiger.
+    const freistoss = {
+      ...eng, kind: 'freeKick' as const, distance: 20, offset: 2, wall: 4,
+    };
+    const platt = resolveShot(
+      { aimX: 0, aimY: 0, power: 0.8, contactX: 0, contactY: 0.2 },
+      freistoss, schuetze, DIFFICULTY_SETTINGS.normal, new Rng(11));
+    log(`Platter Freistoss: ${platt.outcome}` +
+      (platt.block ? ` (${platt.block.kind} bei z=${platt.block.z.toFixed(2)})` : ''));
+    check('Ein Mauerblock meldet sich als Mauer',
+      platt.outcome !== 'blocked' || platt.block?.kind === 'wall',
+      platt.block?.kind ?? platt.outcome);
+
+    // Und die Erklaerung darf kein roher Schluessel sein - die Saetze
+    // standen bis eben als deutsche Zeichenketten im Code und fehlten im
+    // englischen Bau vollstaendig.
+    const gruende = [
+      'ba.block.wall', 'ba.block.low', 'ba.block.body', 'ba.block.high',
+      'ba.save.central', 'ba.save.softly', 'ba.miss.short',
+      'ba.miss.underneath', 'ba.miss.overTheBar', 'ba.miss.curved', 'ba.miss.wide',
+    ];
+    const ohneText = gruende.filter((k) => t(k) === k || t(k).startsWith('ba.'));
+    check('Alle Schussgruende haben ihren Text', ohneText.length === 0,
+      ohneText.join(', ') || `${gruende.length} geprueft`);
+  }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //
   // Gemessen ueber 20 Spiele, je Spiel: 9,4 Fehlschuesse, 9,2 Paraden, 8,3
@@ -3617,6 +3747,14 @@ async function pruefeVerkabelung(): Promise<number> {
     { datei: '/src/engine/matchEngine.ts', name: 'rollEcke', mindestens: 2 },
     { datei: '/src/engine/game.ts', name: 'lageFuerEreignis', mindestens: 2 },
     { datei: '/src/engine/events.ts', name: 'passt', mindestens: 8 },
+    { datei: '/src/engine/ballAction.ts', name: 'findBlock', mindestens: 2 },
+    { datei: '/src/engine/ballAction.ts', name: 'wallHit', mindestens: 3 },
+    { datei: '/src/ui/match/HighlightScene.tsx', name: 'DefenderFigure', mindestens: 3 },
+    { datei: '/src/ui/match/HighlightScene.tsx', name: 'stoppIndex', mindestens: 3 },
+    { datei: '/src/ui/match/HighlightScene.tsx', name: 'jubelRef', mindestens: 3 },
+    { datei: '/src/ui/match/figures.tsx', name: 'schwung', mindestens: 3 },
+    { datei: '/src/ui/match/HighlightScene.tsx', name: 'stride', mindestens: 5 },
+    { datei: '/src/ui/match/MatchScreen.tsx', name: 'Konfetti', mindestens: 2 },
     { datei: '/src/ui/PlayerCard.tsx', name: 'summaryValues', mindestens: 2 },
     { datei: '/src/ui/tabs/PlayerTab.tsx', name: 'PlayerCard', mindestens: 2 },
     { datei: '/src/ui/tabs/TrainingTab.tsx', name: 'setLifestyle', mindestens: 2 },

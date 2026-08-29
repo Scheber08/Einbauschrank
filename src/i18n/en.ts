@@ -980,6 +980,7 @@ export const EN: Record<string, string> = {
   'scene.jumpNow': 'Jump now',
   'scene.moveMouseOverBall': 'Move the mouse over the ball',
   'scene.chooseCornerHeight': 'Pick a corner and a height',
+  'scene.triggerInGreen': 'Trigger the {move} inside the green band',
   'scene.grabInGreen': 'Grab it inside the green band',
   'scene.bodyPointsHere': 'His body is pointing this way',
   'scene.overTheWall': 'The ball clears the wall',
@@ -2396,6 +2397,17 @@ export const EN: Record<string, string> = {
 
 
   // --- Engine: scene commentary and feints -----------------------------------
+  'ba.block.wall': 'The wall holds. Over it or bent around it - straight through is not an option.',
+  'ba.block.low': 'A defender gets a leg in the way. Along the ground no ball finds a path through.',
+  'ba.block.body': 'A defender puts his body in the line of the shot.',
+  'ba.block.high': 'Blocked at chest height. Keep it lower or lift it clean over - in between the defender is waiting.',
+  'ba.save.central': 'Too central - the keeper hardly had to move. Aim closer to the post.',
+  'ba.save.softly': 'Good corner, but not enough behind the ball. The keeper had time.',
+  'ba.miss.short': 'The ball never reaches the goal line. It was well short of power.',
+  'ba.miss.underneath': 'Too high. You caught the ball too far underneath - it climbs too much.',
+  'ba.miss.overTheBar': 'Aimed too high. Less power or a contact further up keeps the ball down.',
+  'ba.miss.curved': 'The spin carries the ball {side} of the goal. Less sideways contact.',
+  'ba.miss.wide': '{side} and wide. The direction was too far out.',
   'ba.woodwork': 'Off the woodwork. A few centimetres further in and it is a goal.',
   'ba.feint.roll': 'Ball roll',
   'ba.feint.roll.desc': 'Simple and safe, but it gains you little ground.',

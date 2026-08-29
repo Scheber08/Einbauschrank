@@ -11,6 +11,8 @@ import {
 import type { Challenge, ChallengeResult } from '../../engine/matchTypes';
 import { Rng, clamp } from '../../engine/rng';
 import type { DifficultySettings, Player } from '../../engine/types';
+import type { BlockPoint } from '../../engine/ballAction';
+import { DefenderFigure, OPPONENT_KIT } from './figures';
 import { KeeperFigure, drawHumanKeeper, drawHumanPlayer } from './figures';
 import { t as tr, tDecimal, tVariant } from '../../i18n';
 import { useLocale } from '../../i18n/useLocale';
@@ -155,8 +157,14 @@ function Frame(
  * Zeigt, wo der Ball die Torlinie kreuzt und wohin der Torwart gesprungen ist.
  * Dient sowohl als Vorschau waehrend der Eingabe als auch als Auswertung.
  */
-function GoalView(
-  { crossing, keeper, preview, outcome, label, note, animate }:
+/**
+ * Ausgeliehen an die Figuren-Vorschau: dort laesst sich der Blockfall
+ * ansehen, ohne ihn im Spiel erst treffen zu muessen. Eine Nachbildung in
+ * der Vorschau waere frueher oder spaeter vom Original abgewichen - genau
+ * das soll sie nicht.
+ */
+export function GoalView(
+  { crossing, keeper, preview, outcome, label, note, animate, block, shotFrom }:
   {
     crossing?: { x: number; z: number } | null;
     keeper?: { diveX: number; diveZ: number } | null;
@@ -166,6 +174,10 @@ function GoalView(
     note?: string;
     /** Beim Ergebnis: Ball einfliegen und Torwart hechten lassen. */
     animate?: boolean;
+    /** Wo ein Verteidiger oder die Mauer den Ball aufgehalten hat. */
+    block?: BlockPoint | null;
+    /** Entfernung des Schuetzen zum Tor - fuer die Groesse des Blockers. */
+    shotFrom?: number;
   },
 ) {
   const inFrame = (p: { x: number; z: number }) =>
@@ -191,10 +203,39 @@ function GoalView(
   // Torwart hechtet aus der Grundstellung in die Ecke.
   const kx = keeper ? keeper.diveX * ease : 0;
   const kz = keeper ? 0.95 + (keeper.diveZ - 0.95) * ease : 0.95;
-  // Ball fliegt aus der Ferne (klein) zum Auftreffpunkt.
+
+  /**
+   * Der Blick geht von hinter dem Schuetzen aufs Tor: Was naeher an der
+   * Kamera steht, erscheint groesser. Streng gerechnet waere ein Verteidiger
+   * vier Meter vor dem Schuetzen fast dreimal so gross wie das Tor dahinter
+   * und verdeckte den halben Kasten. Deshalb eine **abgeflachte**
+   * Perspektive: linear von 1 an der Torlinie bis 1,55 beim Schuetzen. Sie
+   * ordnet die Tiefe richtig ein und bleibt lesbar - eine Stilisierung,
+   * keine strenge Optik. Die Kamera sitzt dabei auf der Mittelachse.
+   */
+  const naehe = block
+    ? clamp(1 + (block.y / Math.max(6, shotFrom ?? 18)) * 0.55, 1, 1.55)
+    : 1;
+  // Ein weit aussen geblockter Ball schoebe den Verteidiger aus dem Bild -
+  // gemessen stand er bei x = -6,6 in einem Rahmen, der bei -6 endet, und war
+  // damit genau das, was er nicht mehr sein sollte: unsichtbar. Ball und
+  // Blocker rutschen deshalb gemeinsam so weit herein, dass beide im Bild
+  // bleiben; ihr Abstand zueinander bleibt dabei unveraendert.
+  const RAND = 4.7;
+  const rohX = block ? block.x * naehe : 0;
+  const verschub = clamp(rohX, -RAND, RAND) - rohX;
+  const blockX = rohX + verschub;
+  const blockZ = block ? block.z * naehe : 0;
+  // Beim flachen Ball steht der Verteidiger neben dem Ball und streckt das
+  // Bein; sonst deckt sein Koerper den Punkt selbst.
+  const standX = clamp(blockX - (blockZ < 0.55 ? 0.5 * naehe : 0), -RAND, RAND);
+
+  // Ball fliegt aus der Ferne (klein) zum Auftreffpunkt - oder nur bis
+  // dorthin, wo ihn jemand aufgehalten hat.
   const ballT = animate ? Math.min(1, t * 1.15) : 1;
-  const bx = crossing ? crossing.x * (0.25 + 0.75 * ballT) : 0;
-  const bz = crossing ? 0.7 + (crossing.z - 0.7) * ballT : 0;
+  const ziel = block ? { x: blockX, z: blockZ } : crossing;
+  const bx = ziel ? ziel.x * (0.25 + 0.75 * ballT) : 0;
+  const bz = ziel ? 0.7 + (ziel.z - 0.7) * ballT : 0;
   const isGoal = outcome === 'goal';
 
   return (
@@ -229,6 +270,14 @@ function GoalView(
             stroke="rgba(255,255,255,0.16)" strokeWidth={0.015} />
         ))}
 
+        {/* Das Netz beult sich dort aus, wo der Ball einschlaegt - vorher
+            hing es voellig unbeeindruckt da, waehrend der Ball hindurchflog. */}
+        {isGoal && crossing && t > 0.72 && (
+          <ellipse cx={crossing.x * 1.02} cy={-crossing.z}
+            rx={0.75 * (t - 0.72) / 0.28} ry={0.62 * (t - 0.72) / 0.28}
+            fill="rgba(255,255,255,0.2)" />
+        )}
+
         {/* Torrahmen */}
         <path d={`M ${-GOAL_HALF_WIDTH} 0 L ${-GOAL_HALF_WIDTH} ${-CROSSBAR} L ${GOAL_HALF_WIDTH} ${-CROSSBAR} L ${GOAL_HALF_WIDTH} 0`}
           fill="none" stroke="#ffffff" strokeWidth={0.14} strokeLinecap="square" />
@@ -250,15 +299,47 @@ function GoalView(
           </g>
         )}
 
+        {/* Wer den Ball aufgehalten hat. Steht vor dem Tor, weil er
+            naeher an der Kamera ist als der Kasten. */}
+        {block && block.kind === 'wall' && (
+          <g opacity={0.96}>
+            {[-1.5, -0.5, 0.5, 1.5].map((i) => {
+              // Die Mauer bleibt als Ganzes im Bild, nicht nur ihre Mitte.
+              const mx = clamp(blockX, -RAND + 1.9, RAND - 1.9) + i * 0.78 * naehe;
+              return (
+                <DefenderFigure key={i} x={mx} reachX={mx} reachZ={blockZ}
+                  kit={OPPONENT_KIT} scale={naehe} />
+              );
+            })}
+          </g>
+        )}
+        {block && block.kind === 'defender' && (
+          <DefenderFigure x={standX} reachX={blockX} reachZ={blockZ}
+            kit={OPPONENT_KIT} scale={naehe} />
+        )}
+
+        {/* Wohin der Ball gegangen waere - macht sichtbar, dass die
+            Richtung stimmte und nur der Weg zu war. */}
+        {block && crossing && t > 0.6 && (
+          <line x1={blockX} y1={-blockZ} x2={crossing.x} y2={-crossing.z}
+            stroke="rgba(255,255,255,0.34)" strokeWidth={0.05}
+            strokeDasharray="0.2 0.18" />
+        )}
+
         {/* Ball (fliegt ein) und Netzjubel */}
-        {crossing && (
+        {(crossing || block) && (
           <g>
-            {isGoal && t >= 1 && (
+            {isGoal && crossing && t >= 1 && (
               <circle cx={crossing.x} cy={-crossing.z} r={0.5} fill="none"
                 stroke="#43d99a" strokeWidth={0.09} opacity={0.9} />
             )}
-            <circle cx={bx} cy={-bz} r={0.22 + 0.06 * ballT} fill="#ffffff"
-              stroke="#20303f" strokeWidth={0.05} />
+            {/* Prallmarke am Blockpunkt */}
+            {block && t >= 1 && (
+              <circle cx={blockX} cy={-blockZ} r={0.34 * naehe} fill="none"
+                stroke="#ff8a95" strokeWidth={0.07} opacity={0.85} />
+            )}
+            <circle cx={bx} cy={-bz} r={(0.22 + 0.06 * ballT) * (block ? naehe : 1)}
+              fill="#ffffff" stroke="#20303f" strokeWidth={0.05} />
           </g>
         )}
 
@@ -348,9 +429,10 @@ function drawPitch(ctx: CanvasRenderingContext2D, t: Transform) {
 function drawPlayer(
   ctx: CanvasRenderingContext2D, t: Transform,
   x: number, y: number, color: string, label?: string, radius = 9, facing = 0,
+  stride = 0,
 ) {
   const [sx, sy] = t.toScreen(x, y);
-  drawHumanPlayer(ctx, sx, sy, color, { label, radius: radius * 1.05, facing });
+  drawHumanPlayer(ctx, sx, sy, color, { label, radius: radius * 1.05, facing, stride });
 }
 
 function drawBall(ctx: CanvasRenderingContext2D, t: Transform, x: number, y: number, z: number) {
@@ -436,10 +518,15 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   const chargingRef = useRef(false);
   const chargeStartRef = useRef(0);
   const [powerDisplay, setPowerDisplay] = useState(0);
-  const flightRef = useRef<{ flight: Flight; index: number } | null>(null);
+  // `stop` begrenzt den abgespielten Flug: Bei einem Block endet der Ball
+  // dort, wo ihn jemand aufgehalten hat, statt weiter Richtung Tor zu
+  // fliegen, als waere nichts gewesen.
+  const flightRef = useRef<{ flight: Flight; index: number; stop: number } | null>(null);
   const shotRef = useRef<ShotResolution | null>(null);
   const finalRef = useRef<ChallengeResult | null>(null);
   const phaseRef = useRef(0);
+  /** Laeuft nur waehrend des Torjubels und treibt die Ringe. */
+  const jubelRef = useRef(0);
 
   const depth = Math.max(24, challenge.distance + 12);
   const t = useMemo(() => makeTransform(depth), [depth]);
@@ -543,13 +630,18 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     const moving = step === 'aim' || step === 'power';
     for (const d of defenders) {
       const drift = moving ? Math.sin(phaseRef.current * d.speed + d.phase) * d.amp : 0;
-      drawPlayer(ctx, t, d.x + drift, d.y + drift * 0.35, '#d84b5a');
+      // Die Laufphase folgt der Eigenbewegung: wer sich verschiebt, bewegt
+      // auch die Beine. Vorher glitten die Figuren wie Spielsteine.
+      const takt = moving ? phaseRef.current * d.speed * 2.6 + d.phase : 0;
+      drawPlayer(ctx, t, d.x + drift, d.y + drift * 0.35, OPPONENT_KIT,
+        undefined, 9, 0, takt);
     }
-    for (const w of wall) drawPlayer(ctx, t, w.x, w.y, '#d84b5a', undefined, 8);
+    for (const w of wall) drawPlayer(ctx, t, w.x, w.y, OPPONENT_KIT, undefined, 8);
 
     // Torwart bewegt sich leicht auf der Linie
     const kDrift = moving ? Math.sin(phaseRef.current * 0.9) * 0.5 : 0;
-    drawPlayer(ctx, t, keeperPos.x + kDrift, keeperPos.y, '#e5cd7c', 'TW');
+    drawPlayer(ctx, t, keeperPos.x + kDrift, keeperPos.y, '#e5cd7c', 'TW',
+      9, 0, moving ? phaseRef.current * 1.8 : 0);
 
     if (isPass && challenge.targets) {
       for (const target of challenge.targets) {
@@ -629,22 +721,64 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
       }
     }
 
+    // Wer den Ball aufhaelt, steht auch von oben da - sonst bliebe der Ball
+    // mitten auf dem Rasen stehen, ohne dass jemand daran schuld waere.
+    const blocker = shotRef.current?.block;
+    if (blocker && (step === 'flight' || step === 'result')
+      && flightRef.current && flightRef.current.index >= flightRef.current.stop - 4) {
+      drawPlayer(ctx, t, blocker.x, blocker.y + 0.5, OPPONENT_KIT, undefined, 10, Math.PI);
+    }
+
     drawBall(ctx, t, ballPos.x, ballPos.y, ballPos.z);
+
+    // Prallmarke am Blockpunkt
+    if (blocker && step === 'result') {
+      const [px, py] = offsetPoint(t, blocker);
+      ctx.strokeStyle = 'rgba(255,138,149,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 13, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     if (!flightRef.current) {
       drawPlayer(ctx, t, challenge.offset - 0.9, challenge.distance + 1.1, '#43d99a',
         String(player.shirtNumber), 11);
     }
 
-    // Torjubel
+    // Torjubel: gruener Schleier und drei Ringe, die vom Einschlagpunkt
+    // nach aussen laufen. Vorher lag nur eine gruene Flaeche darueber.
     if (step === 'result' && finalRef.current?.outcome === 'goal') {
       ctx.fillStyle = 'rgba(55,214,122,0.16)';
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      const [jx, jy] = t.toScreen(shotRef.current?.crossing?.x ?? 0, 0);
+      for (let i = 0; i < 3; i++) {
+        const r = 26 + ((jubelRef.current * 2.4 + i * 34) % 110);
+        ctx.strokeStyle = `rgba(67, 217, 154, ${clamp(1 - r / 130, 0, 0.75)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(jx, jy, r, r * 0.42, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
   }, [t, defenders, wall, keeperPos, isPass, challenge, targetId, step, hover, aim,
     aimGuide, player.shirtNumber]);
 
   useEffect(() => { draw(); }, [draw]);
+
+  // Der Torjubel laeuft weiter, waehrend der Rest der Szene steht.
+  useEffect(() => {
+    if (step !== 'result' || finalRef.current?.outcome !== 'goal') return;
+    jubelRef.current = 0;
+    let raf = 0;
+    const loop = () => {
+      jubelRef.current += 1;
+      draw();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [step, draw]);
 
   // Leichte Bewegung in der Szene, solange gezielt wird.
   useEffect(() => {
@@ -690,9 +824,9 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     const interval = window.setInterval(() => {
       const current = flightRef.current;
       if (!current) return;
-      current.index = Math.min(current.index + 3, current.flight.points.length - 1);
+      current.index = Math.min(current.index + 3, current.stop);
       draw();
-      if (current.index >= current.flight.points.length - 1) {
+      if (current.index >= current.stop) {
         window.clearInterval(interval);
         setStep('result');
       }
@@ -762,7 +896,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
 
     if (isPass) {
       const resolution = resolvePass(input, challenge, player, targetId ?? '', difficulty, rng);
-      flightRef.current = { flight: resolution.flight, index: 0 };
+      flightRef.current = { flight: resolution.flight, index: 0, stop: stoppIndex(resolution) };
       finalRef.current = {
         outcome: resolution.outcome,
         quality: resolution.quality,
@@ -786,7 +920,7 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
     } else {
       const resolution = resolveShot(input, challenge, player, difficulty, rng);
       shotRef.current = resolution;
-      flightRef.current = { flight: resolution.flight, index: 0 };
+      flightRef.current = { flight: resolution.flight, index: 0, stop: stoppIndex(resolution) };
       finalRef.current = { outcome: resolution.outcome, quality: resolution.quality };
       setResultText({
         goal: trv(seed, 'scene.result.goal'),
@@ -942,6 +1076,8 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
               <GoalView
                 crossing={shotRef.current.crossing}
                 keeper={shotRef.current.keeper}
+                block={shotRef.current.block}
+                shotFrom={challenge.distance}
                 outcome={finalRef.current?.outcome}
                 label={tr('scene.goalView')}
                 animate
@@ -954,6 +1090,26 @@ function BallChallenge({ challenge, player, difficulty, seed, onDone }: ScenePro
   );
 }
 
+/**
+ * Bis zu welchem Punkt der Flug abgespielt wird.
+ *
+ * Ohne Block bis zum Ende der Bahn. Mit Block bis zu dem Punkt, an dem der
+ * Verteidiger oder die Mauer den Ball erwischt hat - danach gehoert der Ball
+ * nicht mehr dem Schuetzen.
+ */
+function stoppIndex(res: { flight: Flight; block?: BlockPoint | null }): number {
+  const letzte = res.flight.points.length - 1;
+  const b = res.block;
+  if (!b) return letzte;
+  let best = letzte;
+  let bestAbstand = Infinity;
+  for (let i = 0; i <= letzte; i++) {
+    const p = res.flight.points[i];
+    const d = Math.hypot(p.x - b.x, p.y - b.y);
+    if (d < bestAbstand) { bestAbstand = d; best = i; }
+  }
+  return best;
+}
 function offsetPoint(t: Transform, p: { x: number; y: number; z: number }): [number, number] {
   const [sx, sy] = t.toScreen(p.x, p.y);
   return [sx, sy - p.z * t.scale * 0.55];
@@ -1107,16 +1263,23 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
 
     const figR = 16;
     const num = String(player.shirtNumber);
+    // Der Laufschritt folgt dem Fortschritt: die Beine bewegen sich genau
+    // so schnell, wie die Figur ueber den Rasen kommt.
+    const takt = progress * 22;
     // Figuren blicken in Laufrichtung (facing = +/- PI/2 dreht sie seitlich).
     if (isDribble) {
       streak(x, laneY, 1);
-      drawHumanPlayer(ctx, endX + 40, laneY, '#d84b5a', { label: 'GS', radius: figR, facing: -Math.PI / 2 });
-      drawHumanPlayer(ctx, x, laneY, '#43d99a', { label: num, radius: figR, facing: Math.PI / 2 });
+      drawHumanPlayer(ctx, endX + 40, laneY, OPPONENT_KIT,
+        { label: 'GS', radius: figR, facing: -Math.PI / 2, stride: takt * 0.6 });
+      drawHumanPlayer(ctx, x, laneY, '#43d99a',
+        { label: num, radius: figR, facing: Math.PI / 2, stride: takt });
       miniBall(x + 24, laneY + 10);
     } else {
       streak(x, laneY, -1);
-      drawHumanPlayer(ctx, startX - 40, laneY, '#43d99a', { label: num, radius: figR, facing: Math.PI / 2 });
-      drawHumanPlayer(ctx, x, laneY, '#d84b5a', { label: 'GS', radius: figR, facing: -Math.PI / 2 });
+      drawHumanPlayer(ctx, startX - 40, laneY, '#43d99a',
+        { label: num, radius: figR, facing: Math.PI / 2, stride: takt * 0.6 });
+      drawHumanPlayer(ctx, x, laneY, OPPONENT_KIT,
+        { label: 'GS', radius: figR, facing: -Math.PI / 2, stride: takt });
       miniBall(x - 24, laneY + 10);
     }
 
@@ -1125,7 +1288,7 @@ function TimingChallenge({ challenge, player, difficulty, seed, onDone }: SceneP
     ctx.textAlign = 'center';
     ctx.fillText(
       isDribble
-        ? `${activeMove?.name ?? tr('scene.feint')} im gruenen Bereich ausloesen`
+        ? tr('scene.triggerInGreen', { move: activeMove ? tr(activeMove.name) : tr('scene.feint') })
         : tr('scene.grabInGreen'),
       VIEW_W / 2, 62,
     );

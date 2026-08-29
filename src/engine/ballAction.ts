@@ -304,6 +304,21 @@ export function keeperAttempt(
 
 // --- Abschluss ---------------------------------------------------------
 
+/**
+ * Wo ein Schuss geblockt wurde.
+ *
+ * Vorher war ein Block eine blosse Zeile Text: "Ein Verteidiger stand im
+ * Schussweg" - im Torblick sah man nur den Ball ins leere Tor fliegen und
+ * daneben ein Wort. Mit dem Punkt kann die Szene den Verteidiger dorthin
+ * stellen, wo er wirklich stand, und den Ball dort anhalten.
+ */
+export interface BlockPoint {
+  /** Ballposition im Augenblick des Blocks (Meter). */
+  x: number;
+  y: number;
+  z: number;
+  kind: 'wall' | 'defender';
+}
 export interface ShotResolution {
   outcome: ChallengeOutcome;
   flight: Flight;
@@ -311,6 +326,8 @@ export interface ShotResolution {
   quality: number;
   /** Wo der Ball die Torlinie kreuzt, fuer die Darstellung. */
   crossing: { x: number; z: number } | null;
+  /** Bei einem Block: wo der Ball aufgehalten wurde. Sonst null. */
+  block: BlockPoint | null;
 }
 
 export function resolveShot(
@@ -355,7 +372,7 @@ export function resolveShot(
   });
 
   if (!flight.crossing) {
-    return { outcome: 'offTarget', flight, keeper: null, quality, crossing: null };
+    return { outcome: 'offTarget', flight, keeper: null, quality, crossing: null, block: null };
   }
 
   const { x, z } = flight.crossing;
@@ -365,15 +382,23 @@ export function resolveShot(
   // herum geht, kommt durch. Zuvor war das eine blosse Wahrscheinlichkeit je
   // Mauerspieler - ob der Ball tatsaechlich hoch genug flog, spielte keine
   // Rolle, und der platte Schuss war die beste Loesung.
-  if (isFreeKick && (challenge.wall ?? 0) > 0 && hitsWall(flight, challenge)) {
-    return { outcome: 'blocked', flight, keeper: null, quality, crossing: { x, z } };
+  const mauer = isFreeKick && (challenge.wall ?? 0) > 0
+    ? wallHit(flight, challenge) : null;
+  if (mauer) {
+    return { outcome: 'blocked', flight, keeper: null, quality, crossing: { x, z }, block: mauer };
   }
 
   // Blockade durch herausruckende Verteidiger
   if (!isPenalty && !isFreeKick) {
     const blockChance = challenge.pressure * 0.22 * (challenge.distance > 18 ? 1.4 : 0.8);
     if (rng.chance(clamp(blockChance, 0, 0.45))) {
-      return { outcome: 'blocked', flight, keeper: null, quality, crossing: { x, z } };
+      // Erst jetzt wird gesucht, wo der Verteidiger stehen kann. Findet
+      // sich kein Punkt in Reichweite, fliegt der Ball ueber ihn hinweg -
+      // ein Block ohne Verteidiger waere eine Zeile ohne Deckung.
+      const abgewehrt = findBlock(flight, challenge, rng);
+      if (abgewehrt) {
+        return { outcome: 'blocked', flight, keeper: null, quality, crossing: { x, z }, block: abgewehrt };
+      }
     }
   }
 
@@ -383,10 +408,10 @@ export function resolveShot(
   const onTarget = Math.abs(x) < post && z < CROSSBAR;
 
   if (hitsFrame && !onTarget) {
-    return { outcome: 'post', flight, keeper: null, quality, crossing: { x, z } };
+    return { outcome: 'post', flight, keeper: null, quality, crossing: { x, z }, block: null };
   }
   if (!onTarget) {
-    return { outcome: 'offTarget', flight, keeper: null, quality, crossing: { x, z } };
+    return { outcome: 'offTarget', flight, keeper: null, quality, crossing: { x, z }, block: null };
   }
 
   // Wie stark verraet die Koerperhaltung die Richtung?
@@ -394,9 +419,9 @@ export function resolveShot(
   const keeper = keeperAttempt(rng, challenge.keeper, flight.crossing, challenge.distance, telegraphed);
 
   if (keeper.saved) {
-    return { outcome: 'saved', flight, keeper, quality, crossing: { x, z } };
+    return { outcome: 'saved', flight, keeper, quality, crossing: { x, z }, block: null };
   }
-  return { outcome: 'goal', flight, keeper, quality, crossing: { x, z } };
+  return { outcome: 'goal', flight, keeper, quality, crossing: { x, z }, block: null };
 }
 
 /**
@@ -418,34 +443,33 @@ export function describeShot(
     case 'post':
       return t('ba.woodwork');
 
-    case 'blocked':
-      return input.contactY < -0.3
-        ? 'Ein Verteidiger blockt. Ein flacherer Ball haette den Weg gefunden.'
-        : 'Ein Verteidiger stand im Schussweg.';
+    case 'blocked': {
+      const b = resolution.block;
+      if (b?.kind === 'wall') return t('ba.block.wall');
+      // Ein Ball, der am Boden bleibt, findet keinen Weg durch ein Bein.
+      // Ein Ball auf Hueft- oder Brusthoehe war zu hoch angesetzt, um noch
+      // an dem Verteidiger vorbeizugehen - beides sagt etwas anderes.
+      if (b && b.z < 0.45) return t('ba.block.low');
+      if (b && b.z > 1.1) return t('ba.block.high');
+      return t('ba.block.body');
+    }
 
     case 'saved':
-      if (c && Math.abs(c.x) < 1.4) {
-        return 'Zu zentral gezielt - der Torwart musste sich kaum bewegen. Ziele naeher an den Pfosten.';
-      }
-      if (input.power < idealPower - 0.15) {
-        return 'Gute Ecke, aber zu wenig Druck hinter dem Ball. Der Torwart hatte Zeit.';
-      }
+      if (c && Math.abs(c.x) < 1.4) return t('ba.save.central');
+      if (input.power < idealPower - 0.15) return t('ba.save.softly');
       return t('ba.greatSave');
 
     case 'offTarget':
-      if (!c) {
-        return 'Der Ball erreicht die Torlinie gar nicht. Es fehlte deutlich an Kraft.';
-      }
+      if (!c) return t('ba.miss.short');
       if (c.z > CROSSBAR) {
         return input.contactY < -0.25
-          ? 'Zu hoch. Du hast den Ball zu weit unten getroffen - er steigt zu stark.'
-          : 'Zu hoch angesetzt. Weniger Kraft oder ein Kontakt weiter oben haelt den Ball flach.';
+          ? t('ba.miss.underneath') : t('ba.miss.overTheBar');
       }
       if (Math.abs(c.x) > GOAL_HALF_WIDTH) {
-        const side = c.x > 0 ? 'rechts' : 'links';
+        const seite = c.x > 0 ? t('ba.right') : t('ba.left');
         return Math.abs(input.contactX) > 0.45
-          ? `Der Effet traegt den Ball ${side} am Tor vorbei. Weniger seitlicher Kontakt.`
-          : `${side === 'rechts' ? t('ba.right') : t('ba.left')} vorbei. Die Richtung war zu weit aussen.`;
+          ? t('ba.miss.curved', { side: seite })
+          : t('ba.miss.wide', { side: seite });
       }
       return t('ba.narrowMiss');
 
@@ -556,9 +580,9 @@ const WALL_PLAYER_WIDTH = 0.78;
  * gehen. Damit wird der Effet ueber die Mauer zur richtigen Loesung, waehrend
  * ein platter Schuss haengenbleibt.
  */
-export function hitsWall(flight: Flight, challenge: Challenge): boolean {
+export function wallHit(flight: Flight, challenge: Challenge): BlockPoint | null {
   const players = challenge.wall ?? 0;
-  if (players <= 0) return false;
+  if (players <= 0) return null;
   const startX = challenge.offset;
   const startY = challenge.distance;
   // Richtung vom Ball zur Tormitte.
@@ -580,11 +604,65 @@ export function hitsWall(flight: Flight, challenge: Challenge): boolean {
       const py = prev.y + (p.y - prev.y) * ratio;
       // Seitlicher Versatz zur Mauermitte.
       const lateral = Math.abs((px - startX) * -dirY + (py - startY) * dirX);
-      return z < WALL_HEIGHT && lateral < halfWidth;
+      if (z < WALL_HEIGHT && lateral < halfWidth) {
+        return { x: px, y: py, z, kind: 'wall' };
+      }
+      return null;
     }
     prev = p;
   }
-  return false;
+  return null;
+}
+
+/** Bleibt als Ja-Nein-Frage erhalten: die Vorschau waehrend des Zielens
+ *  will nur wissen, ob der Ball haengenbleibt, nicht wo. */
+export function hitsWall(flight: Flight, challenge: Challenge): boolean {
+  return wallHit(flight, challenge) !== null;
+}
+
+/**
+ * Wie hoch ein herausruckender Verteidiger noch an den Ball kommt - Bein,
+ * Koerper, im Sprung der Kopf.
+ */
+const BLOCK_REACH = 2.15;
+
+/**
+ * Wo ein Verteidiger den Schuss abfaengt.
+ *
+ * Der Verteidiger steht an **einer** Stelle, nicht ueberall. Gezogen wird
+ * zuerst, wie weit vor dem Schuetzen er steht - unter Druck rueckt er dicht
+ * heran, sonst stellt er sich weiter vorn in den Schussweg. Erst dann wird
+ * gefragt, wie hoch der Ball dort ist: ueber Kopfhoehe geht er durch.
+ *
+ * Die erste Fassung nahm stattdessen den naechstbesten erreichbaren Punkt
+ * der ganzen Bahn. Damit war jeder Ball blockbar, denn irgendwo ist er
+ * immer tief - gemessen 125 Bloecke flach gegen 125 angehoben, auf den
+ * Schuss genau gleich viele. Der Block war wieder das, was er nicht sein
+ * sollte: eine Wahrscheinlichkeit ohne Koerper.
+ *
+ * Ein angehobener Ball steigt (bei 22 m Entfernung gemessen) erst nach etwa
+ * sieben Metern ueber Kopfhoehe und faellt trotzdem noch unter die Latte.
+ * Der Hebel wirkt deshalb nicht immer, sondern dann, wenn der Verteidiger
+ * weiter vorn steht - so wie im Fussball auch.
+ */
+export function findBlock(
+  flight: Flight, challenge: Challenge, rng: Rng,
+): BlockPoint | null {
+  // Unter hohem Druck ist der Gegner naeher dran.
+  const naehe = clamp(challenge.pressure, 0, 1);
+  const abstand = rng.float(1.4, 9) * (1 - naehe * 0.35);
+  const zielY = challenge.distance - abstand;
+  if (zielY < 0.8) return null;
+
+  let best: TrajectoryPoint | null = null;
+  let bestAbstand = Infinity;
+  for (const p of flight.points) {
+    const d = Math.abs(p.y - zielY);
+    if (d < bestAbstand) { bestAbstand = d; best = p; }
+  }
+  // Steht der Verteidiger dort und ist der Ball ueber ihm, ist er durch.
+  if (!best || bestAbstand > 1 || best.z > BLOCK_REACH) return null;
+  return { x: best.x, y: best.y, z: best.z, kind: 'defender' };
 }
 
 /**
