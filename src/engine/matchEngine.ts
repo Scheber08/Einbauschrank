@@ -372,6 +372,18 @@ export class MatchEngine {
     return null;
   }
 
+  /**
+   * Wer gerade auf dem Platz steht, beide Mannschaften.
+   *
+   * Die Oberflaeche zeigte waehrend der Partie gar keine Aufstellung -
+   * sie verschwand mit dem Anpfiff. Die Startelf allein genuegt dafuer
+   * nicht: nach einer Auswechslung stuende dort ein Spieler, der laengst
+   * draussen ist.
+   */
+  get aufDemPlatz(): { home: OnPitchPlayer[]; away: OnPitchPlayer[] } {
+    return { home: [...this.onPitch.home], away: [...this.onPitch.away] };
+  }
+
   get userOnPitch(): OnPitchPlayer | null {
     const id = this.setup.userPlayerId;
     if (!id) return null;

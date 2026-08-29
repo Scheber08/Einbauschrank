@@ -374,7 +374,25 @@ export function effectiveOverall(
   if (altPositions.includes(playedAt)) return Math.round(base * 0.96);
   if (POSITION_NEIGHBOURS[naturalPos].includes(playedAt)) return Math.round(base * 0.9);
   if (playedAt === 'TW' || naturalPos === 'TW') return Math.round(base * 0.45);
-  return Math.round(base * 0.78);
+
+  // Wie weit weg ist das von seiner Position?
+  //
+  // Vorher gab es einen pauschalen Abschlag von 22 Prozent - egal ob eine
+  // Position daneben oder quer ueber den ganzen Platz. Ein starker
+  // Stuermer schlug damit einen schwachen gelernten Innenverteidiger, und
+  // eine Laufbahn als Mittelstuermer mit Rechtsaussen als Nebenposition
+  // fand sich in der Innenverteidigung wieder. Das macht kein Trainer.
+  //
+  // Jetzt zaehlt der Abstand der Mannschaftsteile: eine Reihe weiter ist
+  // unangenehm, zwei Reihen weiter ist eine Notloesung. Die Werte selbst
+  // sprechen ohnehin schon dagegen - `computeOverall` gewichtet fuer die
+  // gespielte Position -, aber sie sprachen nicht laut genug.
+  const reihen: Record<PositionLine, number> = { GK: 0, DEF: 1, MID: 2, ATT: 3 };
+  const abstand = Math.abs(
+    reihen[POSITION_LINE[playedAt]] - reihen[POSITION_LINE[naturalPos]]);
+  if (abstand >= 2) return Math.round(base * 0.55);
+  if (abstand === 1) return Math.round(base * 0.74);
+  return Math.round(base * 0.86);
 }
 
 /** Kurzfarbe fuer Attributwerte in der Oberflaeche. */

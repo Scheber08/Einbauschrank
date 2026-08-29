@@ -3,6 +3,7 @@
  * Erzeugt eine Karriere, spielt mehrere Saisons durch und prueft die Ergebnisse
  * auf Plausibilitaet. Wird ueber /devtest.html aufgerufen.
  */
+import { effectiveOverall } from './engine/attributes';
 import { generateWinterOffers } from './engine/season';
 import { kaderplatz } from './engine/lineup';
 import { squadOf } from './engine/worldGen';
@@ -1963,12 +1964,19 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
       // still nur Nullen - der Bericht meldete dauerhaft "kein Fortschritt".
       // Geprueft am zweiten Sprung, der lang genug ist; ein eigener dritter
       // Sprung lief oft nur wenige Tage und die Zusicherung ins Leere.
-      if (mit.days >= 14) {
+      // Zwei Wochen sind zwei Trainingseinheiten, und die Zuwaechse sind
+      // ganze Attributpunkte. Ein knapper Punkt kippt dabei auf null, sobald
+      // sich die Rate irgendwo leicht aendert - gemessen '+0 in 14 Tagen'
+      // bei voellig intaktem Training. Nachgewiesen werden soll die
+      // **Zaehlung**, nicht die Hoehe; dafuer braucht es ein Fenster, in dem
+      // sicher etwas zusammenkommt.
+      if (mit.days >= 60) {
         check('Der Trainingszuwachs wird tatsächlich gezählt',
           mit.trainingsPlus > 0,
           `+${mit.trainingsPlus} in ${mit.days} Tagen`);
       } else {
-        log('Sprung zu kurz für eine Trainingswoche - Teil übersprungen.');
+        log(`Sprung von ${mit.days} Tagen zu kurz fuer einen sicheren `
+          + `Zuwachs - gezaehlt: +${mit.trainingsPlus}`);
       }
 
       // Ein Ziel in der Vergangenheit darf nichts tun.
@@ -1988,6 +1996,12 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
 
       check('Der Saisonsprung deckt einen großen Teil des Jahres ab',
         saison.days > 150, `${saison.days} Tage`);
+      // Ueber eine ganze Saison muss Training messbar etwas bringen. Der
+      // Nachweis haengt hier und nicht am kurzen Sprung weiter oben: dort
+      // sind es zwei Einheiten, und ein knapper Punkt kippt auf null.
+      check('Der Trainingszuwachs wird tatsächlich gezählt',
+        saison.trainingsPlus > 0,
+        `+${saison.trainingsPlus} in ${saison.days} Tagen`);
       check('Er endet am Saisonende oder am Karriereende',
         saison.grund === 'saison' || saison.grund === 'ende'
         || saison.grund === 'grenze',
@@ -4002,6 +4016,45 @@ Chronik: ${game.careerEvents.length} Einträge, davon ${marken.length} Marken`);
     generateWinterOffers(gA);
     check('Das Winterfenster verschiebt den Zufallsstrom nicht',
       gA.rngState === vorher, `${gA.rngState === vorher}`);
+  }
+  // --- Der Stuermer in der Abwehr (Abschnitt 60) ------------------------
+  //
+  // Der Abschlag fuer eine fremde Position war pauschal - 22 Prozent, egal
+  // ob eine Position daneben oder quer ueber den Platz. Ein starker
+  // Stuermer schlug damit einen schwachen gelernten Innenverteidiger, und
+  // eine Laufbahn als Mittelstuermer mit Rechtsaussen als Nebenposition
+  // fand sich in der Innenverteidigung wieder.
+  log('\n--- Der Stuermer in der Abwehr ---');
+  {
+    const stuermer = structuredClone(user.attrs);
+    for (const k of Object.keys(stuermer) as (keyof typeof stuermer)[]) stuermer[k] = 78;
+    const eigen = effectiveOverall(stuermer, 'ST', ['RA'], 'ST');
+    const nebenan = effectiveOverall(stuermer, 'ST', ['RA'], 'RA');
+    const eineReihe = effectiveOverall(stuermer, 'ST', ['RA'], 'ZM');
+    const zweiReihen = effectiveOverall(stuermer, 'ST', ['RA'], 'IV');
+    const aussen = effectiveOverall(stuermer, 'ST', ['RA'], 'RV');
+    log(`Starker Stuermer (alle Werte 78): ST ${eigen}, RA ${nebenan}, `
+      + `ZM ${eineReihe}, RV ${aussen}, IV ${zweiReihen}`);
+    check('Je weiter weg, desto schwaecher',
+      eigen >= nebenan && nebenan > eineReihe && eineReihe > zweiReihen,
+      `${eigen} / ${nebenan} / ${eineReihe} / ${zweiReihen}`);
+
+    // Der eigentliche Nachweis: ein mittelmaessiger gelernter
+    // Innenverteidiger muss vor einem starken Stuermer stehen.
+    const verteidiger = structuredClone(user.attrs);
+    for (const k of Object.keys(verteidiger) as (keyof typeof verteidiger)[]) {
+      verteidiger[k] = 58;
+    }
+    const echterIV = effectiveOverall(verteidiger, 'IV', [], 'IV');
+    log(`Gelernter Innenverteidiger (alle Werte 58) auf IV: ${echterIV} - `
+      + `Stuermer dort: ${zweiReihen}`);
+    check('Der gelernte Verteidiger steht vor dem Stuermer',
+      echterIV > zweiReihen, `${echterIV} gegen ${zweiReihen}`);
+    // Und auf der Nebenposition bleibt der Stuermer vorn - sonst waere die
+    // Nebenposition wertlos.
+    const ivAufRA = effectiveOverall(verteidiger, 'IV', [], 'RA');
+    check('Auf der Nebenposition bleibt der Stuermer vorn',
+      nebenan > ivAufRA, `${nebenan} gegen ${ivAufRA}`);
   }
   // --- Textfassungen (Abschnitt 20) ------------------------------------
   //

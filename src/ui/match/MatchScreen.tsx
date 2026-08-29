@@ -1,3 +1,4 @@
+import type { OnPitchPlayer } from '../../engine/matchSim';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { autoResolveChallenge } from '../../engine/ballAction';
 import { formatDate } from '../../engine/date';
@@ -33,6 +34,9 @@ type Phase = 'setup' | 'running' | 'done';
 
 /** Katalogschluessel je Tempostufe - uebersetzt wird bei der Anzeige. */
 const SPEEDS = [
+  // Die langsamste Stufe lag bei 260 ms - fuer ein Spiel, das man lesen
+  // und nicht ueberfliegen will, immer noch zu schnell.
+  { label: 'match.speed.verySlow', ms: 520 },
   { label: 'match.speed.slow', ms: 260 },
   { label: 'match.speed.normal', ms: 130 },
   { label: 'match.speed.fast', ms: 55 },
@@ -64,7 +68,8 @@ export default function MatchScreen() {
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [mode, setMode] = useState<Mode>('ownHighlights');
-  const [speedIndex, setSpeedIndex] = useState(1);
+  // Index 2 ist 'Normal' - die neue Stufe 'Sehr langsam' steht davor.
+  const [speedIndex, setSpeedIndex] = useState(2);
   const [paused, setPaused] = useState(false);
   const [mentality, setMentalityState] = useState<Mentality>('balanced');
   const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -511,6 +516,17 @@ export default function MatchScreen() {
       )}
 
       {phase !== 'setup' && engine && (
+        <Panel title={t('match.onPitch')}>
+          <div className="grid two">
+            <PlatzListe titel={homeClub.name}
+              leute={engine.aufDemPlatz.home} userId={game.userPlayerId} />
+            <PlatzListe titel={awayClub.name}
+              leute={engine.aufDemPlatz.away} userId={game.userPlayerId} />
+          </div>
+        </Panel>
+      )}
+
+      {phase !== 'setup' && engine && (
         <TeamStatsPanel
           home={engine.teamStats.home} away={engine.teamStats.away}
           homeShort={homeClub.short} awayShort={awayClub.short} full={phase === 'done'} />
@@ -660,6 +676,7 @@ export default function MatchScreen() {
       {moment && (
         <MomentOverlay
           event={moment}
+          eigeneSeite={engine?.userSide ?? null}
           homeShort={homeClub.short}
           awayShort={awayClub.short}
           onSkip={() => {
@@ -683,12 +700,12 @@ export default function MatchScreen() {
  * nichts bei einem Neuzeichnen, und die Feier sieht bei jedem Tor gleich
  * ordentlich aus. Reine CSS-Bewegung, keine Bilddatei.
  */
-function Konfetti() {
+function Konfetti({ klein = false }: { klein?: boolean } = {}) {
   const farben = ['var(--accent)', 'var(--accent-2)', 'var(--accent-3)',
     'var(--accent-4)', 'var(--gold)'];
   return (
     <div className="konfetti" aria-hidden="true">
-      {Array.from({ length: 26 }, (_, i) => (
+      {Array.from({ length: klein ? 14 : 26 }, (_, i) => (
         <i key={i} style={{
           left: `${(i * 37) % 100}%`,
           background: farben[i % farben.length],
@@ -703,21 +720,27 @@ function Konfetti() {
 }
 
 function MomentOverlay(
-  { event, homeShort, awayShort, onSkip }:
+  { event, eigeneSeite, homeShort, awayShort, onSkip }:
   {
-    event: LiveEvent; homeShort: string; awayShort: string; onSkip: () => void;
+    event: LiveEvent; eigeneSeite: 'home' | 'away' | null;
+    homeShort: string; awayShort: string; onSkip: () => void;
   },
 ) {
   const scored = event.type === 'goal' || event.type === 'ownGoal';
-  const tone = event.user ? 'user' : scored ? 'goal' : 'warn';
-  // Ein eigenes Tor ist der Augenblick, auf den die ganze Karriere zielt.
-  // Der bekommt Strahlen, Konfetti und eine Druckwelle - alles andere die
-  // ruhige Karte.
+  // Ein eigenes Tor ist der Augenblick, auf den die ganze Karriere zielt:
+  // Strahlen, Konfetti, Druckwelle. Ein Treffer der eigenen Mannschaft
+  // bekommt eine kleinere Feier, ein Gegentor einen kalten Schlag.
+  // Vorher sahen beide gleich aus wie eine gelbe Karte.
   const feier = event.user && event.type === 'goal';
+  const eigenesTeam = scored && !feier && !!eigeneSeite && event.side === eigeneSeite;
+  const gegentor = scored && !!eigeneSeite && event.side !== eigeneSeite;
+  const tone = event.user ? 'user' : gegentor ? 'warn' : scored ? 'goal' : 'warn';
+  const art = feier ? 'party' : eigenesTeam ? 'team' : gegentor ? 'gegentor' : '';
   return (
-    <div className={`moment ${tone} ${feier ? 'party' : ''}`} onClick={onSkip}>
+    <div className={`moment ${tone} ${art}`} onClick={onSkip}>
       {feier && <div className="moment-rays" aria-hidden="true" />}
-      {feier && <Konfetti />}
+      {(feier || eigenesTeam) && <Konfetti klein={eigenesTeam} />}
+      {gegentor && <span className="moment-schlag" aria-hidden="true" />}
       <div className="moment-card">
         {feier && <span className="moment-wave" aria-hidden="true" />}
         <div className="moment-minute">{event.minute}.</div>
@@ -1046,6 +1069,40 @@ function StrengthCompare(
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Wer gerade auf dem Platz steht - Position, Name, Staerke.
+ *
+ * Die Aufstellungen verschwanden mit dem Anpfiff. Wer im Ticker einen
+ * Namen las, konnte nicht nachsehen, wer das ist und auf welcher
+ * Position er spielt. Gezeigt wird der aktuelle Stand, nicht die
+ * Startelf: nach einer Auswechslung stuende dort sonst jemand, der
+ * laengst draussen ist.
+ */
+function PlatzListe(
+  { titel, leute, userId }:
+  { titel: string; leute: OnPitchPlayer[]; userId: string },
+) {
+  return (
+    <div>
+      <h4 style={{ marginBottom: '0.35rem' }}>{titel}</h4>
+      <table>
+        <tbody>
+          {leute.map((o) => (
+            <tr key={o.player.id} className={o.player.id === userId ? 'user' : ''}>
+              <td className="tiny dim" style={{ width: 26 }}>{o.slot}</td>
+              <td className="tiny dim" style={{ width: 22 }}>{o.player.shirtNumber}</td>
+              <td>{o.player.id === userId
+                ? <strong>{o.player.firstName} {o.player.lastName}</strong>
+                : shortName(o.player.firstName, o.player.lastName)}</td>
+              <td className="num mono tiny" style={{ width: 30 }}>{o.rating}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

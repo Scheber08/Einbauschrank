@@ -2,6 +2,8 @@
  * Saisonablauf: Spielplan, Pokal, Relegation, Auf- und Abstieg,
  * Auszeichnungen und Transfers (Konzept Abschnitt 8, 9, 34, 50, 51).
  */
+import type { RecordEntry } from './types';
+import { ligaRekordSchluessel } from './records';
 import { addOffer } from './ids';
 import { maybeOfferBetterAgent, resetAgentSeason } from './agent';
 import { generateLoanOffers } from './loan';
@@ -631,10 +633,81 @@ function updateUserSquadRole(state: GameState) {
 
 // --- Rekorde -----------------------------------------------------------
 
+/**
+ * Meldet einen gebrochenen Rekord - aber nur, wenn der eigene Spieler ihn
+ * gebrochen hat.
+ *
+ * Ohne diese Meldung faellt eine Bestmarke lautlos: Die Zahl steht dann in
+ * der Rekordliste, und der Augenblick, auf den eine halbe Laufbahn
+ * zulaeuft, geht zwischen den Saisonberichten unter.
+ */
+function meldeRekord(
+  state: GameState, label: string, wert: string, alt: RecordEntry | undefined,
+) {
+  addNews(state, 'record', t('rec.broken.title'),
+    t('rec.broken.body', {
+      label, value: wert,
+      old: alt?.displayValue ?? '-',
+      season: alt ? seasonLabel(alt.season) : '-',
+    }), true);
+  addCareerEvent(state, 'award', t('rec.broken.title'),
+    t('rec.broken.event', { label }));
+}
+
 function updateRecords(state: GameState) {
   const user = state.players[state.userPlayerId];
   if (!user) return;
   const name = `${user.firstName} ${user.lastName}`;
+
+  // Die Bestmarken der einzelnen Ligen. Sie stehen seit dem Karrierestart
+  // da (siehe `seedRecords`) und sind an echten Zahlen orientiert - vierzig
+  // Tore in der obersten Spielklasse schafft niemand nebenbei.
+  for (const comp of Object.values(state.competitions)) {
+    if (comp.type !== 'league') continue;
+    const schluessel = ligaRekordSchluessel(comp.id);
+    const zeilen = Object.values(state.seasonStats).filter(
+      (e) => e.competitionId === comp.id && e.season === state.season,
+    );
+    if (zeilen.length === 0) continue;
+
+    const besteTore = zeilen.slice().sort((a, b) => b.goals - a.goals)[0];
+    if (besteTore && besteTore.goals > 0) {
+      const p = state.players[besteTore.playerId];
+      const alt = state.records[schluessel.tore];
+      const neu = tryRecord(state, {
+        key: schluessel.tore,
+        label: t('rec.leagueGoals', { league: comp.name }),
+        scope: comp.name,
+        holderId: besteTore.playerId,
+        holderName: p ? `${p.firstName} ${p.lastName}` : t('rec.unknown'),
+        value: besteTore.goals,
+        displayValue: t('rec.goalsValue', { n: besteTore.goals }),
+      }, state.date);
+      if (neu && besteTore.playerId === state.userPlayerId) {
+        meldeRekord(state, t('rec.leagueGoals', { league: comp.name }),
+          t('rec.goalsValue', { n: besteTore.goals }), alt);
+      }
+    }
+
+    const besteVorlagen = zeilen.slice().sort((a, b) => b.assists - a.assists)[0];
+    if (besteVorlagen && besteVorlagen.assists > 0) {
+      const p = state.players[besteVorlagen.playerId];
+      const alt = state.records[schluessel.vorlagen];
+      const neu = tryRecord(state, {
+        key: schluessel.vorlagen,
+        label: t('rec.leagueAssists', { league: comp.name }),
+        scope: comp.name,
+        holderId: besteVorlagen.playerId,
+        holderName: p ? `${p.firstName} ${p.lastName}` : t('rec.unknown'),
+        value: besteVorlagen.assists,
+        displayValue: t('rec.assistsValue', { n: besteVorlagen.assists }),
+      }, state.date);
+      if (neu && besteVorlagen.playerId === state.userPlayerId) {
+        meldeRekord(state, t('rec.leagueAssists', { league: comp.name }),
+          t('rec.assistsValue', { n: besteVorlagen.assists }), alt);
+      }
+    }
+  }
 
   const seasonEntries = Object.values(state.seasonStats).filter((s) => s.season === state.season);
   const bestSeasonScorer = seasonEntries.slice().sort((a, b) => b.goals - a.goals)[0];

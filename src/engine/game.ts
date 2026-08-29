@@ -2,6 +2,7 @@
  * Spielablauf: Karrierestart, Tageslogik und Spielabwicklung
  * (Konzept Abschnitt 14, 18, 41, 51).
  */
+import { seedRecords } from './records';
 import { generateWinterOffers } from './season';
 import { expireOffers } from './ids';
 import type { Genesung } from './development';
@@ -223,6 +224,9 @@ export function createNewGame(opts: NewGameOptions): GameState {
   startSeason(state, rng);
   startChampionsCup(state, rng, null);
   startTrophy(state, rng, null);
+  // Bestmarken, die es zu jagen gibt. Ohne sie war jede Zahl der ersten
+  // Saison sofort ein Rekord.
+  seedRecords(state);
   createObjectives(state);
   seedRelationships(state, rng);
   updateNationalStatus(state);
